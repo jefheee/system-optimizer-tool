@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { invokePowerShell, ActionResponse } from "../lib/api";
-import { useI18n } from "../lib/i18n";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Zap, 
@@ -18,7 +17,6 @@ import {
 export default function CleanModule() {
   const [running, setRunning] = useState<string | null>(null);
   const [summaryResult, setSummaryResult] = useState<ActionResponse | null>(null);
-  const { t } = useI18n();
 
   const handleClean = async (type: "OptimizeDeep" | "OptimizeLite" | "RemoveOrphans") => {
     setRunning(type);
@@ -41,10 +39,10 @@ export default function CleanModule() {
       <div>
         <h2 className="text-xl font-bold font-headline-lg text-[#e5e2e1] tracking-tight flex items-center gap-2">
           <Trash2 className="w-5 h-5 text-primary" />
-          {t("clean.title")}
+          Central de Limpeza & Otimização
         </h2>
         <p className="text-xs text-on-surface-variant mt-1">
-          {t("clean.desc")}
+          Libere espaço valioso de armazenamento e elimine lixo acumulado do sistema de forma segura.
         </p>
       </div>
 
@@ -59,17 +57,17 @@ export default function CleanModule() {
               <div className="p-3 bg-primary/10 rounded-lg text-primary">
                 <HardDrive className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-zinc-200">{t("clean.deep.title")}</h3>
+              <h3 className="font-bold text-zinc-200">Limpeza Profunda (Recomendado para SSD)</h3>
             </div>
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              {t("clean.deep.desc")}
+              Remove caches de atualizações do Windows, arquivos prefetch, logs de diagnóstico, caches de navegadores (Chrome/Edge), esvazia a lixeira e executa o comando nativo TRIM para consolidar blocos livres no SSD.
             </p>
           </div>
 
           <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
             <span className="text-[10px] text-zinc-500 flex items-center gap-1.5 font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              {t("clean.req_admin")}
+              Requer privilégios de Administrador
             </span>
             <button
               onClick={() => handleClean("OptimizeDeep")}
@@ -79,10 +77,10 @@ export default function CleanModule() {
               {running === "OptimizeDeep" ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {t("clean.deep.running")}
+                  Limpando Sistema...
                 </>
               ) : (
-                t("clean.deep.btn")
+                "Executar Limpeza Profunda"
               )}
             </button>
           </div>
@@ -95,10 +93,10 @@ export default function CleanModule() {
               <div className="p-3 bg-[#d0bcff]/10 rounded-lg text-secondary">
                 <Zap className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-zinc-200">{t("clean.lite.title")}</h3>
+              <h3 className="font-bold text-zinc-200">Limpeza Lite (HDD)</h3>
             </div>
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              {t("clean.lite.desc")}
+              Ação rápida e sem riscos que limpa arquivos temporários do usuário e do Windows, logs leves e a lixeira. Livre de otimização de bloco SSD.
             </p>
           </div>
 
@@ -111,7 +109,7 @@ export default function CleanModule() {
               {running === "OptimizeLite" ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                t("clean.lite.btn")
+                "Limpeza Lite"
               )}
             </button>
           </div>
@@ -127,9 +125,9 @@ export default function CleanModule() {
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">{t("clean.orphans.title")}</h4>
+              <h4 className="font-bold text-zinc-200 text-sm">Remover Tarefas Agendadas Órfãs</h4>
               <p className="text-xs text-on-surface-variant mt-1">
-                {t("clean.orphans.desc")}
+                Varre o Windows Task Scheduler e apaga as tarefas criadas por apps que já foram desinstalados e não possuem mais executáveis válidos.
               </p>
             </div>
           </div>
@@ -141,7 +139,7 @@ export default function CleanModule() {
             {running === "RemoveOrphans" ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              t("clean.orphans.btn")
+              "Remover Órfãs"
             )}
           </button>
         </div>
@@ -167,17 +165,17 @@ export default function CleanModule() {
                 <AlertTriangle className="w-6 h-6 shrink-0 mt-0.5" />
               )}
               <div>
-                <h4 className="font-bold text-zinc-100 text-sm">{t("clean.status")}</h4>
+                <h4 className="font-bold text-zinc-100 text-sm">Status do Processamento</h4>
                 <p className="text-xs text-[#bcc9cd] mt-1 leading-snug">{summaryResult.Message}</p>
                 {summaryResult.BytesFreed !== undefined && summaryResult.BytesFreed > 0 && (
                   <p className="text-sm font-bold text-tertiary mt-2 flex items-center gap-1">
                     <Database className="w-4 h-4" />
-                    {t("clean.freed")}: {summaryResult.BytesFreed} MB
+                    Espaço Total Liberado: {summaryResult.BytesFreed} MB
                   </p>
                 )}
                 {summaryResult.DeletedCount !== undefined && (
                   <p className="text-sm font-bold text-tertiary mt-2">
-                    {t("clean.deleted_tasks")}: {summaryResult.DeletedCount}
+                    Tarefas deletadas: {summaryResult.DeletedCount}
                   </p>
                 )}
               </div>

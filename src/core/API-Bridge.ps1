@@ -11,7 +11,7 @@ param(
         "SetDefenderExclusion", "ResetDirectX", "RepairWindowsUpdate", "OptimizeDns",
         "SystemScan", "RemoveOrphans", "RemoveBloatware", "DisableTelemetry",
         "SetTakeOwnership", "BackupDrivers", "RunWinUtil", "ActivateWindows",
-        "ActivateOffice", "SetTheme", "SetLanguage", "ResetSettings"
+        "ActivateOffice"
     )]
     [string]$Action,
 
@@ -102,9 +102,6 @@ try {
             Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13; iwr -useb https://get.activated.win | iex`""
             $OutputObj = [PSCustomObject]@{ Status = "Success"; Message = "MAS (Ativador de Office) foi iniciado em uma nova janela." }
         }
-        "SetTheme"             { $OutputObj = [PSCustomObject]@{ Status = "Success"; Message = "Tema alterado com sucesso no backend." } }
-        "SetLanguage"          { $OutputObj = [PSCustomObject]@{ Status = "Success"; Message = "Idioma alterado com sucesso no backend." } }
-        "ResetSettings"        { $OutputObj = [PSCustomObject]@{ Status = "Success"; Message = "Configuracoes resetadas com sucesso." } }
     }
 } catch {
     # Captura falha lógica e envelopa no formato JSON correspondente
