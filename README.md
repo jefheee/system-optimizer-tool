@@ -9,7 +9,7 @@
 [![Release](https://img.shields.io/badge/release-v5.0-1d4ed8?style=flat-square)](https://github.com/jefheee/system-optimizer-tool/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0284c7?style=flat-square)](https://microsoft.com/windows)
 [![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](LICENSE)
-[![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20Next.js-64748b?style=flat-square)](https://tauri.app)
+[![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20TypeScript%20%7C%20Next.js-64748b?style=flat-square)](https://tauri.app)
 
 </div>
 
@@ -17,7 +17,7 @@
 
 O **System Optimizer** centraliza rotinas de diagnóstico de hardware em tempo real, mitigação de latência de entrada para jogos, limpeza granular de disco, gerenciamento de privacidade e automação pós-formatação.
 
-Originalmente concebido como uma rotina em lote para manutenção técnica, o projeto foi reconstruído na versão 5.0 com um backend compilado nativamente em **Rust (Tauri v2)** conectado a uma interface reativa em **Next.js e React**. As operações executam diretamente contra as APIs de baixo nível do Windows (`Win32`, `ntdll.dll`, `psapi.dll`, WMI e manipulação segura de Registro em 64 bits), sem depender de consoles abertos em segundo plano.
+Originalmente concebido como uma rotina em lote para manutenção técnica, o projeto foi reconstruído na versão 5.0 com um backend compilado nativamente em **Rust (Tauri v2)** conectado a uma interface reativa em **TypeScript, Next.js e React**. As operações executam diretamente contra as APIs de baixo nível do Windows (`Win32`, `ntdll.dll`, `psapi.dll`, WMI e manipulação segura de Registro em 64 bits), sem depender de consoles abertos em segundo plano.
 
 ---
 
@@ -47,10 +47,10 @@ Originalmente concebido como uma rotina em lote para manutenção técnica, o pr
 
 ```
 System-Optimizer-Tool/
-├── gui/                      # Interface moderna e núcleo desktop
+├── gui/                      # Interface moderna em TypeScript / Next.js e núcleo desktop
 │   ├── app/                  # Rotas e páginas do Next.js
 │   ├── components/           # Módulos da UI (Dashboard, Gamer, Clean, Presets, etc.)
-│   ├── lib/                  # Camada de comunicação IPC e i18n
+│   ├── lib/                  # Camada de comunicação IPC e i18n tipadas
 │   └── src-tauri/            # Backend nativo em Rust
 │       ├── src/              # Módulos Rust (clean, diagnostics, gamer, system, presets)
 │       └── tauri.conf.json   # Configuração de empacotamento desktop
