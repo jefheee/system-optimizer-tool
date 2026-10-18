@@ -6,10 +6,11 @@
 
 **Utilitário nativo de diagnóstico, ajuste de latência e manutenção profunda para Windows 10 e 11.**
 
-[![Release](https://img.shields.io/badge/release-v5.0-1d4ed8?style=flat-square)](https://github.com/jefheee/system-optimizer-tool/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0284c7?style=flat-square)](https://microsoft.com/windows)
-[![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](LICENSE)
+[![Release](https://shields.io)](https://github.com)
+[![Platform](https://shields.io)](https://microsoft.com)
+[![License](https://shields.io)](LICENSE)
 [![Architecture](https://shields.io)](https://tauri.app)
+
 
 </div>
 
