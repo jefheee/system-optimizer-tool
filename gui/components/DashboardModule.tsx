@@ -835,7 +835,7 @@ export default function DashboardModule() {
           onClick={() => setExportModalOpen(false)}
         >
           <div
-            className="w-full max-w-lg bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl overflow-hidden"
+            className="w-full max-w-xl sm:max-w-2xl bg-neutral-900 border border-neutral-700/80 rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 bg-neutral-950 border-b border-neutral-800">
@@ -845,7 +845,7 @@ export default function DashboardModule() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('dash_export_modal_title', 'Exportar Especificações do Setup')}</h3>
-                  <p className="text-[10px] text-neutral-400">{t('dash_export_modal_sub', 'Copie ou baixe o diagnóstico de hardware nos formatos desejados.')}</p>
+                  <p className="text-xs text-neutral-400">{t('dash_export_modal_sub', 'Copie ou baixe o diagnóstico de hardware nos formatos desejados.')}</p>
                 </div>
               </div>
               <button
@@ -858,57 +858,57 @@ export default function DashboardModule() {
 
             <div className="p-5 space-y-3">
               {/* Option 1: Discord / Stylized Summary */}
-              <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+              <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800/80 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-neutral-800/80 border border-neutral-700/60 flex items-center justify-center text-neutral-300 shrink-0">
                     <Copy className="w-4 h-4" />
                   </div>
-                  <div className="truncate">
+                  <div className="min-w-0 flex-1">
                     <span className="text-xs font-bold text-neutral-100 block">
                       {t('dash_export_discord', 'Resumo Rápido')}
                     </span>
-                    <span className="text-[10px] text-neutral-400 block truncate">
-                      {t('dash_export_discord_desc', 'Ideal para Discord, fóruns e mensagens.')}
+                    <span className="text-[11px] text-neutral-400 block leading-snug">
+                      {t('dash_export_discord_desc', 'Ideal para Discord, fóruns e suporte técnico.')}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={handleCopyDiscord}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Copy className="w-3 h-3" />
-                    <span>Copiar</span>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{t('btn_copy', 'Copiar')}</span>
                   </button>
                   <button
                     onClick={() => {
                       triggerDownload('Meu-Setup-Resumo.txt', generateStylizedText(), 'text/plain;charset=utf-8');
                       setExportModalOpen(false);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Download className="w-3 h-3" />
-                    <span>Baixar</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('btn_download', 'Baixar')}</span>
                   </button>
                 </div>
               </div>
 
               {/* Option 2: Full TXT Report */}
-              <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800/80 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-neutral-800/80 border border-neutral-700/60 flex items-center justify-center text-neutral-300 shrink-0">
                     <FileText className="w-4 h-4" />
                   </div>
-                  <div className="truncate">
+                  <div className="min-w-0 flex-1">
                     <span className="text-xs font-bold text-neutral-100 block">
                       {t('dash_export_txt', 'Relatório em Texto (.TXT)')}
                     </span>
-                    <span className="text-[10px] text-neutral-400 block truncate">
-                      {t('dash_export_txt_desc', 'Auditoria completa em texto puro.')}
+                    <span className="text-[11px] text-neutral-400 block leading-snug">
+                      {t('dash_export_txt_desc', 'Auditoria completa e estruturada em texto puro.')}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(generateFullTxtReport());
@@ -916,40 +916,40 @@ export default function DashboardModule() {
                       setExportModalOpen(false);
                       setTimeout(() => setCopied(false), 3000);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Copy className="w-3 h-3" />
-                    <span>Copiar</span>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{t('btn_copy', 'Copiar')}</span>
                   </button>
                   <button
                     onClick={() => {
                       triggerDownload('Meu-Setup-Hardware.txt', generateFullTxtReport(), 'text/plain;charset=utf-8');
                       setExportModalOpen(false);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Download className="w-3 h-3" />
-                    <span>Baixar</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('btn_download', 'Baixar')}</span>
                   </button>
                 </div>
               </div>
 
               {/* Option 3: Full Markdown Report */}
-              <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+              <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800/80 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-neutral-800/80 border border-neutral-700/60 flex items-center justify-center text-neutral-300 shrink-0">
                     <FileCode className="w-4 h-4" />
                   </div>
-                  <div className="truncate">
+                  <div className="min-w-0 flex-1">
                     <span className="text-xs font-bold text-neutral-100 block">
                       {t('dash_export_md', 'Documento Técnico (.MD)')}
                     </span>
-                    <span className="text-[10px] text-neutral-400 block truncate">
-                      {t('dash_export_md_desc', 'Tabelas formatadas para GitHub.')}
+                    <span className="text-[11px] text-neutral-400 block leading-snug">
+                      {t('dash_export_md_desc', 'Tabelas formatadas prontas para GitHub ou documentação.')}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(generateMarkdownReport());
@@ -957,40 +957,40 @@ export default function DashboardModule() {
                       setExportModalOpen(false);
                       setTimeout(() => setCopied(false), 3000);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Copy className="w-3 h-3" />
-                    <span>Copiar</span>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{t('btn_copy', 'Copiar')}</span>
                   </button>
                   <button
                     onClick={() => {
                       triggerDownload('Meu-Setup-Hardware.md', generateMarkdownReport(), 'text/markdown;charset=utf-8');
                       setExportModalOpen(false);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Download className="w-3 h-3" />
-                    <span>Baixar</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('btn_download', 'Baixar')}</span>
                   </button>
                 </div>
               </div>
 
               {/* Option 4: Full JSON */}
-              <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+              <div className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800/80 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-neutral-800/80 border border-neutral-700/60 flex items-center justify-center text-neutral-300 shrink-0">
                     <FileCode className="w-4 h-4" />
                   </div>
-                  <div className="truncate">
+                  <div className="min-w-0 flex-1">
                     <span className="text-xs font-bold text-neutral-100 block">
                       {t('dash_export_json', 'Dados Estruturados (.JSON)')}
                     </span>
-                    <span className="text-[10px] text-neutral-400 block truncate">
+                    <span className="text-[11px] text-neutral-400 block leading-snug">
                       {t('dash_export_json_desc', 'Payload completo de sensores e barramentos.')}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2));
@@ -998,20 +998,20 @@ export default function DashboardModule() {
                       setExportModalOpen(false);
                       setTimeout(() => setCopied(false), 3000);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Copy className="w-3 h-3" />
-                    <span>Copiar</span>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{t('btn_copy', 'Copiar')}</span>
                   </button>
                   <button
                     onClick={() => {
                       triggerDownload('Meu-Setup-Hardware.json', JSON.stringify(diagnostics, null, 2), 'application/json;charset=utf-8');
                       setExportModalOpen(false);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
-                    <Download className="w-3 h-3" />
-                    <span>Baixar</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('btn_download', 'Baixar')}</span>
                   </button>
                 </div>
               </div>

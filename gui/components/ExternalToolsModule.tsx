@@ -154,11 +154,11 @@ export default function ExternalToolsModule() {
     : '/assets/branding/logo-monochrome-white.jpg';
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-5 w-full">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <Briefcase className="w-5 h-5 text-blue-400" />
+          <Briefcase className="w-5 h-5 text-neutral-300" />
           <h2 className="text-xl font-bold text-neutral-100">{t('ext_title')}</h2>
         </div>
         <p className="text-xs text-neutral-400">{t('ext_subtitle')}</p>
@@ -179,24 +179,24 @@ export default function ExternalToolsModule() {
         </div>
       ))}
 
-      {/* Grid of Tools */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Bento Grid: 6 Tools in 3 Columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* WinUtil (Chris Titus) */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Terminal className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('ext_winutil_title')}</h3>
-                  <span className="text-[10px] text-blue-400 font-medium">christitus.com/win</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">christitus.com/win</span>
                 </div>
               </div>
               <button
                 onClick={() => setTutorialData(tutorials.winutil)}
-                className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[10px] font-bold transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[10px] font-semibold transition-colors"
               >
                 {t('ext_tutorial_btn')}
               </button>
@@ -214,7 +214,7 @@ export default function ExternalToolsModule() {
                   expectedBenefit: t('ext_winutil_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -234,21 +234,21 @@ export default function ExternalToolsModule() {
         </div>
 
         {/* MAS (Microsoft Activation Scripts) */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Key className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('ext_mas_title')}</h3>
-                  <span className="text-[10px] text-emerald-400 font-medium">get.activated.win</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">get.activated.win</span>
                 </div>
               </div>
               <button
                 onClick={() => setTutorialData(tutorials.mas)}
-                className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[10px] font-semibold transition-colors"
               >
                 {t('ext_tutorial_btn')}
               </button>
@@ -266,7 +266,7 @@ export default function ExternalToolsModule() {
                   expectedBenefit: t('ext_mas_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -279,28 +279,28 @@ export default function ExternalToolsModule() {
               disabled={activeActions['mas']}
               className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['mas'] ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <ExternalLink className="w-4 h-4 text-emerald-400" />}
+              {activeActions['mas'] ? <Loader2 className="w-4 h-4 animate-spin text-neutral-400" /> : <ExternalLink className="w-4 h-4 text-neutral-300" />}
               <span>{t('ext_mas_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* O&O ShutUp10++ */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('ext_ooshutup_title')}</h3>
-                  <span className="text-[10px] text-cyan-400 font-medium">O&O Software GmbH</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">O&O Software GmbH</span>
                 </div>
               </div>
               <button
                 onClick={() => setTutorialData(tutorials.ooshutup)}
-                className="px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-[10px] font-bold transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[10px] font-semibold transition-colors"
               >
                 {t('ext_tutorial_btn')}
               </button>
@@ -318,7 +318,7 @@ export default function ExternalToolsModule() {
                   expectedBenefit: t('ext_ooshutup_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -331,28 +331,28 @@ export default function ExternalToolsModule() {
               disabled={activeActions['ooshutup']}
               className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['ooshutup'] ? <Loader2 className="w-4 h-4 animate-spin text-cyan-400" /> : <ShieldCheck className="w-4 h-4 text-cyan-400" />}
+              {activeActions['ooshutup'] ? <Loader2 className="w-4 h-4 animate-spin text-neutral-400" /> : <ShieldCheck className="w-4 h-4 text-neutral-300" />}
               <span>{t('ext_ooshutup_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Winget Software Auto-Updater */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-purple-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <ArrowUpCircle className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('ext_winget_title')}</h3>
-                  <span className="text-[10px] text-purple-400 font-medium">winget upgrade --all</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">winget upgrade --all</span>
                 </div>
               </div>
               <button
                 onClick={() => setTutorialData(tutorials.winget)}
-                className="px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 text-[10px] font-bold transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[10px] font-semibold transition-colors"
               >
                 {t('ext_tutorial_btn')}
               </button>
@@ -367,28 +367,28 @@ export default function ExternalToolsModule() {
               disabled={activeActions['winget']}
               className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['winget'] ? <Loader2 className="w-4 h-4 animate-spin text-purple-400" /> : <ArrowUpCircle className="w-4 h-4 text-purple-400" />}
+              {activeActions['winget'] ? <Loader2 className="w-4 h-4 animate-spin text-neutral-400" /> : <ArrowUpCircle className="w-4 h-4 text-neutral-300" />}
               <span>{t('ext_winget_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Malwarebytes AdwCleaner */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-amber-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <ShieldAlert className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('ext_adwcleaner_title')}</h3>
-                  <span className="text-[10px] text-amber-400 font-medium">Malwarebytes Portable</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">Malwarebytes Portable</span>
                 </div>
               </div>
               <button
                 onClick={() => setTutorialData(tutorials.adwcleaner)}
-                className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[10px] font-bold transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[10px] font-semibold transition-colors"
               >
                 {t('ext_tutorial_btn')}
               </button>
@@ -403,28 +403,28 @@ export default function ExternalToolsModule() {
               disabled={activeActions['adwcleaner']}
               className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['adwcleaner'] ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <ShieldAlert className="w-4 h-4 text-amber-400" />}
+              {activeActions['adwcleaner'] ? <Loader2 className="w-4 h-4 animate-spin text-neutral-400" /> : <ShieldAlert className="w-4 h-4 text-neutral-300" />}
               <span>{t('ext_adwcleaner_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Quick Hardware Tools with Installed Detection (CPU-Z, HWMonitor, GPU-Z) */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Cpu className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('ext_quick_title')}</h3>
-                  <span className="text-[10px] text-emerald-400 font-medium">CPU-Z, HWMonitor, GPU-Z</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">CPU-Z, HWMonitor, GPU-Z</span>
                 </div>
               </div>
               <button
                 onClick={() => setTutorialData(tutorials.quick)}
-                className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold transition-colors"
+                className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[10px] font-semibold transition-colors"
               >
                 {t('ext_tutorial_btn')}
               </button>
@@ -453,64 +453,50 @@ export default function ExternalToolsModule() {
             </div>
           </div>
 
-          <div className="pt-4 mt-2 flex gap-2">
+          <div className="pt-4 mt-2 flex gap-1.5">
             <button
               onClick={() => handleAction('cpuz', () => launchOrInstallTool('cpuz'))}
               disabled={activeActions['cpuz']}
-              className={`flex-1 py-2 px-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 transition-all active:scale-[0.98] border ${
-                installedTools?.cpuzInstalled
-                  ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
-                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700'
-              }`}
+              className="flex-1 py-2 px-2 rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98] border bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700"
             >
               {activeActions['cpuz'] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : installedTools?.cpuzInstalled ? (
-                <Play className="w-3.5 h-3.5 text-emerald-400" />
+                <Play className="w-3.5 h-3.5 text-neutral-300" />
               ) : (
-                <Download className="w-3.5 h-3.5 text-blue-400" />
+                <Download className="w-3.5 h-3.5 text-neutral-300" />
               )}
-              <span>{installedTools?.cpuzInstalled ? `${t('ext_open_tool')} CPU-Z` : `${t('ext_install_tool')} CPU-Z`}</span>
+              <span>{installedTools?.cpuzInstalled ? 'CPU-Z' : `+ CPU-Z`}</span>
             </button>
 
             <button
               onClick={() => handleAction('hwmon', () => launchOrInstallTool('hwmonitor'))}
               disabled={activeActions['hwmon']}
-              className={`flex-1 py-2 px-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 transition-all active:scale-[0.98] border ${
-                installedTools?.hwmonitorInstalled
-                  ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
-                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700'
-              }`}
+              className="flex-1 py-2 px-2 rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98] border bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700"
             >
               {activeActions['hwmon'] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : installedTools?.hwmonitorInstalled ? (
-                <Play className="w-3.5 h-3.5 text-emerald-400" />
+                <Play className="w-3.5 h-3.5 text-neutral-300" />
               ) : (
-                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                <Activity className="w-3.5 h-3.5 text-neutral-300" />
               )}
-              <span>
-                {installedTools?.hwmonitorInstalled ? `${t('ext_open_tool')} HWMon` : `${t('ext_install_tool')} HWMon`}
-              </span>
+              <span>{installedTools?.hwmonitorInstalled ? 'HWMon' : `+ HWMon`}</span>
             </button>
 
             <button
               onClick={() => handleAction('gpuz', () => launchOrInstallTool('gpuz'))}
               disabled={activeActions['gpuz']}
-              className={`flex-1 py-2 px-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1 transition-all active:scale-[0.98] border ${
-                installedTools?.gpuzInstalled
-                  ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
-                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700'
-              }`}
+              className="flex-1 py-2 px-2 rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98] border bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700"
             >
               {activeActions['gpuz'] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : installedTools?.gpuzInstalled ? (
-                <Play className="w-3.5 h-3.5 text-emerald-400" />
+                <Play className="w-3.5 h-3.5 text-neutral-300" />
               ) : (
-                <Cpu className="w-3.5 h-3.5 text-purple-400" />
+                <Cpu className="w-3.5 h-3.5 text-neutral-300" />
               )}
-              <span>{installedTools?.gpuzInstalled ? `${t('ext_open_tool')} GPU-Z` : `${t('ext_install_tool')} GPU-Z`}</span>
+              <span>{installedTools?.gpuzInstalled ? 'GPU-Z' : `+ GPU-Z`}</span>
             </button>
           </div>
         </div>
@@ -561,8 +547,8 @@ export default function ExternalToolsModule() {
                 ))}
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] leading-relaxed">
-                <strong>💡 Dica Pro:</strong> {tutorialData.tip}
+              <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 text-neutral-300 text-[11px] leading-relaxed">
+                <strong>💡 {t('ext_tip_label', 'Dica Útil')}:</strong> {tutorialData.tip}
               </div>
             </div>
 

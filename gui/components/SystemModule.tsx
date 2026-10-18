@@ -260,11 +260,11 @@ export default function SystemModule() {
   const activeStartupCount = startupApps.filter((a) => a.enabled).length;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-5 w-full">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <Settings className="w-5 h-5 text-blue-400" />
+          <Settings className="w-5 h-5 text-neutral-300" />
           <h2 className="text-xl font-bold text-neutral-100">{t('sys_title')}</h2>
         </div>
         <p className="text-xs text-neutral-400">{t('sys_subtitle')}</p>
@@ -309,18 +309,20 @@ export default function SystemModule() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-          <input
-            type="text"
-            value={restoreDesc}
-            onChange={(e) => setRestoreDesc(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl bg-neutral-950 border border-neutral-700 text-neutral-200 focus:outline-none focus:border-blue-500"
-            placeholder="Nome do Ponto"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+          <div className="relative w-full sm:w-80 md:w-96">
+            <input
+              type="text"
+              value={restoreDesc}
+              onChange={(e) => setRestoreDesc(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-950/90 border border-neutral-700 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 shadow-inner"
+              placeholder={t('sys_restore_placeholder', 'Nome do Ponto de Restauração')}
+            />
+          </div>
           <button
             onClick={() => handleAction('restore', () => createRestorePoint(restoreDesc))}
             disabled={activeActions['restore']}
-            className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98]"
+            className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98] shrink-0"
           >
             {activeActions['restore'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
             <span>{t('sys_restore_btn', 'Criar Ponto')}</span>
@@ -331,7 +333,7 @@ export default function SystemModule() {
       {/* Post-Format & Usability Checklist (Real-Time Switches) */}
       <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
             <CheckSquare className="w-4 h-4" />
           </div>
           <div>
@@ -385,7 +387,7 @@ export default function SystemModule() {
           className="p-5 cursor-pointer hover:bg-neutral-800/30 flex items-center justify-between transition-colors select-none"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
               <Layers className="w-4 h-4" />
             </div>
             <div>
@@ -487,7 +489,7 @@ export default function SystemModule() {
       {/* Diagnostic Report: Battery / Energy */}
       <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+          <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
             {isLaptop ? <BatteryCharging className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
           </div>
           <div>
@@ -501,7 +503,7 @@ export default function SystemModule() {
         <button
           onClick={() => handleAction('energy_report', () => generateBatteryOrEnergyReport(isLaptop))}
           disabled={activeActions['energy_report']}
-          className="px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 font-bold text-xs flex items-center gap-2 shrink-0 transition-all"
+          className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium text-xs flex items-center gap-2 shrink-0 transition-all"
         >
           {activeActions['energy_report'] ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -514,18 +516,18 @@ export default function SystemModule() {
         </button>
       </div>
 
-      {/* Grid of System, Network & Privacy Tools */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Bento Grid of System, Network & Privacy Tools */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Card 1: DNS Benchmark & Optimization */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                 <Gauge className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-neutral-100">{t('sys_dns_bench_title')}</h3>
-                <span className="text-[10px] text-cyan-400 font-medium">Cloudflare, Google, Quad9, OpenDNS</span>
+                <span className="text-[10px] text-neutral-400 font-medium">Cloudflare, Google, Quad9, OpenDNS</span>
               </div>
             </div>
 
@@ -536,7 +538,7 @@ export default function SystemModule() {
                 {dnsBenchmark.providers.map((p, i) => (
                   <div key={i} className="p-2 rounded-lg bg-neutral-950 border border-neutral-800 flex items-center justify-between text-[11px]">
                     <span className="font-semibold text-neutral-300">{p.name}</span>
-                    <span className="font-bold text-cyan-400">{p.pingMs} ms</span>
+                    <span className="font-bold text-neutral-200">{p.pingMs} ms</span>
                   </div>
                 ))}
               </div>
@@ -552,7 +554,7 @@ export default function SystemModule() {
                   expectedBenefit: t('sys_dns_bench_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -565,14 +567,14 @@ export default function SystemModule() {
               disabled={activeActions['dns_bench']}
               className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
             >
-              {activeActions['dns_bench'] ? <Loader2 className="w-4 h-4 animate-spin text-cyan-400" /> : <Gauge className="w-4 h-4 text-cyan-400" />}
+              {activeActions['dns_bench'] ? <Loader2 className="w-4 h-4 animate-spin text-neutral-400" /> : <Gauge className="w-4 h-4 text-neutral-300" />}
               <span>{t('sys_dns_bench_btn')}</span>
             </button>
 
             <button
               onClick={() => handleAction('dns_opt', optimizeDns)}
               disabled={activeActions['dns_opt']}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-cyan-600/20 active:scale-[0.98]"
+              className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-100 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all border border-neutral-700 active:scale-[0.98]"
             >
               {activeActions['dns_opt'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
               <span>{t('sys_dns_opt_btn')}</span>
@@ -581,15 +583,15 @@ export default function SystemModule() {
         </div>
 
         {/* Card 2: Network Stack Reset */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                 <Wifi className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-neutral-100">{t('sys_net_reset_title')}</h3>
-                <span className="text-[10px] text-blue-400 font-medium">netsh winsock & int ip reset</span>
+                <span className="text-[10px] text-neutral-400 font-medium">netsh winsock & int ip reset</span>
               </div>
             </div>
 
@@ -625,15 +627,15 @@ export default function SystemModule() {
         </div>
 
         {/* Card 3: Classic Context Menu (Win11) */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                 <Menu className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-neutral-100">{t('sys_classic_menu_title')}</h3>
-                <span className="text-[10px] text-cyan-400 font-medium">{"CLSID {86ca1aa0...}"}</span>
+                <span className="text-[10px] text-neutral-400 font-medium">{"CLSID {86ca1aa0...}"}</span>
               </div>
             </div>
 
@@ -651,7 +653,7 @@ export default function SystemModule() {
                   expectedBenefit: 'Abre o menu de clique direito completo imediatamente, sem atraso de animação e sem submenu intermediário.',
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -662,7 +664,7 @@ export default function SystemModule() {
             <button
               onClick={() => handleAction('classic_menu_on', () => toggleClassicContextMenu(true))}
               disabled={activeActions['classic_menu_on']}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-cyan-600/20 active:scale-[0.98]"
+              className="flex-1 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-blue-600/20 active:scale-[0.98]"
             >
               {activeActions['classic_menu_on'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Menu className="w-4 h-4" />}
               <span>{t('sys_classic_menu_btn_on')}</span>
@@ -680,16 +682,16 @@ export default function SystemModule() {
         </div>
 
         {/* Card 4: Telemetry & Tracking */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-purple-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                   <ShieldAlert className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('sys_tel_title')}</h3>
-                  <span className="text-[10px] text-purple-400 font-medium">DiagTrack & dmwappushservice</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">DiagTrack & dmwappushservice</span>
                 </div>
               </div>
               {isAdmin === false && (
@@ -711,7 +713,7 @@ export default function SystemModule() {
                   expectedBenefit: t('sys_tel_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-purple-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -722,25 +724,25 @@ export default function SystemModule() {
             <button
               onClick={() => handleAction('telemetry', disableTelemetry)}
               disabled={activeActions['telemetry']}
-              className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-purple-600/20 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['telemetry'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
+              {activeActions['telemetry'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4 text-neutral-300" />}
               <span>{t('sys_tel_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Card 5: Bloatware Remover */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-red-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                   <Trash2 className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('sys_bloat_title')}</h3>
-                  <span className="text-[10px] text-red-400 font-medium">Remove-AppxPackage</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">Remove-AppxPackage</span>
                 </div>
               </div>
               {isAdmin === false && (
@@ -773,7 +775,7 @@ export default function SystemModule() {
             <button
               onClick={() => handleAction('bloatware', removeBloatware)}
               disabled={activeActions['bloatware']}
-              className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/20 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
               {activeActions['bloatware'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               <span>{t('sys_bloat_btn')}</span>
@@ -782,16 +784,16 @@ export default function SystemModule() {
         </div>
 
         {/* Card 6: Orphan Scheduled Tasks */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-amber-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                   <RotateCcw className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_orphan_tasks_title')}</h3>
-                  <span className="text-[10px] text-amber-400 font-medium">schtasks & TaskScheduler</span>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_orphans_title')}</h3>
+                  <span className="text-[10px] text-neutral-400 font-medium">schtasks & TaskScheduler</span>
                 </div>
               </div>
               {isAdmin === false && (
@@ -801,19 +803,19 @@ export default function SystemModule() {
               )}
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_orphan_tasks_desc')}</p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_orphans_desc')}</p>
 
             <button
               onClick={() =>
                 setTechModalData({
-                  title: t('sys_orphan_tasks_title'),
+                  title: t('sys_orphans_title'),
                   securityRating: 'safe',
                   action: 'Queries Win32_ScheduledJob and Task Scheduler CIM classes to detect tasks pointing to missing executables and removes them.',
                   targetArea: 'C:\\Windows\\System32\\Tasks and Registry Task Cache',
-                  expectedBenefit: t('sys_orphan_tasks_desc'),
+                  expectedBenefit: t('sys_orphans_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-amber-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -824,25 +826,25 @@ export default function SystemModule() {
             <button
               onClick={() => handleAction('orphan_tasks', cleanOrphanTasks)}
               disabled={activeActions['orphan_tasks']}
-              className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-600/20 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
               {activeActions['orphan_tasks'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-              <span>{t('sys_orphan_tasks_btn')}</span>
+              <span>{t('sys_orphans_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Card 7: Windows Update Repair */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-yellow-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                   <RefreshCw className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('sys_wu_title')}</h3>
-                  <span className="text-[10px] text-yellow-400 font-medium">wuauserv, bits, SoftwareDistribution</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">wuauserv, bits, SoftwareDistribution</span>
                 </div>
               </div>
               {isAdmin === false && (
@@ -864,7 +866,7 @@ export default function SystemModule() {
                   expectedBenefit: t('sys_wu_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-yellow-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -884,16 +886,16 @@ export default function SystemModule() {
         </div>
 
         {/* Card 8: SFC & DISM Scan */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                   <FileText className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('sys_sfc_title')}</h3>
-                  <span className="text-[10px] text-emerald-400 font-medium">sfc /scannow & DISM /RestoreHealth</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">sfc /scannow & DISM /RestoreHealth</span>
                 </div>
               </div>
               {isAdmin === false && (
@@ -915,7 +917,7 @@ export default function SystemModule() {
                   expectedBenefit: t('sys_sfc_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -935,15 +937,15 @@ export default function SystemModule() {
         </div>
 
         {/* Card 9: Microsoft Store Repair */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                 <Store className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-neutral-100">{t('sys_store_title')}</h3>
-                <span className="text-[10px] text-blue-400 font-medium">wsreset & AppX Re-register</span>
+                <span className="text-[10px] text-neutral-400 font-medium">wsreset & AppX Re-register</span>
               </div>
             </div>
 
@@ -979,15 +981,15 @@ export default function SystemModule() {
         </div>
 
         {/* Card 10: Remove OneDrive */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-red-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+              <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                 <FolderMinus className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-neutral-100">{t('sys_onedrive_title')}</h3>
-                <span className="text-[10px] text-red-400 font-medium">OneDriveSetup.exe /uninstall</span>
+                <span className="text-[10px] text-neutral-400 font-medium">OneDriveSetup.exe /uninstall</span>
               </div>
             </div>
 
@@ -1003,7 +1005,7 @@ export default function SystemModule() {
                   expectedBenefit: t('sys_onedrive_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-red-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -1023,7 +1025,7 @@ export default function SystemModule() {
         </div>
 
         {/* Card 11: Reset Font Cache */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-zinc-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-300">
@@ -1067,15 +1069,15 @@ export default function SystemModule() {
         </div>
 
         {/* Card 12: Bluetooth Cache Repair */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                 <Bluetooth className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-neutral-100">{t('sys_bt_title')}</h3>
-                <span className="text-[10px] text-blue-400 font-medium">bthserv, bthhfsrv, bthmodem</span>
+                <span className="text-[10px] text-neutral-400 font-medium">bthserv, bthhfsrv, bthmodem</span>
               </div>
             </div>
 
@@ -1111,16 +1113,16 @@ export default function SystemModule() {
         </div>
 
         {/* Card 13: Take Ownership */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                   <KeyRound className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('sys_take_ownership_title')}</h3>
-                  <span className="text-[10px] text-emerald-400 font-medium">takeown & icacls Shell Menu</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">takeown & icacls Shell Menu</span>
                 </div>
               </div>
               {isAdmin === false && (
@@ -1142,7 +1144,7 @@ export default function SystemModule() {
                   expectedBenefit: t('sys_take_ownership_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -1166,16 +1168,16 @@ export default function SystemModule() {
         </div>
 
         {/* Card 14: Backup Drivers */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-300">
                   <Archive className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('sys_driver_backup_title')}</h3>
-                  <span className="text-[10px] text-cyan-400 font-medium">pnputil /export-driver</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">pnputil /export-driver</span>
                 </div>
               </div>
               {isAdmin === false && (

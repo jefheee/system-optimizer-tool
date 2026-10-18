@@ -99,21 +99,22 @@ export default function Page() {
         <div className="bg-glow-orb absolute bottom-[-10%] right-[10%] w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[140px] pointer-events-none -z-10" />
 
         {/* Collapsible Sidebar Rail */}
+        {/* Collapsible Sidebar Rail */}
         <aside
           onMouseEnter={() => setSidebarExpanded(true)}
           onMouseLeave={() => setSidebarExpanded(false)}
-          className={`absolute left-0 top-0 bottom-0 flex flex-col py-3 transition-all duration-300 z-40 no-scrollbar overflow-hidden border-r ${
-            sidebarExpanded ? 'w-60' : 'w-[72px]'
+          className={`absolute left-0 top-0 bottom-0 flex flex-col py-3 z-40 no-scrollbar overflow-hidden border-r transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            sidebarExpanded ? 'w-72' : 'w-[72px]'
           } ${
             theme === 'light'
               ? 'bg-white/95 border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
               : 'bg-neutral-950/95 border-neutral-800/80 shadow-[0_0_30px_rgba(0,0,0,0.4)]'
           }`}
         >
-          {/* Sidebar Top Header (No duplicate logo box!) */}
-          <div className="h-6 px-4 mb-2 flex items-center justify-between shrink-0">
+          {/* Sidebar Top Header */}
+          <div className="h-6 px-4 mb-2 flex items-center justify-between shrink-0 overflow-hidden">
             <span
-              className={`text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 transition-opacity duration-200 ${
+              className={`text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 whitespace-nowrap transition-opacity duration-200 ${
                 sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
             >
@@ -131,26 +132,22 @@ export default function Page() {
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
                   title={!sidebarExpanded ? item.label : undefined}
-                  className={`w-full flex items-center py-2.5 rounded-xl transition-all duration-150 border-l-2 ${
-                    sidebarExpanded ? 'px-3' : 'justify-center px-0'
-                  } ${
+                  className={`w-full flex items-center h-10 px-3.5 rounded-xl transition-colors duration-150 relative ${
                     isActive
                       ? theme === 'light'
-                        ? 'bg-blue-50 text-blue-600 border-blue-600 font-semibold'
-                        : 'bg-blue-500/10 text-blue-400 border-blue-500 font-semibold'
+                        ? 'bg-blue-50 text-blue-600 font-semibold'
+                        : 'bg-blue-500/10 text-blue-400 font-semibold'
                       : theme === 'light'
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
-                      : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60 border-transparent'
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60'
                   }`}
                 >
                   <div className="w-5 h-5 flex items-center justify-center shrink-0">
                     <Icon className="w-4 h-4" />
                   </div>
                   <span
-                    className={`ml-3.5 text-xs font-semibold tracking-wide whitespace-nowrap transition-all duration-200 ${
-                      sidebarExpanded
-                        ? 'opacity-100 translate-x-0'
-                        : 'opacity-0 -translate-x-3 pointer-events-none'
+                    className={`text-xs font-semibold tracking-wide whitespace-nowrap overflow-hidden text-left ml-3 min-w-0 flex-1 transition-opacity duration-200 ${
+                      sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                   >
                     {item.label}
@@ -159,7 +156,7 @@ export default function Page() {
                   {isActive && sidebarExpanded && (
                     <motion.div
                       layoutId="sidebar-active-indicator"
-                      className="absolute right-3 w-1.5 h-1.5 rounded-full bg-blue-500"
+                      className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 ml-2"
                       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
                   )}
@@ -178,9 +175,7 @@ export default function Page() {
             <button
               onClick={() => openExternalUrl('https://github.com/jefheee/system-optimizer-tool')}
               title={t('sidebar_github')}
-              className={`w-full flex items-center py-2.5 rounded-xl transition-all duration-150 ${
-                sidebarExpanded ? 'px-3' : 'justify-center px-0'
-              } ${
+              className={`w-full flex items-center h-10 px-3.5 rounded-xl transition-colors duration-150 ${
                 theme === 'light'
                   ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60'
@@ -196,10 +191,8 @@ export default function Page() {
                 </svg>
               </div>
               <span
-                className={`ml-3.5 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
-                  sidebarExpanded
-                    ? 'opacity-100 translate-x-0'
-                    : 'opacity-0 -translate-x-3 pointer-events-none'
+                className={`text-xs font-semibold whitespace-nowrap overflow-hidden text-left ml-3 min-w-0 flex-1 transition-opacity duration-200 ${
+                  sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
               >
                 {t('sidebar_github')}
@@ -210,26 +203,22 @@ export default function Page() {
             <button
               onClick={() => setActiveTab('settings')}
               title={t('nav_settings')}
-              className={`w-full flex items-center py-2.5 rounded-xl transition-all duration-150 border-l-2 ${
-                sidebarExpanded ? 'px-3' : 'justify-center px-0'
-              } ${
+              className={`w-full flex items-center h-10 px-3.5 rounded-xl transition-colors duration-150 relative ${
                 activeTab === 'settings'
                   ? theme === 'light'
-                    ? 'bg-blue-50 text-blue-600 border-blue-600 font-semibold'
-                    : 'bg-blue-500/10 text-blue-400 border-blue-500 font-semibold'
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'bg-blue-500/10 text-blue-400 font-semibold'
                   : theme === 'light'
-                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
-                  : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60 border-transparent'
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60'
               }`}
             >
               <div className="w-5 h-5 flex items-center justify-center shrink-0">
                 <Settings className="w-4 h-4" />
               </div>
               <span
-                className={`ml-3.5 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
-                  sidebarExpanded
-                    ? 'opacity-100 translate-x-0'
-                    : 'opacity-0 -translate-x-3 pointer-events-none'
+                className={`text-xs font-semibold whitespace-nowrap overflow-hidden text-left ml-3 min-w-0 flex-1 transition-opacity duration-200 ${
+                  sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
               >
                 {t('nav_settings')}
@@ -240,7 +229,7 @@ export default function Page() {
 
         {/* Main Content Viewport */}
         <section className="flex-1 flex flex-col min-w-0 pl-[72px] overflow-y-auto">
-          <div className="px-6 sm:px-8 py-7 max-w-6xl w-full mx-auto">
+          <div className="px-4 sm:px-6 md:px-8 py-5 max-w-[1440px] w-full mx-auto">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}

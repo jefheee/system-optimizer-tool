@@ -18,6 +18,8 @@ import {
   Award,
   Terminal,
   Cpu,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface WikiItem {
@@ -38,6 +40,8 @@ export default function DocsAndAboutModule() {
   const [subTab, setSubTab] = useState<'wiki' | 'about'>('wiki');
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
 
   const wikiItems: WikiItem[] = useMemo(
     () => [
@@ -509,8 +513,15 @@ export default function DocsAndAboutModule() {
     });
   }, [wikiItems, search, filterCategory, t]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredItems, currentPage]);
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-7xl w-full mx-auto">
       {/* Top Sub-Tab Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80">
         <div>
@@ -546,7 +557,7 @@ export default function DocsAndAboutModule() {
       </div>
 
       {subTab === 'wiki' ? (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Search & Category Filter Bar */}
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="relative flex-1 w-full">
@@ -554,7 +565,10 @@ export default function DocsAndAboutModule() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
                 placeholder={t('wiki_search')}
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-blue-500/50"
               />
@@ -570,7 +584,10 @@ export default function DocsAndAboutModule() {
               ].map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setFilterCategory(cat.id)}
+                  onClick={() => {
+                    setFilterCategory(cat.id);
+                    setPage(1);
+                  }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
                     filterCategory === cat.id
                       ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
@@ -584,13 +601,20 @@ export default function DocsAndAboutModule() {
           </div>
 
           {/* Counter */}
-          <div className="text-[11px] text-neutral-400">
-            {t('docs_showing')} <strong className="text-neutral-200">{filteredItems.length}</strong> {t('wiki_count')}.
+          <div className="flex items-center justify-between text-[11px] text-neutral-400">
+            <div>
+              {t('docs_showing')} <strong className="text-neutral-200">{filteredItems.length}</strong> {t('wiki_count')}.
+            </div>
+            {totalPages > 1 && (
+              <div>
+                Página <strong className="text-neutral-200">{currentPage}</strong> de <strong className="text-neutral-200">{totalPages}</strong>
+              </div>
+            )}
           </div>
 
-          {/* Grid of 40+ Wiki Cards with 4 Detailed Fields */}
+          {/* Grid of Paginated Wiki Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredItems.map((item) => {
+            {paginatedItems.map((item) => {
               const isSafe = item.securityRating === 'safe';
 
               return (
@@ -631,7 +655,7 @@ export default function DocsAndAboutModule() {
                         <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
                           {t('docs_field_where')}
                         </span>
-                        <span className="text-blue-300 font-mono text-[10px]">{t(`wiki_${item.id}_where`, item.where)}</span>
+                        <span className="text-neutral-300 font-mono text-[10px]">{t(`wiki_${item.id}_where`, item.where)}</span>
                       </div>
 
                       {/* Field 3: Benefício prático esperado */}
@@ -645,7 +669,7 @@ export default function DocsAndAboutModule() {
                       {/* Field 4: Como reverter */}
                       <div className="pt-1 border-t border-neutral-800/40">
                         <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider inline-flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3 text-cyan-400" />
+                          <RotateCcw className="w-3 h-3 text-neutral-400" />
                           {t('docs_field_revert')}
                         </span>
                         <span className="text-neutral-300 block mt-0.5">{t(`wiki_${item.id}_revert`, item.revert)}</span>
@@ -656,6 +680,49 @@ export default function DocsAndAboutModule() {
               );
             })}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-800/80 text-xs text-neutral-400">
+              <span className="text-[11px]">
+                Exibindo página <strong className="text-neutral-200">{currentPage}</strong> de <strong className="text-neutral-200">{totalPages}</strong> ({filteredItems.length} otimizações)
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 disabled:opacity-40 disabled:pointer-events-none hover:bg-neutral-800 text-neutral-200 transition-colors flex items-center gap-1 text-xs"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Anterior</span>
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-8 h-8 rounded-xl text-xs font-bold transition-colors ${
+                      p === currentPage
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 disabled:opacity-40 disabled:pointer-events-none hover:bg-neutral-800 text-neutral-200 transition-colors flex items-center gap-1 text-xs"
+                >
+                  <span>Próximo</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* Sub-Tab 2: About the Project, Evolution Timeline & Credits */
@@ -682,7 +749,7 @@ export default function DocsAndAboutModule() {
                   </span>
                 </div>
                 <h3 className="text-xl font-extrabold text-neutral-100">{t('about_title')}</h3>
-                <p className="text-xs text-cyan-400 font-semibold">{t('about_hero_tagline')}</p>
+                <p className="text-xs text-neutral-400 font-medium">{t('about_hero_tagline')}</p>
                 <p className="text-xs text-neutral-300 leading-relaxed max-w-2xl">{t('about_desc')}</p>
               </div>
             </div>

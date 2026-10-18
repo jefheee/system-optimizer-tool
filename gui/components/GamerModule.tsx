@@ -163,7 +163,7 @@ export default function GamerModule() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-5 w-full">
       {/* Hidden file & folder pickers */}
       <input
         ref={fileInputRef}
@@ -183,7 +183,7 @@ export default function GamerModule() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <Gamepad2 className="w-5 h-5 text-emerald-400" />
+          <Gamepad2 className="w-5 h-5 text-neutral-300" />
           <h2 className="text-xl font-bold text-neutral-100">{t('gamer_title')}</h2>
         </div>
         <p className="text-xs text-neutral-400">{t('gamer_subtitle')}</p>
@@ -205,10 +205,10 @@ export default function GamerModule() {
       ))}
 
       {/* V5.0 Process Freezer (Top Memory / CPU Hogs) */}
-      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
+      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+            <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
               <Flame className="w-4 h-4" />
             </div>
             <div>
@@ -222,7 +222,7 @@ export default function GamerModule() {
             disabled={loadingProcs}
             className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-center"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${loadingProcs ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-neutral-400 ${loadingProcs ? 'animate-spin' : ''}`} />
             <span>{t('gamer_freezer_refresh')}</span>
           </button>
         </div>
@@ -243,14 +243,14 @@ export default function GamerModule() {
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-neutral-100 truncate">{proc.name}</div>
                     <div className="text-[10px] text-neutral-400 mt-0.5">
-                      <span className="text-orange-400 font-semibold">{proc.memoryMb.toFixed(0)} MB</span> • PID {proc.pid}
+                      <span className="text-neutral-200 font-semibold">{proc.memoryMb.toFixed(0)} MB</span> • PID {proc.pid}
                     </div>
                   </div>
 
                   <button
                     onClick={() => handleKillProcess(proc.pid)}
                     disabled={busy}
-                    className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[11px] font-semibold inline-flex items-center gap-1 shrink-0 transition-colors"
+                    className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[11px] font-semibold inline-flex items-center gap-1 shrink-0 transition-colors"
                   >
                     {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
                     <span>{busy ? t('gamer_freezer_killing') : t('gamer_freezer_kill')}</span>
@@ -262,22 +262,22 @@ export default function GamerModule() {
         )}
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Bento Grid: 9 Fluid Cards in 3 Columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Card 1: Timer Resolution */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Clock className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_timer_title')}</h3>
-                  <span className="text-[10px] text-emerald-400 font-medium">NtSetTimerResolution</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">NtSetTimerResolution</span>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700">
                 {latencyResolution.toFixed(2)} ms
               </span>
             </div>
@@ -294,7 +294,7 @@ export default function GamerModule() {
                   expectedBenefit: t('gamer_timer_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -308,7 +308,7 @@ export default function GamerModule() {
               className={`w-full py-2.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
                 latencyEnabled
                   ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20'
               }`}
             >
               {activeActions['latency'] ? (
@@ -322,16 +322,16 @@ export default function GamerModule() {
         </div>
 
         {/* Card 2: Ultimate Performance Power Plan */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Zap className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_power_title')}</h3>
-                  <span className="text-[10px] text-emerald-400 font-medium">powercfg -duplicatescheme</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">powercfg -duplicatescheme</span>
                 </div>
               </div>
             </div>
@@ -348,7 +348,7 @@ export default function GamerModule() {
                   expectedBenefit: t('gamer_power_desc'),
                 })
               }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
             >
               <Info className="w-3.5 h-3.5" />
               <span>{t('tech_btn')}</span>
@@ -359,12 +359,12 @@ export default function GamerModule() {
             <button
               onClick={() => handleAction('power_plan', enableUltimatePerformancePlan)}
               disabled={activeActions['power_plan']}
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/20 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-neutral-100 font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
               {activeActions['power_plan'] ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Zap className="w-4 h-4" />
+                <Zap className="w-4 h-4 text-neutral-300" />
               )}
               <span>{t('gamer_power_btn')}</span>
             </button>
@@ -372,16 +372,16 @@ export default function GamerModule() {
         </div>
 
         {/* Card 3: RAM Working Set Flush (Instant) */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Layers className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_flush_ram_title')}</h3>
-                  <span className="text-[10px] text-blue-400 font-medium">K32EmptyWorkingSet</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">K32EmptyWorkingSet</span>
                 </div>
               </div>
             </div>
@@ -393,12 +393,12 @@ export default function GamerModule() {
             <button
               onClick={() => handleAction('ram_flush', flushRamNow)}
               disabled={activeActions['ram_flush']}
-              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-neutral-100 font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
               {activeActions['ram_flush'] ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Layers className="w-4 h-4" />
+                <Layers className="w-4 h-4 text-neutral-300" />
               )}
               <span>{t('gamer_flush_ram_btn')}</span>
             </button>
@@ -406,16 +406,16 @@ export default function GamerModule() {
         </div>
 
         {/* Card 4: RAM Auto-Clean Background Job */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Activity className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_ram_job_title')}</h3>
-                  <span className="text-[10px] text-blue-400 font-medium">Tokio Async 10m</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">Tokio Async 10m</span>
                 </div>
               </div>
               <span
@@ -453,16 +453,16 @@ export default function GamerModule() {
         </div>
 
         {/* Card 5: Core Isolation / VBS Toggle */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-amber-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_vbs_title')}</h3>
-                  <span className="text-[10px] text-amber-400 font-medium">bcdedit /set hypervisorlaunchtype</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">bcdedit /set hypervisorlaunchtype</span>
                 </div>
               </div>
             </div>
@@ -474,7 +474,7 @@ export default function GamerModule() {
             <button
               onClick={() => handleAction('vbs', () => toggleVbs(true))}
               disabled={activeActions['vbs']}
-              className="flex-1 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+              className="flex-1 py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
             >
               {activeActions['vbs'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5" />}
               <span>{t('gamer_vbs_btn_off')}</span>
@@ -483,7 +483,7 @@ export default function GamerModule() {
             <button
               onClick={() => handleAction('vbs', () => toggleVbs(false))}
               disabled={activeActions['vbs']}
-              className="py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium border border-neutral-700 transition-all active:scale-[0.98]"
+              className="py-2 px-3 rounded-xl bg-neutral-800/60 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 text-xs font-medium border border-neutral-700/60 transition-all active:scale-[0.98]"
             >
               {t('gamer_vbs_btn_on')}
             </button>
@@ -491,16 +491,16 @@ export default function GamerModule() {
         </div>
 
         {/* Card 6: Mouse 1:1 & Keyboard 150ms */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <MousePointer className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_input_title')}</h3>
-                  <span className="text-[10px] text-cyan-400 font-medium">Control Panel\Mouse & Accessibility</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">Control Panel\Mouse & Accessibility</span>
                 </div>
               </div>
             </div>
@@ -514,7 +514,7 @@ export default function GamerModule() {
               disabled={activeActions['mouse']}
               className="flex-1 py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
             >
-              {activeActions['mouse'] ? <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" /> : <MousePointer className="w-3.5 h-3.5 text-cyan-400" />}
+              {activeActions['mouse'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MousePointer className="w-3.5 h-3.5" />}
               <span>{t('gamer_mouse_btn')}</span>
             </button>
 
@@ -523,23 +523,23 @@ export default function GamerModule() {
               disabled={activeActions['kbd']}
               className="flex-1 py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
             >
-              {activeActions['kbd'] ? <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" /> : <Keyboard className="w-3.5 h-3.5 text-cyan-400" />}
+              {activeActions['kbd'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Keyboard className="w-3.5 h-3.5" />}
               <span>{t('gamer_kbd_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Card 7: TCP NoDelay, FSO & Shaders */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Wifi className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_net_title')}</h3>
-                  <span className="text-[10px] text-cyan-400 font-medium">TcpAckFrequency & TCPNoDelay</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">TcpAckFrequency & TCPNoDelay</span>
                 </div>
               </div>
             </div>
@@ -547,47 +547,47 @@ export default function GamerModule() {
             <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_net_desc')}</p>
           </div>
 
-          <div className="pt-4 mt-2 flex gap-2">
+          <div className="pt-4 mt-2 flex gap-1.5">
             <button
               onClick={() => handleAction('tcp', optimizeTcpNetwork)}
               disabled={activeActions['tcp']}
-              className="flex-1 py-2 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
+              className="flex-1 py-2 px-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
             >
-              {activeActions['tcp'] ? <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" /> : <Wifi className="w-3.5 h-3.5 text-cyan-400" />}
+              {activeActions['tcp'] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3 text-neutral-300" />}
               <span>{t('gamer_tcp_btn')}</span>
             </button>
 
             <button
               onClick={() => handleAction('fso', () => disableFullscreenOptimizations(true))}
               disabled={activeActions['fso']}
-              className="flex-1 py-2 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
+              className="flex-1 py-2 px-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
             >
-              {activeActions['fso'] ? <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" /> : <Zap className="w-3.5 h-3.5 text-cyan-400" />}
+              {activeActions['fso'] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-neutral-300" />}
               <span>{t('gamer_fso_btn')}</span>
             </button>
 
             <button
               onClick={() => handleAction('shader', resetShaderCache)}
               disabled={activeActions['shader']}
-              className="py-2 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
+              className="py-2 px-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
             >
-              {activeActions['shader'] ? <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" /> : <Activity className="w-3.5 h-3.5 text-cyan-400" />}
+              {activeActions['shader'] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3 text-neutral-300" />}
               <span>{t('gamer_shader_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Card 8: CPU Priority per Game Exe */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <Cpu className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_prio_title')}</h3>
-                  <span className="text-[10px] text-emerald-400 font-medium">Image File Execution Options</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">Image File Execution Options</span>
                 </div>
               </div>
             </div>
@@ -600,7 +600,7 @@ export default function GamerModule() {
                 value={processName}
                 onChange={(e) => setProcessName(e.target.value)}
                 placeholder={t('gamer_prio_placeholder')}
-                className="flex-1 px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-emerald-500/50"
+                className="flex-1 px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-neutral-600"
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -616,25 +616,25 @@ export default function GamerModule() {
             <button
               onClick={() => handleAction('prio', () => setGamePriority(processName))}
               disabled={!processName.trim() || activeActions['prio']}
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/20 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['prio'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4" />}
+              {activeActions['prio'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4 text-neutral-300" />}
               <span>{t('gamer_prio_btn')}</span>
             </button>
           </div>
         </div>
 
         {/* Card 9: Windows Defender Exclusion */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-purple-500/30 transition-all flex flex-col justify-between md:col-span-2">
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
                   <ShieldAlert className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_def_title')}</h3>
-                  <span className="text-[10px] text-purple-400 font-medium">Add-MpPreference -ExclusionPath</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">Add-MpPreference -ExclusionPath</span>
                 </div>
               </div>
             </div>
@@ -647,7 +647,7 @@ export default function GamerModule() {
                 value={exclusionPath}
                 onChange={(e) => setExclusionPath(e.target.value)}
                 placeholder={t('gamer_def_placeholder')}
-                className="flex-1 px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-purple-500/50"
+                className="flex-1 px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-neutral-600"
               />
               <button
                 onClick={() => folderInputRef.current?.click()}
@@ -665,7 +665,7 @@ export default function GamerModule() {
               disabled={!exclusionPath.trim() || activeActions['defender']}
               className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['defender'] ? <Loader2 className="w-4 h-4 animate-spin text-purple-400" /> : <ShieldAlert className="w-4 h-4 text-purple-400" />}
+              {activeActions['defender'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4 text-neutral-300" />}
               <span>{t('gamer_def_btn')}</span>
             </button>
           </div>
