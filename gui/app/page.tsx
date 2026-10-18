@@ -171,7 +171,7 @@ export default function Page() {
           {/* Sidebar Footer: Official GitHub + Settings Button (No redundant green shield!) */}
           <div className="px-3 mt-auto shrink-0 pt-3 border-t border-neutral-800/80 space-y-1.5">
             <button
-              onClick={() => openExternalUrl('https://github.com/JefhersonLuiz/System-Optimizer-Tool')}
+              onClick={() => openExternalUrl('https://github.com/jefheee/system-optimizer-tool')}
               title={t('sidebar_github')}
               className="w-full flex items-center p-2.5 rounded-xl text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800/60 transition-all"
             >

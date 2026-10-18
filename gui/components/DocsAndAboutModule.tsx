@@ -680,7 +680,7 @@ export default function DocsAndAboutModule() {
             </div>
 
             <button
-              onClick={() => openExternalUrl('https://github.com/JefhersonLuiz/System-Optimizer-Tool')}
+              onClick={() => openExternalUrl('https://github.com/jefheee/system-optimizer-tool')}
               className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shrink-0 shadow-md shadow-blue-600/20 transition-all"
             >
               <ExternalLink className="w-4 h-4" />
