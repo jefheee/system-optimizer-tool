@@ -15,35 +15,23 @@
 
 ---
 
-O **System Optimizer** centraliza rotinas de diagnóstico de hardware em tempo real, mitigação de latência de entrada para jogos, limpeza granular de disco, gerenciamento de privacidade e automação pós-formatação.
-
-Originalmente concebido como uma rotina em lote para manutenção técnica, o projeto foi reconstruído na versão 5.0 com um backend compilado nativamente em **Rust (Tauri v2)** conectado a uma interface reativa em **Next.js e React**. As operações executam diretamente contra as APIs de baixo nível do Windows (`Win32`, `ntdll.dll`, `psapi.dll`, WMI e manipulação segura de Registro em 64 bits), sem depender de consoles abertos em segundo plano.
+O **System Optimizer** centraliza rotinas de diagnóstico de hardware em tempo real, mitigação de latência de entrada para jogos, limpeza granular de disco, gerenciamento de privacidade e automação pós-formatação. O projeto foi reconstruído na versão 5.0 com um backend em **Rust (Tauri v2)** e interface em **Next.js e React**.
 
 ---
 
 ## Destaques da Versão 5.0
 
-- **Diagnóstico e Telemetria de Hardware**
-  Leitura detalhada de CPU, GPU, canais e frequência de memória RAM, integridade de discos (SSD/NVMe com detecção TRIM), placas de rede e telas conectadas. Inclui pontuação de auditoria de sistema e exportação de relatórios em JSON, TXT e Markdown estruturado.
-
-- **Baixa Latência e Otimizações Gamer**
-  Ajuste do temporizador do sistema para resolução de 0.5 ms (`timeBeginPeriod` / `NtSetTimerResolution`), esvaziamento seguro do working set de memória via rotina controlada, otimização da pilha de rede TCP/IP, desativação de Fullscreen Optimizations e mitigação de VBS.
-
-- **Limpeza Profunda e Gestão de Espaço**
-  Limpeza seletiva de cache de shaders (DirectX, NVIDIA, AMD), logs do sistema, arquivos temporários de usuário e de sistema, remoção de instalações anteriores do Windows (`Windows.old`) e gerenciamento da hibernação (`hiberfil.sys`).
-
-- **Privacidade, Segurança e Sistema**
-  Desativação de telemetria diagnóstica invasiva, remoção de bloatware nativo e do OneDrive, reparo da pilha do Windows Update (`DISM` e `SFC`), restauração de menus de contexto clássicos e benchmark integrado de servidores DNS.
-
-- **Perfis em Um Clique**
-  Configurações prontas para uso corporativo, notebooks (foco em autonomia e conservação térmica), uso balanceado do dia a dia e estações dedicadas a jogos e alta performance.
-
-- **Transparência Técnica Integral**
-  Cada modificação exibe as chaves de registro afetadas, os comandos invocados, os benefícios práticos esperados e a instrução exata para reversão.
+- **Diagnóstico e Telemetria:** Leitura detalhada de CPU, GPU, RAM, discos e rede com exportação de relatórios.
+- **Otimizações Gamer:** Ajuste do temporizador do sistema para 0.5 ms e otimização de rede TCP/IP.
+- **Limpeza Profunda:** Remoção de cache de shaders, arquivos temporários e `Windows.old`.
+- **Privacidade e Sistema:** Desativação de telemetria e reparo da pilha do Windows Update.
+- **Perfis em Um Clique:** Configurações para jogos, escritório e economia de energia.
+- **Transparência:** Exibição das chaves de registro afetadas e instruções de reversão.
 
 ---
 
 ## Arquitetura do Repositório
+
 
 ```
 System-Optimizer-Tool/
