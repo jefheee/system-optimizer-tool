@@ -1,7 +1,22 @@
 'use client';
 
 import { useState } from "react";
-import { invokePowerShell, ActionResponse } from "../lib/api";
+import { 
+  launchWinUtil, 
+  optimizeDns, 
+  disableTelemetry, 
+  removeBloatware, 
+  repairWindowsUpdate, 
+  runSfcScan, 
+  cleanOrphanTasks,
+  restoreWindowsStore,
+  removeOneDrive,
+  resetFontCache,
+  fixBluetoothCache,
+  toggleTakeOwnershipMenu,
+  backupDrivers
+} from "../lib/api";
+import { useLanguage } from "../lib/LanguageContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Settings, 
@@ -14,38 +29,67 @@ import {
   Loader2, 
   CheckCircle2, 
   XCircle,
-  AlertCircle,
-  Terminal
+  Terminal,
+  Store,
+  FolderMinus,
+  Type,
+  Bluetooth,
+  KeyRound,
+  Archive,
+  Layers
 } from "lucide-react";
 
 export default function SystemModule() {
+  const { t } = useLanguage();
   const [activeActions, setActiveActions] = useState<Record<string, boolean>>({});
-  const [results, setResults] = useState<Record<string, ActionResponse>>({});
+  const [results, setResults] = useState<Record<string, { status: "Success" | "Error"; message: string }>>({});
+  const [takeOwnershipActive, setTakeOwnershipActive] = useState<boolean>(false);
 
-  const runAction = async (actionId: string, actionName: string, args: string = "") => {
-    setActiveActions(prev => ({ ...prev, [actionId]: true }));
+  const handleAction = async (id: string, fn: () => Promise<any>) => {
+    setActiveActions(prev => ({ ...prev, [id]: true }));
     try {
-      const res = await invokePowerShell<ActionResponse>(actionName, args);
-      setResults(prev => ({ ...prev, [actionId]: res }));
+      const res = await fn();
+      if (res.success) {
+        setResults(prev => ({
+          ...prev,
+          [id]: { status: "Success", message: res.message }
+        }));
+      } else {
+        setResults(prev => ({
+          ...prev,
+          [id]: { status: "Error", message: res.message }
+        }));
+      }
     } catch (err: any) {
-      setResults(prev => ({ 
-        ...prev, 
-        [actionId]: { Status: "Error", Message: err?.message || "Erro de comunicação." } 
+      setResults(prev => ({
+        ...prev,
+        [id]: { status: "Error", message: err?.message || "Erro de comunicação." }
       }));
     } finally {
-      setActiveActions(prev => ({ ...prev, [actionId]: false }));
+      setActiveActions(prev => ({ ...prev, [id]: false }));
     }
+  };
+
+  const handleTakeOwnership = async () => {
+    const nextState = !takeOwnershipActive;
+    await handleAction("ownership", async () => {
+      const res = await toggleTakeOwnershipMenu(nextState);
+      if (res.success) {
+        setTakeOwnershipActive(nextState);
+      }
+      return res;
+    });
   };
 
   return (
     <div className="space-y-8 animate-card-entry">
       <div>
-        <h2 className="text-xl font-bold font-headline-lg text-zinc-100 tracking-tight flex items-center gap-2">
+        <h2 className="text-xl font-bold font-headline-lg text-[#e5e2e1] tracking-tight flex items-center gap-2">
           <Settings className="w-5 h-5 text-secondary" />
-          Manutenção & Reparações do Sistema
+          {t('sys_title')}
         </h2>
-        <p className="text-xs text-on-surface-variant mt-1">
-          Restaure a integridade dos arquivos do Windows, reconfigure conexões de rede e acione utilitários de terceiros.
+        <p className="text-xs text-[#bcc9cd] mt-1">
+          {t('sys_subtitle')}
         </p>
       </div>
 
@@ -58,225 +102,265 @@ export default function SystemModule() {
               <Terminal className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">WinUtil (Chris Titus)</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Abre o utilitário completo de debloat e instalação de pacotes do Chris Titus Tech em uma janela externa com privilégios de administrador.
+              <h4 className="font-bold text-zinc-100 text-sm">{t('sys_winutil_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('sys_winutil_desc')}
               </p>
             </div>
           </div>
           <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
             <button
-              onClick={() => runAction("winutil", "RunWinUtil")}
+              onClick={() => handleAction("winutil", launchWinUtil)}
               disabled={activeActions["winutil"]}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-primary to-secondary hover:shadow-[0_0_15px_rgba(76,215,246,0.4)] text-zinc-950 text-xs font-bold transition-all hover:scale-105"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-primary to-secondary text-zinc-950 text-xs font-bold transition-all hover:scale-105"
             >
               {activeActions["winutil"] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                "Abrir WinUtil"
+                t('sys_winutil_btn')
               )}
             </button>
           </div>
         </div>
 
-        {/* Otimizar DNS (OptimizeDns) */}
+        {/* Otimizar DNS (Ping Cloudflare vs Google) */}
         <div className="p-6 rounded-xl glass-card flex flex-col justify-between hover:border-secondary/20 transition-all duration-300">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-primary/10 rounded-lg text-primary">
               <Wifi className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">Otimizar Latência de DNS</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Testa a latência em tempo real dos servidores do Google e Cloudflare, aplicando automaticamente o de menor ping à interface ativa.
+              <h4 className="font-bold text-zinc-100 text-sm">{t('sys_dns_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('sys_dns_desc')}
               </p>
             </div>
           </div>
           <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
             <button
-              onClick={() => runAction("dns", "OptimizeDns")}
+              onClick={() => handleAction("dns", optimizeDns)}
               disabled={activeActions["dns"]}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-755 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
             >
               {activeActions["dns"] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                "Otimizar Conexão DNS"
+                t('sys_dns_btn')
               )}
             </button>
           </div>
         </div>
 
-        {/* Desativar Telemetria (DisableTelemetry) */}
+        {/* Desativar Telemetria & Rastreamento */}
         <div className="p-6 rounded-xl glass-card flex flex-col justify-between hover:border-secondary/20 transition-all duration-300">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-red-500/10 rounded-lg text-red-400">
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">Desativar Telemetria & Rastreamento</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Interrompe serviços nativos de feedback (DiagTrack, dmwappushservice) e injeta políticas de privacidade para mitigar o uso de CPU.
+              <h4 className="font-bold text-zinc-100 text-sm">{t('sys_tel_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('sys_tel_desc')}
               </p>
             </div>
           </div>
           <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
             <button
-              onClick={() => runAction("telemetry", "DisableTelemetry")}
+              onClick={() => handleAction("telemetry", disableTelemetry)}
               disabled={activeActions["telemetry"]}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-755 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
             >
               {activeActions["telemetry"] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                "Desativar Rastreamentos"
+                t('sys_tel_btn')
               )}
             </button>
           </div>
         </div>
 
-        {/* Remover Bloatware (RemoveBloatware) */}
+        {/* Remover Bloatware do Windows */}
         <div className="p-6 rounded-xl glass-card flex flex-col justify-between hover:border-secondary/20 transition-all duration-300">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-[#d0bcff]/10 rounded-lg text-secondary">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">Remover Bloatware do Windows</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Desinstala aplicativos embutidos indesejados (Xbox Overlay, YourPhone, Cortana, etc.) que rodam silenciosamente.
+              <h4 className="font-bold text-zinc-100 text-sm">{t('sys_bloat_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('sys_bloat_desc')}
               </p>
             </div>
           </div>
           <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
             <button
-              onClick={() => runAction("bloatware", "RemoveBloatware")}
+              onClick={() => handleAction("bloatware", removeBloatware)}
               disabled={activeActions["bloatware"]}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-755 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
             >
               {activeActions["bloatware"] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                "Remover Aplicativos Inúteis"
+                t('sys_bloat_btn')
               )}
             </button>
           </div>
         </div>
 
-        {/* Limpar Tarefas Órfãs (RemoveOrphans) */}
+        {/* Reparar Windows Update */}
         <div className="p-6 rounded-xl glass-card flex flex-col justify-between hover:border-secondary/20 transition-all duration-300">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-amber-500/10 rounded-lg text-amber-400">
-              <Trash2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-zinc-200 text-sm">Limpar Tarefas Órfãs</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Examina o Agendador de Tarefas do Windows e apaga registros obsoletos ou órfãos de aplicativos já excluídos.
-              </p>
-            </div>
-          </div>
-          <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
-            <button
-              onClick={() => runAction("orphans", "RemoveOrphans")}
-              disabled={activeActions["orphans"]}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-755 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
-            >
-              {activeActions["orphans"] ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                "Limpar Tarefas Órfãs"
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Reparar Windows Update (RepairWindowsUpdate) */}
-        <div className="p-6 rounded-xl glass-card flex flex-col justify-between hover:border-secondary/20 transition-all duration-300">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-yellow-500/10 rounded-lg text-yellow-500">
               <RefreshCw className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">Reparar Serviços Windows Update</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Para o wuauserv/bits, limpa o diretório de distribuição temporário do Windows e força o reinício limpo dos serviços.
+              <h4 className="font-bold text-zinc-100 text-sm">{t('sys_wupd_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('sys_wupd_desc')}
               </p>
             </div>
           </div>
           <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
             <button
-              onClick={() => runAction("wupdate", "RepairWindowsUpdate")}
+              onClick={() => handleAction("wupdate", repairWindowsUpdate)}
               disabled={activeActions["wupdate"]}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-755 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
             >
               {activeActions["wupdate"] ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                "Reparar Update Cache"
+                t('sys_wupd_btn')
               )}
             </button>
           </div>
         </div>
 
-        {/* Integridade do Sistema - SFC (SystemScan) */}
+        {/* Verificador de Arquivos SFC & DISM */}
         <div className="p-6 rounded-xl glass-card flex flex-col justify-between hover:border-secondary/20 transition-all duration-300">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-400">
               <Search className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">Verificador de Arquivos SFC</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Executa o utilitário nativo SFC /scannow de forma assíncrona para buscar e reparar arquivos de sistema corrompidos.
+              <h4 className="font-bold text-zinc-100 text-sm">{t('sys_sfc_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('sys_sfc_desc')}
               </p>
             </div>
           </div>
           <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
             <button
-              onClick={() => runAction("scan", "SystemScan")}
+              onClick={() => handleAction("scan", runSfcScan)}
               disabled={activeActions["scan"]}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-755 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
             >
               {activeActions["scan"] ? (
-                <span className="flex items-center justify-center gap-1.5">
+                <span className="flex items-center gap-1.5">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Escaneando...
+                  {t('btn_executing')}
                 </span>
               ) : (
-                "Varredura Completa"
+                t('sys_sfc_btn')
               )}
             </button>
           </div>
         </div>
 
-        {/* Ferramentas Avançadas: Tomar Posse & Backup Drivers */}
-        <div className="p-6 rounded-xl glass-card hover:border-secondary/20 transition-all duration-300 flex flex-col justify-between">
+        {/* Limpar Tarefas Órfãs */}
+        <div className="p-6 rounded-xl glass-card flex flex-col justify-between hover:border-secondary/20 transition-all duration-300">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-cyan-500/10 rounded-lg text-cyan-400">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-zinc-100 text-sm">{t('clean_orphans_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('clean_orphans_desc')}
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
+            <button
+              onClick={() => handleAction("orphans", cleanOrphanTasks)}
+              disabled={activeActions["orphans"]}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold text-zinc-200 transition-all hover:scale-105"
+            >
+              {activeActions["orphans"] ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                t('clean_orphans_btn')
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Ferramentas Avançadas: Store, OneDrive, Fontes, Bluetooth, Tomar Posse, Backup */}
+        <div className="p-6 rounded-xl glass-card hover:border-secondary/20 transition-all duration-300 flex flex-col justify-between md:col-span-2">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-indigo-500/10 rounded-lg text-indigo-400">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-bold text-zinc-200 text-sm">Ferramentas Avançadas</h4>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                Adiciona o menu de contexto &quot;Tomar Posse&quot; para arquivos/pastas ou realiza o backup completo de drivers instalados em C:\Backup_Drivers.
+              <h4 className="font-bold text-zinc-100 text-sm">{t('sys_adv_title')}</h4>
+              <p className="text-xs text-[#bcc9cd] mt-1 leading-relaxed">
+                {t('sys_adv_desc')}
               </p>
             </div>
           </div>
-          <div className="flex gap-3 pt-4 border-t border-white/5 mt-6">
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 pt-6 border-t border-white/5 mt-6">
             <button
-              onClick={() => runAction("ownership", "SetTakeOwnership")}
-              disabled={activeActions["ownership"]}
-              className="flex-1 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-750 text-xs font-bold transition-all hover:scale-105 flex items-center justify-center gap-1.5 text-zinc-300"
+              onClick={() => handleAction("store", restoreWindowsStore)}
+              disabled={activeActions["store"]}
+              className="py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold transition-all hover:scale-105 flex flex-col items-center justify-center gap-1.5 text-zinc-200"
             >
-              {activeActions["ownership"] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Tomar Posse"}
+              <Store className="w-4 h-4 text-primary" />
+              <span>{activeActions["store"] ? "..." : t('sys_store_btn')}</span>
             </button>
+
             <button
-              onClick={() => runAction("backup", "BackupDrivers")}
-              disabled={activeActions["backup"]}
-              className="flex-1 py-2 rounded-lg bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-750 text-xs font-bold transition-all hover:scale-105 flex items-center justify-center gap-1.5 text-zinc-300"
+              onClick={() => handleAction("onedrive", removeOneDrive)}
+              disabled={activeActions["onedrive"]}
+              className="py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold transition-all hover:scale-105 flex flex-col items-center justify-center gap-1.5 text-zinc-200"
             >
-              {activeActions["backup"] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Backup Drivers"}
+              <FolderMinus className="w-4 h-4 text-red-400" />
+              <span>{activeActions["onedrive"] ? "..." : t('sys_onedrive_btn')}</span>
+            </button>
+
+            <button
+              onClick={() => handleAction("font", resetFontCache)}
+              disabled={activeActions["font"]}
+              className="py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold transition-all hover:scale-105 flex flex-col items-center justify-center gap-1.5 text-zinc-200"
+            >
+              <Type className="w-4 h-4 text-amber-400" />
+              <span>{activeActions["font"] ? "..." : t('sys_font_btn')}</span>
+            </button>
+
+            <button
+              onClick={() => handleAction("bluetooth", fixBluetoothCache)}
+              disabled={activeActions["bluetooth"]}
+              className="py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold transition-all hover:scale-105 flex flex-col items-center justify-center gap-1.5 text-zinc-200"
+            >
+              <Bluetooth className="w-4 h-4 text-cyan-400" />
+              <span>{activeActions["bluetooth"] ? "..." : t('sys_blue_btn')}</span>
+            </button>
+
+            <button
+              onClick={handleTakeOwnership}
+              disabled={activeActions["ownership"]}
+              className="py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold transition-all hover:scale-105 flex flex-col items-center justify-center gap-1.5 text-zinc-200"
+            >
+              <KeyRound className="w-4 h-4 text-emerald-400" />
+              <span>{activeActions["ownership"] ? "..." : takeOwnershipActive ? "Remover Posse" : t('sys_own_btn')}</span>
+            </button>
+
+            <button
+              onClick={() => handleAction("backup", backupDrivers)}
+              disabled={activeActions["backup"]}
+              className="py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-bold transition-all hover:scale-105 flex flex-col items-center justify-center gap-1.5 text-zinc-200"
+            >
+              <Archive className="w-4 h-4 text-secondary" />
+              <span>{activeActions["backup"] ? "..." : t('sys_drv_btn')}</span>
             </button>
           </div>
         </div>
@@ -287,15 +371,17 @@ export default function SystemModule() {
       <AnimatePresence>
         {Object.keys(results).length > 0 && (
           <div className="mt-8 space-y-3">
-            <h3 className="text-xs font-bold text-on-surface-variant tracking-wider uppercase flex items-center justify-between">
-              <span>Relatório de Ações do Sistema</span>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-zinc-400 tracking-wider uppercase">
+                {t('msg_status_report')}
+              </h3>
               <button 
                 onClick={() => setResults({})}
-                className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors uppercase"
+                className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase font-bold"
               >
-                Limpar Log
+                {t('btn_clear_log')}
               </button>
-            </h3>
+            </div>
             <div className="space-y-2">
               {Object.entries(results).map(([key, value]) => (
                 <motion.div
@@ -304,42 +390,19 @@ export default function SystemModule() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   className={`p-4 rounded-xl border flex gap-3 text-xs ${
-                    value.Status === "Success"
+                    value.status === "Success"
                       ? "bg-tertiary/10 border-tertiary/20 text-tertiary"
-                      : value.Status === "Warning"
-                      ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-                      : "bg-red-500/10 border-red-500/20 text-red-450"
+                      : "bg-red-500/10 border-red-500/20 text-red-400"
                   }`}
                 >
-                  {value.Status === "Success" ? (
+                  {value.status === "Success" ? (
                     <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                  ) : value.Status === "Warning" ? (
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   ) : (
                     <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   )}
                   <div>
-                    <span className="font-bold capitalize text-zinc-200 block">{key}: {value.Status}</span>
-                    <span className="text-zinc-450 mt-1 block">{value.Message}</span>
-                    {value.BestDNS && (
-                      <span className="text-[10px] text-cyan-400 font-semibold block mt-1">
-                        Melhor servidor encontrado: {value.BestDNS}
-                      </span>
-                    )}
-                    {value.Destination && (
-                      <span className="text-[10px] text-indigo-400 font-semibold block mt-1">
-                        Destino: {value.Destination}
-                      </span>
-                    )}
-                    {value.RemovedApps && value.RemovedApps.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {value.RemovedApps.map((app, idx) => (
-                          <span key={idx} className="text-[9px] bg-zinc-950/60 border border-white/5 text-zinc-500 px-1.5 py-0.5 rounded">
-                            {app}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <span className="font-bold capitalize text-zinc-200 block">{key}: {value.status}</span>
+                    <span className="text-zinc-300 mt-1 block">{value.message}</span>
                   </div>
                 </motion.div>
               ))}
