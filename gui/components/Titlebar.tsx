@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage, AVAILABLE_LANGUAGES } from '@/lib/LanguageContext';
 import { useSettings } from '@/lib/SettingsContext';
 import { checkAdmin, restartAsAdmin, minimizeWindow, toggleMaximizeWindow, closeWindow } from '@/lib/api';
-import { Shield, ShieldAlert, RefreshCw, ChevronDown, Minus, Square, X } from 'lucide-react';
+import { Shield, ShieldAlert, RefreshCw, ChevronDown, Minus, Square, X, Globe, User } from 'lucide-react';
 
 export default function Titlebar() {
   const { language, setLanguage, t } = useLanguage();
@@ -89,11 +89,40 @@ export default function Titlebar() {
             className="w-full h-full object-contain pointer-events-none"
           />
         </div>
-        <div className="flex items-center pointer-events-none">
+        <div className="flex items-center gap-2 pointer-events-none">
           <span className={`text-xs font-semibold tracking-wide ${theme === 'light' ? 'text-slate-800' : 'text-neutral-200'}`}>
             System Optimizer Tool
           </span>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800/80 text-neutral-400 border border-neutral-700/50">
+            v5.0
+          </span>
         </div>
+
+        {/* Elevation Status Badge Pill */}
+        {isAdmin !== null && (
+          <div className="ml-2 flex items-center">
+            {isAdmin ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-medium tracking-wide bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{language === 'PT' ? 'Privilégios de Administrador: Ativo' : 'Administrator Privileges: Active'}</span>
+              </span>
+            ) : (
+              <button
+                onClick={handleRestartAdmin}
+                disabled={isRestarting}
+                title={t('titlebar_restart_admin')}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-medium tracking-wide bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 transition-colors"
+              >
+                {isRestarting ? (
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                )}
+                <span>{language === 'PT' ? 'Privilégios Padrão: Elevar' : 'Standard User: Elevate'}</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Middle Drag Region */}
@@ -101,84 +130,27 @@ export default function Titlebar() {
 
       {/* Right Controls */}
       <div className="flex items-center gap-2">
-        {/* Admin Elevation Status */}
-        {isAdmin !== null && (
-          <div className="flex items-center">
-            {isAdmin ? (
-              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium tracking-wide ${
-                theme === 'light' ? 'text-slate-500 bg-slate-100' : 'text-neutral-400 bg-neutral-900/60'
-              }`}>
-                <Shield className="w-3 h-3 text-emerald-500" />
-                <span>{t('titlebar_admin_badge')}</span>
-              </span>
-            ) : (
-              <button
-                onClick={handleRestartAdmin}
-                disabled={isRestarting}
-                title={t('titlebar_restart_admin')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
-                  theme === 'light'
-                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                    : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-700/70'
-                }`}
-              >
-                {isRestarting ? (
-                  <RefreshCw className="w-3 h-3 animate-spin text-neutral-400" />
-                ) : (
-                  <ShieldAlert className="w-3 h-3 text-amber-500" />
-                )}
-                <span>{t('titlebar_restart_admin')}</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Language Selector Dropdown */}
+        {/* Language Selector Pill (PT / EN Quick Toggle) */}
         <div className="relative">
           <button
-            onClick={() => setLangMenuOpen(!langMenuOpen)}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+            onClick={() => setLanguage(language === 'PT' ? 'EN' : 'PT')}
+            title={language === 'PT' ? 'Mudar para Inglês (EN)' : 'Switch to Portuguese (PT)'}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition-colors border ${
               theme === 'light'
-                ? 'text-slate-700 hover:bg-slate-100'
-                : 'text-neutral-300 hover:bg-neutral-800/80 hover:text-white'
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-700/60 text-neutral-300'
             }`}
           >
-            <span>{currentLangObj.flag}</span>
-            <span className="text-[11px] font-medium">{currentLangObj.code}</span>
-            <ChevronDown className="w-3 h-3 opacity-60" />
+            <Globe className="w-3 h-3 text-neutral-400" />
+            <span>{language === 'PT' ? 'BR PT' : 'US EN'}</span>
           </button>
+        </div>
 
-          {langMenuOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setLangMenuOpen(false)}
-              />
-              <div className={`absolute right-0 mt-1 w-36 rounded-lg shadow-xl py-1 z-50 overflow-hidden border ${
-                theme === 'light'
-                  ? 'bg-white border-slate-200 text-slate-800'
-                  : 'bg-neutral-900 border-neutral-800 text-neutral-200'
-              }`}>
-                {AVAILABLE_LANGUAGES.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => {
-                      setLanguage(lang.code);
-                      setLangMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors ${
-                      language === lang.code
-                        ? theme === 'light' ? 'bg-slate-100 text-slate-900 font-semibold' : 'bg-neutral-800 text-white font-semibold'
-                        : theme === 'light' ? 'text-slate-700 hover:bg-slate-100' : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
-                    }`}
-                  >
-                    <span>{lang.flag}</span>
-                    <span>{lang.label}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+        {/* User Profile / Status Button */}
+        <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${
+          theme === 'light' ? 'border-slate-200 bg-slate-100 text-slate-700' : 'border-neutral-700/60 bg-neutral-900 text-neutral-300'
+        }`}>
+          <User className="w-3.5 h-3.5" />
         </div>
 
         {/* Window Controls (Minimize, Maximize / Restore, Close) */}

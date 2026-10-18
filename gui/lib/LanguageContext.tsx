@@ -20,21 +20,11 @@ interface LanguageContextType {
 export const AVAILABLE_LANGUAGES: { code: Language; label: string; flag: string }[] = [
   { code: 'PT', label: 'Português', flag: '🇧🇷' },
   { code: 'EN', label: 'English', flag: '🇺🇸' },
-  { code: 'ES', label: 'Español', flag: '🇪🇸' },
-  { code: 'FR', label: 'Français', flag: '🇫🇷' },
-  { code: 'DE', label: 'Deutsch', flag: '🇩🇪' },
-  { code: 'RU', label: 'Русский', flag: '🇷🇺' },
-  { code: 'CN', label: '中文', flag: '🇨🇳' },
 ];
 
 const HTML_LANG_MAP: Record<Language, string> = {
   PT: 'pt-BR',
   EN: 'en',
-  ES: 'es',
-  FR: 'fr',
-  DE: 'de',
-  RU: 'ru',
-  CN: 'zh-CN',
 };
 
 const LanguageContext = createContext<LanguageContextType>({

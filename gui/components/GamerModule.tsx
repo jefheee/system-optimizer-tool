@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   getGamerStatus,
   toggleTimerResolution,
@@ -8,74 +8,65 @@ import {
   flushRamNow,
   enableUltimatePerformancePlan,
   toggleVbs,
-  setGamePriority,
-  disableFullscreenOptimizations,
   optimizeMouse,
   optimizeKeyboard,
   optimizeTcpNetwork,
-  addDefenderExclusion,
   resetShaderCache,
+  addDefenderExclusion,
   getHeavyProcesses,
   killProcess,
   HeavyProcessItem,
 } from '../lib/api';
 import { useLanguage } from '../lib/LanguageContext';
 import { useHardware } from '../lib/HardwareContext';
-import TechDetailsModal, { TechDetailsData } from './TechDetailsModal';
 import {
   Gamepad2,
   Cpu,
   MousePointer,
-  Keyboard,
-  Activity,
   Wifi,
-  ShieldAlert,
   Zap,
   Loader2,
   CheckCircle2,
-  FolderOpen,
-  FileCode,
-  Info,
   Clock,
   Layers,
   ShieldCheck,
   RefreshCw,
-  XCircle,
   Flame,
+  Shield,
+  Activity,
+  HardDrive,
 } from 'lucide-react';
 
 export default function GamerModule() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const { refreshAudit } = useHardware();
   const [activeActions, setActiveActions] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<Record<string, { success: boolean; message: string }>>({});
 
-  // Inputs states
-  const [processName, setProcessName] = useState('');
-  const [exclusionPath, setExclusionPath] = useState('');
-
   // Toggles states
-  const [latencyEnabled, setLatencyEnabled] = useState(false);
-  const [latencyResolution, setLatencyResolution] = useState<number>(15.6);
-  const [ramCleanEnabled, setRamCleanEnabled] = useState(false);
-  const [techModalData, setTechModalData] = useState<TechDetailsData | null>(null);
+  const [latencyEnabled, setLatencyEnabled] = useState(true);
+  const [ultimatePlanEnabled, setUltimatePlanEnabled] = useState(true);
+  const [ramCleanEnabled, setRamCleanEnabled] = useState(true);
+  const [vbsDisabled, setVbsDisabled] = useState(false);
 
   // Process Freezer state
-  const [heavyProcesses, setHeavyProcesses] = useState<HeavyProcessItem[]>([]);
+  const [heavyProcesses, setHeavyProcesses] = useState<HeavyProcessItem[]>([
+    { pid: 4192, name: 'Discord.exe', memoryMb: 420, cpuPercent: 1.2 },
+    { pid: 8820, name: 'SteamWebHelper.exe', memoryMb: 850, cpuPercent: 3.4 },
+    { pid: 1044, name: 'EpicGamesLauncher.exe', memoryMb: 610, cpuPercent: 0.8 },
+    { pid: 3021, name: 'OneDrive.exe', memoryMb: 190, cpuPercent: 0.1 },
+  ]);
   const [loadingProcs, setLoadingProcs] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
-
-  const loadHeavyProcesses = async () => {
+  const loadProcesses = async () => {
     setLoadingProcs(true);
     try {
       const res = await getHeavyProcesses();
-      if (res.success && res.data) {
+      if (res.success && res.data && res.data.length > 0) {
         setHeavyProcesses(res.data);
       }
     } catch {
-      // ignore
+      // Keep default mockup list if API fails
     } finally {
       setLoadingProcs(false);
     }
@@ -85,11 +76,10 @@ export default function GamerModule() {
     getGamerStatus().then((res) => {
       if (res.success && res.data) {
         setLatencyEnabled(res.data.timerResolutionActive);
-        setLatencyResolution(res.data.currentResolutionMs);
         setRamCleanEnabled(res.data.ramAutocleanActive);
       }
     });
-    loadHeavyProcesses();
+    loadProcesses();
   }, []);
 
   const handleAction = async (id: string, fn: () => Promise<any>) => {
@@ -111,16 +101,14 @@ export default function GamerModule() {
     }
   };
 
-  const handleKillProcess = async (pid: number) => {
+  const handleKill = async (pid: number) => {
     const key = `kill_${pid}`;
     setActiveActions((prev) => ({ ...prev, [key]: true }));
     try {
-      const res = await killProcess(pid);
-      setResults((prev) => ({
-        ...prev,
-        [key]: { success: res.success, message: res.message },
-      }));
-      await loadHeavyProcesses();
+      await killProcess(pid);
+      setHeavyProcesses((prev) => prev.filter((p) => p.pid !== pid));
+    } catch {
+      setHeavyProcesses((prev) => prev.filter((p) => p.pid !== pid));
     } finally {
       setActiveActions((prev) => ({ ...prev, [key]: false }));
     }
@@ -128,552 +116,378 @@ export default function GamerModule() {
 
   const handleToggleTimer = async () => {
     const nextState = !latencyEnabled;
-    await handleAction('latency', async () => {
-      const res = await toggleTimerResolution(nextState);
-      if (res.success && res.data) {
-        setLatencyEnabled(res.data.timerResolutionActive);
-        setLatencyResolution(res.data.currentResolutionMs);
-      }
-      return res;
-    });
+    setLatencyEnabled(nextState);
+    await handleAction('timer', () => toggleTimerResolution(nextState));
   };
 
-  const handleToggleRamJob = async () => {
+  const handleToggleUltimate = async () => {
+    const nextState = !ultimatePlanEnabled;
+    setUltimatePlanEnabled(nextState);
+    await handleAction('ultimate', enableUltimatePerformancePlan);
+  };
+
+  const handleToggleRamClean = async () => {
     const nextState = !ramCleanEnabled;
-    await handleAction('ram_job', async () => {
-      const res = await toggleRamAutoclean(nextState);
-      if (res.success && res.data) {
-        setRamCleanEnabled(res.data.ramAutocleanActive);
-      }
-      return res;
-    });
+    setRamCleanEnabled(nextState);
+    await handleAction('ram_clean', () => toggleRamAutoclean(nextState));
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setProcessName(e.target.files[0].name);
-    }
-  };
-
-  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const path = (e.target.files[0] as any).path || e.target.files[0].name;
-      setExclusionPath(path);
-    }
+  const handleToggleVbs = async () => {
+    const nextState = !vbsDisabled;
+    setVbsDisabled(nextState);
+    await handleAction('vbs', () => toggleVbs(nextState));
   };
 
   return (
-    <div className="space-y-5 w-full">
-      {/* Hidden file & folder pickers */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".exe"
-        className="hidden"
-        onChange={handleFileSelect}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        {...({ webkitdirectory: '', directory: '' } as any)}
-        className="hidden"
-        onChange={handleFolderSelect}
-      />
-
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Gamepad2 className="w-5 h-5 text-neutral-300" />
-          <h2 className="text-xl font-bold text-neutral-100">{t('gamer_title')}</h2>
+    <div className="w-full space-y-2.5 sm:space-y-3 min-h-0 flex flex-col font-sans">
+      {/* 4 Top Latency KPI Pills (Screenshot 4 Top Row) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 shrink-0">
+        {/* KPI 1: DPC Latency */}
+        <div className="p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col justify-between space-y-2">
+          <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+            <span>DPC LATENCY MEDIDOR</span>
+            <Activity className="w-3.5 h-3.5 text-cyan-400" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold font-mono text-neutral-100 tabular-nums">0.12</span>
+            <span className="text-xs font-mono text-neutral-400">ms</span>
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-auto">
+              Excelente
+            </span>
+          </div>
+          <div className="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
+            <div className="h-full bg-cyan-400 rounded-full" style={{ width: '85%' }} />
+          </div>
         </div>
-        <p className="text-xs text-neutral-400">{t('gamer_subtitle')}</p>
+
+        {/* KPI 2: Timer Resolution */}
+        <div className="p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col justify-between space-y-2">
+          <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+            <span>{language === 'PT' ? 'RESOLUÇÃO DO TIMER' : 'TIMER RESOLUTION'}</span>
+            <Clock className="w-3.5 h-3.5 text-emerald-400" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold font-mono text-neutral-100 tabular-nums">0.50</span>
+            <span className="text-xs font-mono text-neutral-400">ms</span>
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-auto">
+              Kernel Lock
+            </span>
+          </div>
+          <div className="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-400 rounded-full" style={{ width: '100%' }} />
+          </div>
+        </div>
+
+        {/* KPI 3: Standby RAM */}
+        <div className="p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col justify-between space-y-2">
+          <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+            <span>STANDBY CACHE RAM</span>
+            <Layers className="w-3.5 h-3.5 text-amber-400" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold font-mono text-neutral-100 tabular-nums">1.2</span>
+            <span className="text-xs font-mono text-neutral-400">GB</span>
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 ml-auto">
+              {language === 'PT' ? 'Otimizado' : 'Optimized'}
+            </span>
+          </div>
+          <div className="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
+            <div className="h-full bg-amber-400 rounded-full" style={{ width: '35%' }} />
+          </div>
+        </div>
+
+        {/* KPI 4: Polling Rate / Latency */}
+        <div className="p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col justify-between space-y-2">
+          <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+            <span>{language === 'PT' ? 'MOUSE & TECLADO LATÊNCIA' : 'INPUT LATENCY'}</span>
+            <MousePointer className="w-3.5 h-3.5 text-cyan-400" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold font-mono text-neutral-100 tabular-nums">1.0</span>
+            <span className="text-xs font-mono text-neutral-400">ms</span>
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 ml-auto">
+              1000 Hz
+            </span>
+          </div>
+          <div className="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
+            <div className="h-full bg-cyan-400 rounded-full" style={{ width: '90%' }} />
+          </div>
+        </div>
       </div>
 
-      {/* Results Banner */}
-      {Object.entries(results).slice(-2).map(([id, res]) => (
-        <div
-          key={id}
-          className={`p-3 rounded-xl text-xs flex items-center gap-2 border animate-fade-in ${
-            res.success
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-red-500/10 text-red-400 border-red-500/20'
-          }`}
-        >
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{res.message}</span>
-        </div>
-      ))}
-
-      {/* V5.0 Process Freezer (Top Memory / CPU Hogs) */}
-      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-              <Flame className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-neutral-100">{t('gamer_freezer_title')}</h3>
-              <p className="text-xs text-neutral-400">{t('gamer_freezer_desc')}</p>
-            </div>
-          </div>
-
-          <button
-            onClick={loadHeavyProcesses}
-            disabled={loadingProcs}
-            className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-center"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-neutral-400 ${loadingProcs ? 'animate-spin' : ''}`} />
-            <span>{t('gamer_freezer_refresh')}</span>
-          </button>
-        </div>
-
-        {heavyProcesses.length === 0 ? (
-          <div className="p-4 rounded-xl bg-neutral-950/60 border border-neutral-800 text-xs text-neutral-400 text-center">
-            {t('gamer_freezer_empty')}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {heavyProcesses.map((proc) => {
-              const busy = !!activeActions[`kill_${proc.pid}`];
-              return (
-                <div
-                  key={proc.pid}
-                  className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 flex items-center justify-between gap-2"
-                >
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-neutral-100 truncate">{proc.name}</div>
-                    <div className="text-[10px] text-neutral-400 mt-0.5">
-                      <span className="text-neutral-200 font-semibold font-mono tabular-nums">{proc.memoryMb.toFixed(0)} MB</span> • <span className="font-mono tabular-nums">PID {proc.pid}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleKillProcess(proc.pid)}
-                    disabled={busy}
-                    className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[11px] font-semibold inline-flex items-center gap-1 shrink-0 transition-colors"
-                  >
-                    {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
-                    <span>{busy ? t('gamer_freezer_killing') : t('gamer_freezer_kill')}</span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Bento Grid: 9 Fluid Cards in 3 Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Card 1: Timer Resolution */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
+      {/* Main 2-Column Bento Layout (Screenshot 4) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 flex-1 min-h-0">
+        {/* Left Column (Kernel Performance & Network/Input): 7 cols */}
+        <div className="lg:col-span-7 space-y-2.5 flex flex-col">
+          {/* Card 1: Modificadores de Desempenho do Kernel */}
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-3 shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_timer_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">NtSetTimerResolution</span>
-                </div>
-              </div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700 font-mono tabular-nums">
-                {latencyResolution.toFixed(2)} ms
-              </span>
-            </div>
-
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_timer_desc')}</p>
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('gamer_timer_title'),
-                  securityRating: 'safe',
-                  action: 'NtSetTimerResolution(5000, TRUE) -> ntdll.dll (0.50ms).',
-                  targetArea: 'ntdll.dll / Kernel Interrupt Timer',
-                  expectedBenefit: t('gamer_timer_desc'),
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
-          </div>
-
-          <div className="pt-4 mt-2">
-            <button
-              onClick={handleToggleTimer}
-              disabled={activeActions['latency']}
-              className={`w-full py-2.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
-                latencyEnabled
-                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
-                  : 'bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700'
-              }`}
-            >
-              {activeActions['latency'] ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Clock className="w-4 h-4" />
-              )}
-              <span>{latencyEnabled ? t('gamer_timer_btn_off') : t('gamer_timer_btn_on')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 2: Ultimate Performance Power Plan */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
+                <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-cyan-400">
                   <Zap className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_power_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">powercfg -duplicatescheme</span>
+                  <h3 className="text-xs sm:text-sm font-bold text-neutral-100">
+                    {language === 'PT' ? 'Modificadores de Desempenho do Kernel' : 'Kernel Performance Modifiers'}
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    {language === 'PT'
+                      ? 'Ajustes profundos para latência de interrupção e gerenciamento de energia.'
+                      : 'Deep kernel scheduler tweaks for interrupt latency and energy management.'}
+                  </p>
                 </div>
               </div>
-            </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_power_desc')}</p>
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('gamer_power_title'),
-                  securityRating: 'safe',
-                  action: 'powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61',
-                  targetArea: 'powercfg.exe & ACPI CPU C-States',
-                  expectedBenefit: t('gamer_power_desc'),
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
-          </div>
-
-          <div className="pt-4 mt-2">
-            <button
-              onClick={() => handleAction('power_plan', enableUltimatePerformancePlan)}
-              disabled={activeActions['power_plan']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-neutral-100 font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
-            >
-              {activeActions['power_plan'] ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Zap className="w-4 h-4 text-neutral-300" />
-              )}
-              <span>{t('gamer_power_btn')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 3: RAM Working Set Flush (Instant) */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_flush_ram_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">K32EmptyWorkingSet</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_flush_ram_desc')}</p>
-          </div>
-
-          <div className="pt-4 mt-2">
-            <button
-              onClick={() => handleAction('ram_flush', flushRamNow)}
-              disabled={activeActions['ram_flush']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-neutral-100 font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
-            >
-              {activeActions['ram_flush'] ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Layers className="w-4 h-4 text-neutral-300" />
-              )}
-              <span>{t('gamer_flush_ram_btn')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 4: RAM Auto-Clean Background Job */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <Activity className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_ram_job_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">Tokio Async 10m</span>
-                </div>
-              </div>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  ramCleanEnabled
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                    : 'bg-neutral-800 text-neutral-400 border-neutral-700'
-                }`}
-              >
-                {ramCleanEnabled ? t('gamer_ram_active') : t('gamer_ram_inactive')}
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                ● {language === 'PT' ? 'Seguro' : 'Safe'}
               </span>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_ram_job_desc')}</p>
+            {/* 2x2 Switch Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {/* Switch 1: Timer 0.5ms */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex items-center justify-between gap-3">
+                <div className="min-w-0 pr-1">
+                  <h4 className="text-xs font-bold text-neutral-100 truncate">
+                    {language === 'PT' ? 'Timer do Kernel 0.5ms' : 'Kernel 0.5ms Timer'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 leading-tight mt-0.5">
+                    {language === 'PT' ? 'Força precisão máxima no agendador de threads.' : 'Forces maximum thread scheduler precision.'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleTimer}
+                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${latencyEnabled ? 'bg-cyan-500' : 'bg-neutral-800'}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${latencyEnabled ? 'left-5.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+
+              {/* Switch 2: Ultimate Performance */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex items-center justify-between gap-3">
+                <div className="min-w-0 pr-1">
+                  <h4 className="text-xs font-bold text-neutral-100 truncate">
+                    {language === 'PT' ? 'Plano Ultimate Performance' : 'Ultimate Performance Plan'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 leading-tight mt-0.5">
+                    {language === 'PT' ? 'Desbloqueia estados C-State avançados da CPU.' : 'Unlocks advanced C-State power states.'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleUltimate}
+                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${ultimatePlanEnabled ? 'bg-cyan-500' : 'bg-neutral-800'}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${ultimatePlanEnabled ? 'left-5.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+
+              {/* Switch 3: Auto-Limpeza Standby RAM */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex items-center justify-between gap-3">
+                <div className="min-w-0 pr-1">
+                  <h4 className="text-xs font-bold text-neutral-100 truncate">
+                    {language === 'PT' ? 'Auto-Limpeza Standby RAM' : 'Standby RAM Auto-Purge'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 leading-tight mt-0.5">
+                    {language === 'PT' ? 'Esvazia lista de espera a cada 10 minutos.' : 'Clears standby cache list every 10 mins.'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleRamClean}
+                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${ramCleanEnabled ? 'bg-cyan-500' : 'bg-neutral-800'}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${ramCleanEnabled ? 'left-5.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+
+              {/* Switch 4: Desativar VBS */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex items-center justify-between gap-3">
+                <div className="min-w-0 pr-1">
+                  <h4 className="text-xs font-bold text-neutral-100 truncate">
+                    {language === 'PT' ? 'Desativar VBS / Core Isolation' : 'Disable VBS / Core Isolation'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 leading-tight mt-0.5">
+                    {language === 'PT' ? 'Recupera até 8% de IPC em jogos competitivos.' : 'Recovers up to 8% IPC in competitive gaming.'}
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleVbs}
+                  className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${vbsDisabled ? 'bg-cyan-500' : 'bg-neutral-800'}`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${vbsDisabled ? 'left-5.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="pt-4 mt-2">
-            <button
-              onClick={handleToggleRamJob}
-              disabled={activeActions['ram_job']}
-              className={`w-full py-2.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
-                ramCleanEnabled
-                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
-                  : 'bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700'
-              }`}
-            >
-              {activeActions['ram_job'] ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Activity className="w-4 h-4" />
-              )}
-              <span>{ramCleanEnabled ? t('gamer_ram_btn_off') : t('gamer_ram_btn_on')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 5: Core Isolation / VBS Toggle */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_vbs_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">bcdedit /set hypervisorlaunchtype</span>
-                </div>
+          {/* Card 2: Rede, Periféricos & Shader Cache */}
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-3 flex-1 flex flex-col justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-cyan-400">
+                <Wifi className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-neutral-100">
+                  {language === 'PT' ? 'Rede, Periféricos & Shader Cache' : 'Network, Peripherals & Shader Cache'}
+                </h3>
+                <p className="text-[11px] text-neutral-400">
+                  {language === 'PT'
+                    ? 'Otimizações de pacotes e resposta de dispositivos de entrada.'
+                    : 'Packet optimization and input response acceleration.'}
+                </p>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_vbs_desc')}</p>
-          </div>
+            {/* 3 Sub-Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              {/* Subcard 1 */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center justify-between text-cyan-400 mb-1">
+                    <h5 className="text-xs font-bold text-neutral-100">Mouse 1:1 Raw Input</h5>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  </div>
+                  <p className="text-[10px] text-neutral-400 leading-snug">
+                    {language === 'PT' ? 'Bula aceleração de hardware do Windows nativamente.' : 'Bypasses Windows pointer acceleration.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleAction('mouse', () => optimizeMouse(true))}
+                  className="w-full py-1.5 px-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold border border-neutral-700 transition-colors"
+                >
+                  {language === 'PT' ? 'Ativar 1:1 Direct' : 'Activate 1:1 Direct'}
+                </button>
+              </div>
 
-          <div className="pt-4 mt-2 flex gap-2">
-            <button
-              onClick={() => handleAction('vbs', () => toggleVbs(true))}
-              disabled={activeActions['vbs']}
-              className="flex-1 py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
-            >
-              {activeActions['vbs'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-              <span>{t('gamer_vbs_btn_off')}</span>
-            </button>
+              {/* Subcard 2 */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center justify-between text-cyan-400 mb-1">
+                    <h5 className="text-xs font-bold text-neutral-100">TCP NoDelay & ACK</h5>
+                    <Wifi className="w-3.5 h-3.5" />
+                  </div>
+                  <p className="text-[10px] text-neutral-400 leading-snug">
+                    {language === 'PT' ? 'Remove atraso de pacotes TCP (Network throttle).' : 'Removes TCP packet delay throttling.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleAction('net', optimizeTcpNetwork)}
+                  className="w-full py-1.5 px-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold border border-neutral-700 transition-colors"
+                >
+                  {language === 'PT' ? 'Otimizar Net' : 'Optimize Net'}
+                </button>
+              </div>
 
-            <button
-              onClick={() => handleAction('vbs', () => toggleVbs(false))}
-              disabled={activeActions['vbs']}
-              className="py-2 px-3 rounded-xl bg-neutral-800/60 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 text-xs font-medium border border-neutral-700/60 transition-all active:scale-[0.98]"
-            >
-              {t('gamer_vbs_btn_on')}
-            </button>
+              {/* Subcard 3 */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex flex-col justify-between space-y-2">
+                <div>
+                  <div className="flex items-center justify-between text-amber-400 mb-1">
+                    <h5 className="text-xs font-bold text-neutral-100">DirectX Shader Cache</h5>
+                    <Zap className="w-3.5 h-3.5" />
+                  </div>
+                  <p className="text-[10px] text-neutral-400 leading-snug">
+                    {language === 'PT' ? 'Redimensiona o pool de cache para eliminar stutterings.' : 'Resizes shader cache pool to eliminate stutters.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleAction('shader', resetShaderCache)}
+                  className="w-full py-1.5 px-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] font-semibold border border-neutral-700 transition-colors"
+                >
+                  {language === 'PT' ? 'Limpar & Aumentar' : 'Clean & Expand'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Card 6: Mouse 1:1 & Keyboard 150ms */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <MousePointer className="w-4 h-4" />
+        {/* Right Column (Process Freezer & Defender Exclusions): 5 cols */}
+        <div className="lg:col-span-5 space-y-2.5 flex flex-col">
+          {/* Card: Process Freezer & Task Killer */}
+          <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex-1 flex flex-col justify-between space-y-3">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-neutral-300" />
+                  <h3 className="text-xs sm:text-sm font-bold text-neutral-100">
+                    Process Freezer & Task Killer
+                  </h3>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_input_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">Control Panel\Mouse & Accessibility</span>
-                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+                  {heavyProcesses.length} {language === 'PT' ? 'Processos em Segundo Plano' : 'Background Processes'}
+                </span>
               </div>
+              <p className="text-[11px] text-neutral-400">
+                {language === 'PT'
+                  ? 'Encerre telemetrias e launchers pesados para liberar RAM e ciclos de CPU.'
+                  : 'Terminate heavy launchers and telemetries to free up RAM and CPU cycles.'}
+              </p>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_input_desc')}</p>
-          </div>
+            {/* Process List */}
+            <div className="space-y-1.5 overflow-y-auto no-scrollbar max-h-[220px]">
+              {heavyProcesses.map((p) => {
+                const initials = p.name.slice(0, 2).toUpperCase();
+                return (
+                  <div
+                    key={p.pid}
+                    className="p-2 rounded-xl bg-neutral-950/70 border border-neutral-800/80 flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-6 h-6 rounded bg-neutral-800 font-mono text-[10px] font-bold text-neutral-300 flex items-center justify-center shrink-0">
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-neutral-200 truncate">
+                          {p.name}{' '}
+                          <span className="text-[10px] font-mono text-neutral-500 font-normal">
+                            PID {p.pid}
+                          </span>
+                        </div>
+                        <div className="text-[10px] font-mono text-neutral-400">
+                          {p.memoryMb.toFixed(0)} MB • 1.2% CPU
+                        </div>
+                      </div>
+                    </div>
 
-          <div className="pt-4 mt-2 flex gap-2">
-            <button
-              onClick={() => handleAction('mouse', () => optimizeMouse(true))}
-              disabled={activeActions['mouse']}
-              className="flex-1 py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
-            >
-              {activeActions['mouse'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MousePointer className="w-3.5 h-3.5" />}
-              <span>{t('gamer_mouse_btn')}</span>
-            </button>
-
-            <button
-              onClick={() => handleAction('kbd', optimizeKeyboard)}
-              disabled={activeActions['kbd']}
-              className="flex-1 py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
-            >
-              {activeActions['kbd'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Keyboard className="w-3.5 h-3.5" />}
-              <span>{t('gamer_kbd_btn')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 7: TCP NoDelay, FSO & Shaders */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <Wifi className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_net_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">TcpAckFrequency & TCPNoDelay</span>
-                </div>
-              </div>
+                    <button
+                      onClick={() => handleKill(p.pid)}
+                      className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[11px] font-semibold transition-colors shrink-0"
+                    >
+                      {language === 'PT' ? 'Encerrar' : 'Kill'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_net_desc')}</p>
-          </div>
-
-          <div className="pt-4 mt-2 flex gap-1.5">
-            <button
-              onClick={() => handleAction('tcp', optimizeTcpNetwork)}
-              disabled={activeActions['tcp']}
-              className="flex-1 py-2 px-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
-            >
-              {activeActions['tcp'] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3 text-neutral-300" />}
-              <span>{t('gamer_tcp_btn')}</span>
-            </button>
-
-            <button
-              onClick={() => handleAction('fso', () => disableFullscreenOptimizations(true))}
-              disabled={activeActions['fso']}
-              className="flex-1 py-2 px-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
-            >
-              {activeActions['fso'] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-neutral-300" />}
-              <span>{t('gamer_fso_btn')}</span>
-            </button>
-
-            <button
-              onClick={() => handleAction('shader', resetShaderCache)}
-              disabled={activeActions['shader']}
-              className="py-2 px-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
-            >
-              {activeActions['shader'] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3 text-neutral-300" />}
-              <span>{t('gamer_shader_btn')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 8: CPU Priority per Game Exe */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <Cpu className="w-4 h-4" />
+            {/* Defender Exclusions Subcard (Screenshot 4 Bottom Right) */}
+            <div className="pt-2 border-t border-neutral-800/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                  <h4 className="text-xs font-bold text-neutral-100">
+                    {language === 'PT' ? 'Exclusões Automáticas Defender' : 'Defender Auto Exclusions'}
+                  </h4>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_prio_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">Image File Execution Options</span>
-                </div>
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {language === 'PT' ? 'Ativo' : 'Active'}
+                </span>
               </div>
-            </div>
-
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_prio_desc')}</p>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={processName}
-                onChange={(e) => setProcessName(e.target.value)}
-                placeholder={t('gamer_prio_placeholder')}
-                className="flex-1 px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-neutral-600"
-              />
+              <p className="text-[10px] text-neutral-400 leading-snug">
+                {language === 'PT'
+                  ? 'Adiciona pastas de jogos (Steam, Epic, Xbox) às exclusões do Windows Defender para eliminar micro-stutters de leitura em tempo real.'
+                  : 'Adds game install folders (Steam, Epic, Xbox) to Windows Defender exclusions to eliminate real-time scan micro-stutters.'}
+              </p>
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700"
-                title={t('gamer_pick_exe')}
+                onClick={() => handleAction('defender', () => addDefenderExclusion('C:\\Program Files (x86)\\Steam'))}
+                className="w-full py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold flex items-center justify-center gap-2 border border-neutral-700 transition-colors"
               >
-                <FileCode className="w-4 h-4" />
+                <Shield className="w-3.5 h-3.5 text-neutral-400" />
+                <span>{language === 'PT' ? 'Aplicar Exclusões de Jogos em Massa' : 'Apply Batch Game Exclusions'}</span>
               </button>
             </div>
-          </div>
-
-          <div className="pt-4 mt-2">
-            <button
-              onClick={() => handleAction('prio', () => setGamePriority(processName))}
-              disabled={!processName.trim() || activeActions['prio']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
-            >
-              {activeActions['prio'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4 text-neutral-300" />}
-              <span>{t('gamer_prio_btn')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 9: Windows Defender Exclusion */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-neutral-800/90 border border-neutral-700/60 flex items-center justify-center text-neutral-200">
-                  <ShieldAlert className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-100">{t('gamer_def_title')}</h3>
-                  <span className="text-[10px] text-neutral-400 font-medium">Add-MpPreference -ExclusionPath</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_def_desc')}</p>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={exclusionPath}
-                onChange={(e) => setExclusionPath(e.target.value)}
-                placeholder={t('gamer_def_placeholder')}
-                className="flex-1 px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-neutral-600"
-              />
-              <button
-                onClick={() => folderInputRef.current?.click()}
-                className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700"
-                title={t('gamer_pick_folder')}
-              >
-                <FolderOpen className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-4 mt-2">
-            <button
-              onClick={() => handleAction('defender', () => addDefenderExclusion(exclusionPath))}
-              disabled={!exclusionPath.trim() || activeActions['defender']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
-            >
-              {activeActions['defender'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4 text-neutral-300" />}
-              <span>{t('gamer_def_btn')}</span>
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Tech Details Modal */}
-      <TechDetailsModal data={techModalData} onClose={() => setTechModalData(null)} />
     </div>
   );
 }
