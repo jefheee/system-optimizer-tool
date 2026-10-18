@@ -33,6 +33,7 @@ O **System Optimizer** centraliza rotinas de diagnóstico de hardware em tempo r
 ## Arquitetura do Repositório
 
 
+
 ```
 System-Optimizer-Tool/
 ├── gui/                      # Interface moderna e núcleo desktop
