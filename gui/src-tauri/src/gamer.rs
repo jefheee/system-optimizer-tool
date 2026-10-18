@@ -494,3 +494,126 @@ pub async fn toggle_vbs(disable: bool, app: tauri::AppHandle) -> Result<CommandR
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeavyProcess {
+    pub pid: u32,
+    pub name: String,
+    pub memory_mb: f32,
+    pub cpu_percent: f32,
+}
+
+/// Lista os 8 processos de usuário que mais consomem memória RAM no momento (Modo Foco Gamer / Process Freezer)
+#[tauri::command]
+pub async fn get_heavy_processes() -> Result<CommandResponse<Vec<HeavyProcess>>, String> {
+    tokio::task::spawn_blocking(|| {
+        use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+
+        let mut sys = System::new_with_specifics(
+            RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
+        );
+        sys.refresh_processes(ProcessesToUpdate::All, true);
+
+        let current_pid = std::process::id();
+        let critical_names = [
+            "system",
+            "idle",
+            "registry",
+            "memcompression",
+            "smss.exe",
+            "csrss.exe",
+            "wininit.exe",
+            "services.exe",
+            "lsass.exe",
+            "svchost.exe",
+            "fontdrvhost.exe",
+            "winlogon.exe",
+            "dwm.exe",
+            "explorer.exe",
+            "sihost.exe",
+            "taskhostw.exe",
+            "runtimebroker.exe",
+            "searchhost.exe",
+            "startmenuexperiencehost.exe",
+            "msmpeng.exe",
+            "nissrv.exe",
+            "audiodg.exe",
+            "conhost.exe",
+            "ctfmon.exe",
+            "dllhost.exe",
+            "spoolsv.exe",
+            "wmiprvse.exe",
+            "securityhealthservice.exe",
+            "securityhealthsystray.exe",
+            "system-optimizer.exe",
+            "app.exe",
+            "cargo.exe",
+            "node.exe",
+        ];
+
+        let mut list: Vec<HeavyProcess> = sys
+            .processes()
+            .iter()
+            .filter_map(|(pid, proc_info)| {
+                let p_u32 = pid.as_u32();
+                if p_u32 <= 4 || p_u32 == current_pid {
+                    return None;
+                }
+                let name = proc_info.name().to_string_lossy().to_string();
+                let lower = name.to_lowercase();
+                if critical_names.iter().any(|&c| lower == c) {
+                    return None;
+                }
+                let mem_mb = (proc_info.memory() as f32) / (1024.0 * 1024.0);
+                if mem_mb < 15.0 {
+                    return None;
+                }
+                Some(HeavyProcess {
+                    pid: p_u32,
+                    name,
+                    memory_mb: (mem_mb * 10.0).round() / 10.0,
+                    cpu_percent: (proc_info.cpu_usage() * 10.0).round() / 10.0,
+                })
+            })
+            .collect();
+
+        list.sort_by(|a, b| b.memory_mb.partial_cmp(&a.memory_mb).unwrap_or(std::cmp::Ordering::Equal));
+        list.truncate(8);
+
+        Ok(CommandResponse::ok(
+            format!("{} processos de alto consumo identificados.", list.len()),
+            Some(list),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Encerra um processo de segundo plano pelo PID para liberar RAM antes de jogar
+#[tauri::command]
+pub async fn kill_process(pid: u32) -> Result<CommandResponse<bool>, String> {
+    if pid <= 4 || pid == std::process::id() {
+        return Err("Processo protegido do sistema.".to_string());
+    }
+
+    tokio::task::spawn_blocking(move || {
+        let out = new_hidden_command("taskkill.exe")
+            .args(["/F", "/PID", &pid.to_string()])
+            .output()
+            .map_err(|e| format!("Erro ao encerrar processo: {}", e))?;
+
+        if out.status.success() {
+            Ok(CommandResponse::ok(
+                format!("Processo (PID {}) encerrado com sucesso e memória liberada!", pid),
+                Some(true),
+            ))
+        } else {
+            let err = String::from_utf8_lossy(&out.stderr).to_string();
+            Err(format!("Não foi possível encerrar o processo PID {}: {}", pid, err))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+

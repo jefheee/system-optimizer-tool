@@ -2,13 +2,17 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useHardware } from '@/lib/HardwareContext';
 import { runPreset } from '@/lib/api';
 import { Zap, Gamepad2, BatteryCharging, ShieldAlert, CheckCircle2, Loader2, Sparkles, ArrowRight } from 'lucide-react';
 
 export default function PresetsModule() {
   const { t } = useLanguage();
+  const { diagnostics, refreshAudit } = useHardware();
   const [runningPreset, setRunningPreset] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ id: string; success: boolean; text: string } | null>(null);
+
+  const isLaptop = diagnostics?.deviceType === 'Laptop';
 
   const handleRunPreset = async (presetId: string) => {
     setRunningPreset(presetId);
@@ -18,13 +22,14 @@ export default function PresetsModule() {
       setStatusMsg({
         id: presetId,
         success: res.success,
-        text: res.message || t('preset_success', 'Perfil aplicado com sucesso!'),
+        text: res.message,
       });
+      await refreshAudit();
     } catch (e: any) {
       setStatusMsg({
         id: presetId,
         success: false,
-        text: e?.message || 'Erro ao aplicar perfil.',
+        text: e?.message || 'Error',
       });
     } finally {
       setRunningPreset(null);
@@ -37,15 +42,16 @@ export default function PresetsModule() {
       title: t('preset_essential_title'),
       desc: t('preset_essential_desc'),
       icon: Zap,
+      recommended: !isLaptop,
       gradient: 'from-blue-500/20 via-cyan-500/10 to-transparent',
       borderColor: 'border-blue-500/30 hover:border-blue-500/60',
       badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
       tags: [t('preset_tag_cleanup'), t('preset_tag_security')],
       tweaks: [
-        'Limpeza de temporários (%TEMP% e Lixeira)',
-        'DNS rápido Cloudflare (1.1.1.1 / 1.0.0.1)',
-        'Desativação de telemetria básica (DiagTrack)',
-        'Liberação imediata de RAM ociosa',
+        t('clean_lite_title'),
+        t('sys_dns_bench_title'),
+        t('sys_tel_title'),
+        t('gamer_flush_ram_title'),
       ],
     },
     {
@@ -53,17 +59,17 @@ export default function PresetsModule() {
       title: t('preset_gamer_title'),
       desc: t('preset_gamer_desc'),
       icon: Gamepad2,
+      recommended: !isLaptop,
       gradient: 'from-emerald-500/20 via-teal-500/10 to-transparent',
       borderColor: 'border-emerald-500/30 hover:border-emerald-500/60',
       badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
       tags: [t('preset_tag_fps'), t('preset_tag_latency')],
       tweaks: [
-        'Timer de Kernel ajustado para 0.5ms',
-        'Plano de Energia Desempenho Máximo',
-        'TCP NoDelay & Desativação do Algoritmo de Nagle',
-        'Mouse 1:1 & Teclado com repetição de 150ms',
-        'GameDVR e Otimizações de Tela Cheia (FSO) desativados',
-        'Flush de memória RAM de todos os processos',
+        t('gamer_timer_title'),
+        t('gamer_power_title'),
+        t('gamer_net_title'),
+        t('gamer_input_title'),
+        t('gamer_flush_ram_title'),
       ],
     },
     {
@@ -71,15 +77,15 @@ export default function PresetsModule() {
       title: t('preset_notebook_title'),
       desc: t('preset_notebook_desc'),
       icon: BatteryCharging,
+      recommended: isLaptop,
       gradient: 'from-amber-500/20 via-orange-500/10 to-transparent',
       borderColor: 'border-amber-500/30 hover:border-amber-500/60',
       badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
       tags: [t('preset_tag_battery'), t('preset_tag_cleanup')],
       tweaks: [
-        'Limpeza rápida sem estresse de I/O em disco',
-        'Redução de tarefas de fundo para poupar bateria',
-        'Flush de páginas de memória para reduzir swap',
-        'Renovação e flush de cache DNS',
+        t('clean_lite_title'),
+        t('sys_tel_title'),
+        t('gamer_flush_ram_title'),
       ],
     },
     {
@@ -87,15 +93,16 @@ export default function PresetsModule() {
       title: t('preset_privacy_title'),
       desc: t('preset_privacy_desc'),
       icon: ShieldAlert,
+      recommended: false,
       gradient: 'from-purple-500/20 via-violet-500/10 to-transparent',
       borderColor: 'border-purple-500/30 hover:border-purple-500/60',
       badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
       tags: [t('preset_tag_security'), t('preset_tag_cleanup')],
       tweaks: [
-        'Desativação profunda de telemetria e Cortana',
-        'Remoção de bloatwares de fábrica (Bing, Solitaire, 3DViewer)',
-        'Exclusão de tarefas agendadas órfãs',
-        'Desinstalação do Microsoft OneDrive',
+        t('sys_tel_title'),
+        t('sys_bloat_title'),
+        t('sys_orphans_title'),
+        t('sys_onedrive_title'),
       ],
     },
   ];
@@ -106,13 +113,9 @@ export default function PresetsModule() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-5 h-5 text-blue-400" />
-          <h2 className="text-xl font-bold text-neutral-100">
-            {t('presets_title')}
-          </h2>
+          <h2 className="text-xl font-bold text-neutral-100">{t('presets_title')}</h2>
         </div>
-        <p className="text-sm text-neutral-400">
-          {t('presets_subtitle')}
-        </p>
+        <p className="text-sm text-neutral-400">{t('presets_subtitle')}</p>
       </div>
 
       {/* Grid of 4 Presets */}
@@ -140,9 +143,14 @@ export default function PresetsModule() {
                       <Icon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-neutral-100">
-                        {preset.title}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-neutral-100">{preset.title}</h3>
+                        {preset.recommended && (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            ★ {t('home_recommended_for_you')}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5 mt-1">
                         {preset.tags.map((tag, i) => (
                           <span
@@ -158,21 +166,16 @@ export default function PresetsModule() {
                 </div>
 
                 {/* Description */}
-                <p className="text-xs text-neutral-300 leading-relaxed">
-                  {preset.desc}
-                </p>
+                <p className="text-xs text-neutral-300 leading-relaxed">{preset.desc}</p>
 
                 {/* Tweaks list */}
                 <div className="space-y-1.5 pt-2 border-t border-neutral-800/80">
                   <div className="text-[11px] font-semibold text-neutral-400">
-                    O que será aplicado:
+                    {t('preset_what_applied')}
                   </div>
                   <ul className="space-y-1">
                     {preset.tweaks.map((tw, idx) => (
-                      <li
-                        key={idx}
-                        className="text-xs text-neutral-300 flex items-center gap-2"
-                      >
+                      <li key={idx} className="text-xs text-neutral-300 flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
                         <span>{tw}</span>
                       </li>

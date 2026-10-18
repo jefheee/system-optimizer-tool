@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { 
-  getGamerStatus, 
-  toggleTimerResolution, 
+import {
+  getGamerStatus,
+  toggleTimerResolution,
   toggleRamAutoclean,
   flushRamNow,
   enableUltimatePerformancePlan,
@@ -14,34 +14,42 @@ import {
   optimizeKeyboard,
   optimizeTcpNetwork,
   addDefenderExclusion,
-  resetShaderCache
+  resetShaderCache,
+  getHeavyProcesses,
+  killProcess,
+  HeavyProcessItem,
 } from '../lib/api';
 import { useLanguage } from '../lib/LanguageContext';
+import { useHardware } from '../lib/HardwareContext';
 import TechDetailsModal, { TechDetailsData } from './TechDetailsModal';
-import { 
-  Gamepad2, 
-  Cpu, 
-  MousePointer, 
-  Keyboard, 
-  Activity, 
-  Wifi, 
-  ShieldAlert, 
-  Zap, 
-  Loader2, 
-  CheckCircle2, 
+import {
+  Gamepad2,
+  Cpu,
+  MousePointer,
+  Keyboard,
+  Activity,
+  Wifi,
+  ShieldAlert,
+  Zap,
+  Loader2,
+  CheckCircle2,
   FolderOpen,
   FileCode,
   Info,
   Clock,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  RefreshCw,
+  XCircle,
+  Flame,
 } from 'lucide-react';
 
 export default function GamerModule() {
   const { t } = useLanguage();
+  const { refreshAudit } = useHardware();
   const [activeActions, setActiveActions] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<Record<string, { success: boolean; message: string }>>({});
-  
+
   // Inputs states
   const [processName, setProcessName] = useState('');
   const [exclusionPath, setExclusionPath] = useState('');
@@ -52,35 +60,69 @@ export default function GamerModule() {
   const [ramCleanEnabled, setRamCleanEnabled] = useState(false);
   const [techModalData, setTechModalData] = useState<TechDetailsData | null>(null);
 
-  // Hidden input refs for file/folder pickers
+  // Process Freezer state
+  const [heavyProcesses, setHeavyProcesses] = useState<HeavyProcessItem[]>([]);
+  const [loadingProcs, setLoadingProcs] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
+  const loadHeavyProcesses = async () => {
+    setLoadingProcs(true);
+    try {
+      const res = await getHeavyProcesses();
+      if (res.success && res.data) {
+        setHeavyProcesses(res.data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingProcs(false);
+    }
+  };
+
   useEffect(() => {
-    getGamerStatus().then(res => {
+    getGamerStatus().then((res) => {
       if (res.success && res.data) {
         setLatencyEnabled(res.data.timerResolutionActive);
         setLatencyResolution(res.data.currentResolutionMs);
         setRamCleanEnabled(res.data.ramAutocleanActive);
       }
     });
+    loadHeavyProcesses();
   }, []);
 
   const handleAction = async (id: string, fn: () => Promise<any>) => {
-    setActiveActions(prev => ({ ...prev, [id]: true }));
+    setActiveActions((prev) => ({ ...prev, [id]: true }));
     try {
       const res = await fn();
-      setResults(prev => ({
+      setResults((prev) => ({
         ...prev,
-        [id]: { success: res.success, message: res.message }
+        [id]: { success: res.success, message: res.message },
       }));
+      await refreshAudit();
     } catch (err: any) {
-      setResults(prev => ({
+      setResults((prev) => ({
         ...prev,
-        [id]: { success: false, message: err?.message || 'Falha na comunicação.' }
+        [id]: { success: false, message: err?.message || 'Error' },
       }));
     } finally {
-      setActiveActions(prev => ({ ...prev, [id]: false }));
+      setActiveActions((prev) => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleKillProcess = async (pid: number) => {
+    const key = `kill_${pid}`;
+    setActiveActions((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await killProcess(pid);
+      setResults((prev) => ({
+        ...prev,
+        [key]: { success: res.success, message: res.message },
+      }));
+      await loadHeavyProcesses();
+    } finally {
+      setActiveActions((prev) => ({ ...prev, [key]: false }));
     }
   };
 
@@ -109,8 +151,7 @@ export default function GamerModule() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      setProcessName(file.name);
+      setProcessName(e.target.files[0].name);
     }
   };
 
@@ -143,13 +184,82 @@ export default function GamerModule() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <Gamepad2 className="w-5 h-5 text-emerald-400" />
-          <h2 className="text-xl font-bold text-neutral-100">
-            {t('gamer_title')}
-          </h2>
+          <h2 className="text-xl font-bold text-neutral-100">{t('gamer_title')}</h2>
         </div>
-        <p className="text-xs text-neutral-400">
-          {t('gamer_subtitle')}
-        </p>
+        <p className="text-xs text-neutral-400">{t('gamer_subtitle')}</p>
+      </div>
+
+      {/* Results Banner */}
+      {Object.entries(results).slice(-2).map(([id, res]) => (
+        <div
+          key={id}
+          className={`p-3 rounded-xl text-xs flex items-center gap-2 border animate-fade-in ${
+            res.success
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 border-red-500/20'
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{res.message}</span>
+        </div>
+      ))}
+
+      {/* V5.0 Process Freezer (Top Memory / CPU Hogs) */}
+      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+              <Flame className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-neutral-100">{t('gamer_freezer_title')}</h3>
+              <p className="text-xs text-neutral-400">{t('gamer_freezer_desc')}</p>
+            </div>
+          </div>
+
+          <button
+            onClick={loadHeavyProcesses}
+            disabled={loadingProcs}
+            className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-center"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${loadingProcs ? 'animate-spin' : ''}`} />
+            <span>{t('gamer_freezer_refresh')}</span>
+          </button>
+        </div>
+
+        {heavyProcesses.length === 0 ? (
+          <div className="p-4 rounded-xl bg-neutral-950/60 border border-neutral-800 text-xs text-neutral-400 text-center">
+            {t('gamer_freezer_empty')}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {heavyProcesses.map((proc) => {
+              const busy = !!activeActions[`kill_${proc.pid}`];
+              return (
+                <div
+                  key={proc.pid}
+                  className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-neutral-100 truncate">{proc.name}</div>
+                    <div className="text-[10px] text-neutral-400 mt-0.5">
+                      <span className="text-orange-400 font-semibold">{proc.memoryMb.toFixed(0)} MB</span> • PID {proc.pid}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleKillProcess(proc.pid)}
+                    disabled={busy}
+                    className="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[11px] font-semibold inline-flex items-center gap-1 shrink-0 transition-colors"
+                  >
+                    {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                    <span>{busy ? t('gamer_freezer_killing') : t('gamer_freezer_kill')}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Cards Grid */}
@@ -172,18 +282,16 @@ export default function GamerModule() {
               </span>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_timer_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_timer_desc')}</p>
 
             <button
               onClick={() =>
                 setTechModalData({
                   title: t('gamer_timer_title'),
                   securityRating: 'safe',
-                  action: 'Chama a função não documentada NtSetTimerResolution em ntdll.dll com valor 5000 (0.5 milissegundos).',
+                  action: 'NtSetTimerResolution(5000, TRUE) -> ntdll.dll (0.50ms).',
                   targetArea: 'ntdll.dll / Kernel Interrupt Timer',
-                  expectedBenefit: 'Reduz o atraso de agendamento entre frames e o delay entre clique do mouse e resposta na tela.',
+                  expectedBenefit: t('gamer_timer_desc'),
                 })
               }
               className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
@@ -228,18 +336,16 @@ export default function GamerModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_power_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_power_desc')}</p>
 
             <button
               onClick={() =>
                 setTechModalData({
                   title: t('gamer_power_title'),
                   securityRating: 'safe',
-                  action: 'Duplica o esquema OEM e9a42b02-d5df-448d-aa00-03f14749eb61 via powercfg e o ativa imediatamente como plano ativo do sistema operacional.',
-                  targetArea: 'powercfg.exe e subsistema de gerenciamento de energia ACPI',
-                  expectedBenefit: 'Impede núcleos de CPU de entrarem em C-States profundos, travando frequências máximas e eliminando oscilações de clock em momentos de alta carga gráfica.',
+                  action: 'powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61',
+                  targetArea: 'powercfg.exe & ACPI CPU C-States',
+                  expectedBenefit: t('gamer_power_desc'),
                 })
               }
               className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
@@ -280,25 +386,7 @@ export default function GamerModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_flush_ram_desc')}
-            </p>
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('gamer_flush_ram_title'),
-                  securityRating: 'safe',
-                  action: 'Varre a tabela de processos ativos com EnumProcesses e executa K32EmptyWorkingSet em cada PID para liberar páginas de memória ociosas.',
-                  targetArea: 'Win32 Process Status API / Gerenciador de Memória do Windows',
-                  expectedBenefit: 'Libera imediatamente centenas de megabytes de RAM consumidos por processos em segundo plano, deixando a memória física desimpedida para jogos pesados.',
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_flush_ram_desc')}</p>
           </div>
 
           <div className="pt-4 mt-2">
@@ -327,37 +415,21 @@ export default function GamerModule() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_ram_job_title')}</h3>
-                  <span className="text-[10px] text-blue-400 font-medium">Ciclo assíncrono de 10 min</span>
+                  <span className="text-[10px] text-blue-400 font-medium">Tokio Async 10m</span>
                 </div>
               </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                ramCleanEnabled
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700'
-              }`}>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  ramCleanEnabled
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                }`}
+              >
                 {ramCleanEnabled ? t('gamer_ram_active') : t('gamer_ram_inactive')}
               </span>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_ram_job_desc')}
-            </p>
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('gamer_ram_job_title'),
-                  securityRating: 'safe',
-                  action: 'Dispara um canal Tokio assíncrono em Rust que executa a cada 600 segundos a rotina de Working Set Flush sem exibir janelas.',
-                  targetArea: 'Tokio Async Runtime & Win32 Memory Management',
-                  expectedBenefit: 'Evita vazamento de memória em sessões longas de jogo sem intervenção manual do usuário.',
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_ram_job_desc')}</p>
           </div>
 
           <div className="pt-4 mt-2">
@@ -395,25 +467,7 @@ export default function GamerModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_vbs_desc')}
-            </p>
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('gamer_vbs_title'),
-                  securityRating: 'advanced',
-                  action: 'Configura o parâmetro hypervisorlaunchtype como off no Boot Configuration Data (BCD) do Windows via bcdedit.',
-                  targetArea: 'BCD (Boot Configuration Data) / Hyper-V Root Security',
-                  expectedBenefit: 'Gera ganhos de 5% a 15% em 1% low FPS em jogos competitivos ao eliminar a virtualização aninhada de memória do Windows Defender.',
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-amber-400 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_vbs_desc')}</p>
           </div>
 
           <div className="pt-4 mt-2 flex gap-2">
@@ -446,30 +500,12 @@ export default function GamerModule() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('gamer_input_title')}</h3>
-                  <span className="text-[10px] text-cyan-400 font-medium">Control Panel\\Mouse & Accessibility</span>
+                  <span className="text-[10px] text-cyan-400 font-medium">Control Panel\Mouse & Accessibility</span>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_input_desc')}
-            </p>
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('gamer_input_title'),
-                  securityRating: 'safe',
-                  action: 'Zera MouseSpeed, MouseThreshold1 e MouseThreshold2 no registro para resposta 1:1 linear, e define AutoRepeatDelay em 150ms.',
-                  targetArea: 'HKCU\\Control Panel\\Mouse e Keyboard Response',
-                  expectedBenefit: 'Precisão muscular idêntica em miras de FPS e resposta mais ágil em strafing e teclas repetidas.',
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_input_desc')}</p>
           </div>
 
           <div className="pt-4 mt-2 flex gap-2">
@@ -508,25 +544,7 @@ export default function GamerModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_net_desc')}
-            </p>
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('gamer_net_title'),
-                  securityRating: 'safe',
-                  action: 'Configura TcpAckFrequency=1 e TCPNoDelay=1 nas interfaces de rede para despachar pacotes imediatamente, e limpa D3DSCache e drivers DX.',
-                  targetArea: 'HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces e %LOCALAPPDATA%\\D3DSCache',
-                  expectedBenefit: 'Reduz o atraso de transmissão de pacotes TCP e elimina travamentos por compilação de shaders corrompidos.',
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_net_desc')}</p>
           </div>
 
           <div className="pt-4 mt-2 flex gap-2">
@@ -554,7 +572,7 @@ export default function GamerModule() {
               className="py-2 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1 transition-all active:scale-[0.98]"
             >
               {activeActions['shader'] ? <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" /> : <Activity className="w-3.5 h-3.5 text-cyan-400" />}
-              <span>Shaders</span>
+              <span>{t('gamer_shader_btn')}</span>
             </button>
           </div>
         </div>
@@ -574,9 +592,7 @@ export default function GamerModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_prio_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_prio_desc')}</p>
 
             <div className="flex gap-2">
               <input
@@ -589,7 +605,7 @@ export default function GamerModule() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700"
-                title="Escolher arquivo .exe"
+                title={t('gamer_pick_exe')}
               >
                 <FileCode className="w-4 h-4" />
               </button>
@@ -623,9 +639,7 @@ export default function GamerModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('gamer_def_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('gamer_def_desc')}</p>
 
             <div className="flex gap-2">
               <input
@@ -638,7 +652,7 @@ export default function GamerModule() {
               <button
                 onClick={() => folderInputRef.current?.click()}
                 className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700"
-                title="Escolher pasta de jogo"
+                title={t('gamer_pick_folder')}
               >
                 <FolderOpen className="w-4 h-4" />
               </button>
@@ -657,21 +671,6 @@ export default function GamerModule() {
           </div>
         </div>
       </div>
-
-      {/* Results Banner */}
-      {Object.entries(results).map(([id, res]) => (
-        <div
-          key={id}
-          className={`p-3 rounded-xl text-xs flex items-center gap-2 border animate-fade-in ${
-            res.success
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-red-500/10 text-red-400 border-red-500/20'
-          }`}
-        >
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>{res.message}</span>
-        </div>
-      ))}
 
       {/* Tech Details Modal */}
       <TechDetailsModal data={techModalData} onClose={() => setTechModalData(null)} />

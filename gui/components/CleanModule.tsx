@@ -2,23 +2,24 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '../lib/LanguageContext';
+import { useHardware } from '../lib/HardwareContext';
 import { runDeepClean, runLiteClean, toggleHibernation, cleanOldWindowsInstallations, CleanResult } from '../lib/api';
 import TechDetailsModal, { TechDetailsData } from './TechDetailsModal';
-import { 
-  Trash2, 
-  Sparkles, 
-  Zap, 
-  Layers, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Loader2, 
+import {
+  Trash2,
+  Sparkles,
+  Zap,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
   Info,
   Moon,
-  FolderArchive
+  FolderArchive,
 } from 'lucide-react';
 
 export default function CleanModule() {
   const { t } = useLanguage();
+  const { audit, refreshAudit } = useHardware();
   const [running, setRunning] = useState<string | null>(null);
   const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -34,11 +35,12 @@ export default function CleanModule() {
       const res = await runDeepClean();
       if (res.success && res.data) {
         setCleanResult(res.data);
+        await refreshAudit();
       } else {
         setErrorMessage(res.message);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Erro ao executar limpeza profunda.');
+      setErrorMessage(err?.message || 'Error');
     } finally {
       setRunning(null);
     }
@@ -53,11 +55,12 @@ export default function CleanModule() {
       const res = await runLiteClean();
       if (res.success && res.data) {
         setCleanResult(res.data);
+        await refreshAudit();
       } else {
         setErrorMessage(res.message);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Erro ao executar limpeza rápida.');
+      setErrorMessage(err?.message || 'Error');
     } finally {
       setRunning(null);
     }
@@ -71,11 +74,12 @@ export default function CleanModule() {
       const res = await toggleHibernation(disable);
       if (res.success) {
         setActionMessage(res.message);
+        await refreshAudit();
       } else {
         setErrorMessage(res.message);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Erro ao alterar hibernação.');
+      setErrorMessage(err?.message || 'Error');
     } finally {
       setRunning(null);
     }
@@ -90,11 +94,12 @@ export default function CleanModule() {
       const res = await cleanOldWindowsInstallations();
       if (res.success && res.data) {
         setCleanResult(res.data);
+        await refreshAudit();
       } else {
         setErrorMessage(res.message);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Erro ao limpar instalações anteriores.');
+      setErrorMessage(err?.message || 'Error');
     } finally {
       setRunning(null);
     }
@@ -103,16 +108,26 @@ export default function CleanModule() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Trash2 className="w-5 h-5 text-blue-400" />
-          <h2 className="text-xl font-bold text-neutral-100">
-            {t('clean_title')}
-          </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Trash2 className="w-5 h-5 text-blue-400" />
+            <h2 className="text-xl font-bold text-neutral-100">{t('clean_title')}</h2>
+          </div>
+          <p className="text-xs text-neutral-400">{t('clean_subtitle')}</p>
         </div>
-        <p className="text-xs text-neutral-400">
-          {t('clean_subtitle')}
-        </p>
+
+        {audit && (
+          <div className="px-4 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs flex items-center gap-2 self-start sm:self-center">
+            <Trash2 className="w-4 h-4 text-orange-400" />
+            <span className="text-neutral-300">{t('home_junk_title')}:</span>
+            <strong className="text-orange-400">
+              {audit.estimatedJunkMb >= 1024
+                ? `${(audit.estimatedJunkGb ?? audit.estimatedJunkMb / 1024).toFixed(2)} GB`
+                : `${audit.estimatedJunkMb.toFixed(0)} MB`}
+            </strong>
+          </div>
+        )}
       </div>
 
       {/* Action Banners */}
@@ -142,23 +157,21 @@ export default function CleanModule() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('clean_deep_title')}</h3>
-                  <span className="text-[10px] text-blue-400 font-medium">Recomendado para SSD/NVMe</span>
+                  <span className="text-[10px] text-blue-400 font-medium">SSD / NVMe + TRIM</span>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('clean_deep_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('clean_deep_desc')}</p>
 
             <button
               onClick={() =>
                 setTechModalData({
                   title: t('clean_deep_title'),
                   securityRating: 'safe',
-                  action: 'Varre e remove recursivamente arquivos de log, temporários de usuário e de sistema (%TEMP%, %WINDIR%\\Temp, Prefetch, SoftwareDistribution\\Download, Caches de Chrome/Edge/Brave/Opera). Esvazia a Lixeira via SHEmptyRecycleBinW e roda defrag C: /O (TRIM).',
-                  targetArea: '%TEMP%, C:\\Windows\\Prefetch, C:\\Windows\\SoftwareDistribution, Caches do Chromium e Win32 Shell API',
-                  expectedBenefit: 'Recuperação imediata de 2 GB a 25 GB de armazenamento em disco, redução de fragmentação no master file table e ganho de velocidade de escrita.',
+                  action: '%TEMP%, %WINDIR%\\Temp, Prefetch, SoftwareDistribution\\Download, Chromium Caches, SHEmptyRecycleBinW & defrag C: /O (TRIM).',
+                  targetArea: '%TEMP%, C:\\Windows\\Prefetch, C:\\Windows\\SoftwareDistribution & Win32 Shell API',
+                  expectedBenefit: t('clean_deep_desc'),
                 })
               }
               className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
@@ -177,7 +190,7 @@ export default function CleanModule() {
               {running === 'deep' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Limpando Sistema...</span>
+                  <span>{t('drawer_status_running')}</span>
                 </>
               ) : (
                 <>
@@ -199,23 +212,21 @@ export default function CleanModule() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('clean_lite_title')}</h3>
-                  <span className="text-[10px] text-cyan-400 font-medium">Seguro para HDDs e SSDs</span>
+                  <span className="text-[10px] text-cyan-400 font-medium">HDD & SSD Safe</span>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('clean_lite_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('clean_lite_desc')}</p>
 
             <button
               onClick={() =>
                 setTechModalData({
                   title: t('clean_lite_title'),
                   securityRating: 'safe',
-                  action: 'Limpa a pasta de arquivos temporários do usuário (%TEMP%), esvazia a Lixeira do Windows e limpa a tabela DNS local.',
-                  targetArea: '%LOCALAPPDATA%\\Temp e Lixeira do Windows',
-                  expectedBenefit: 'Limpeza instantânea sem desgaste de I/O em discos rígidos mecânicos e sem interferência em caches de navegação.',
+                  action: '%LOCALAPPDATA%\\Temp, SHEmptyRecycleBinW & ipconfig /flushdns.',
+                  targetArea: '%LOCALAPPDATA%\\Temp & Windows Recycle Bin',
+                  expectedBenefit: t('clean_lite_desc'),
                 })
               }
               className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
@@ -234,7 +245,7 @@ export default function CleanModule() {
               {running === 'lite' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                  <span>Limpando...</span>
+                  <span>{t('drawer_status_running')}</span>
                 </>
               ) : (
                 <>
@@ -256,23 +267,21 @@ export default function CleanModule() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100">{t('clean_hibernation_title')}</h3>
-                  <span className="text-[10px] text-amber-400 font-medium">Recupere de 8 a 32 GB no C:</span>
+                  <span className="text-[10px] text-amber-400 font-medium">powercfg /hibernate</span>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('clean_hibernation_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('clean_hibernation_desc')}</p>
 
             <button
               onClick={() =>
                 setTechModalData({
                   title: t('clean_hibernation_title'),
                   securityRating: 'safe',
-                  action: 'Invoca powercfg.exe /hibernate off para excluir o arquivo C:\\hiberfil.sys, cujo tamanho é proporcional a 75% da sua memória RAM instalada.',
-                  targetArea: 'C:\\hiberfil.sys e gerenciador de energia do Windows',
-                  expectedBenefit: 'Liberação imediata de 8 GB a 32 GB de espaço no disco C: que ficava permanentemente reservado para a hibernação.',
+                  action: 'powercfg.exe /hibernate off -> C:\\hiberfil.sys',
+                  targetArea: 'C:\\hiberfil.sys & ACPI Power Manager',
+                  expectedBenefit: t('clean_hibernation_desc'),
                 })
               }
               className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-amber-400 transition-colors pt-1"
@@ -317,18 +326,16 @@ export default function CleanModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
-              {t('clean_old_win_desc')}
-            </p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('clean_old_win_desc')}</p>
 
             <button
               onClick={() =>
                 setTechModalData({
                   title: t('clean_old_win_title'),
                   securityRating: 'safe',
-                  action: 'Varre e remove as pastas C:\\Windows.old, C:\\$Windows.~BT e C:\\$Windows.~WS geradas por grandes atualizações do sistema, e executa dism.exe /Online /Cleanup-Image /StartComponentCleanup para descartar versões antigas de DLLs.',
-                  targetArea: 'C:\\Windows.old e C:\\Windows\\WinSxS',
-                  expectedBenefit: 'Pode liberar entre 10 GB e 40 GB de espaço que o Windows mantém desnecessariamente após atualizações estáveis.',
+                  action: 'C:\\Windows.old, C:\\$Windows.~BT & dism.exe /Online /Cleanup-Image /StartComponentCleanup.',
+                  targetArea: 'C:\\Windows.old & C:\\Windows\\WinSxS',
+                  expectedBenefit: t('clean_old_win_desc'),
                 })
               }
               className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-purple-400 transition-colors pt-1"
@@ -347,7 +354,7 @@ export default function CleanModule() {
               {running === 'old_win' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-                  <span>Limpando Atualizações Antigas...</span>
+                  <span>{t('drawer_status_running')}</span>
                 </>
               ) : (
                 <>
@@ -366,7 +373,7 @@ export default function CleanModule() {
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <h4 className="text-sm font-bold text-neutral-100">Resultado da Limpeza</h4>
+              <h4 className="text-sm font-bold text-neutral-100">{t('drawer_status_success')}</h4>
             </div>
             <div className="text-right">
               <span className="text-[10px] text-neutral-400 block">{t('clean_freed')}</span>
@@ -384,7 +391,7 @@ export default function CleanModule() {
               >
                 <div>
                   <div className="font-semibold text-neutral-200">{cat.name}</div>
-                  <div className="text-[10px] text-neutral-400 mt-0.5">{cat.filesDeleted} arquivos</div>
+                  <div className="text-[10px] text-neutral-400 mt-0.5">{cat.filesDeleted} files</div>
                 </div>
                 <span className="font-bold text-cyan-400">{cat.mbFreed.toFixed(1)} MB</span>
               </div>

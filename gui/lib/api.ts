@@ -1,5 +1,5 @@
 // =================================================================
-// SYSTEM OPTIMIZER - FRONTEND NATIVE TAURI BRIDGE & TYPINGS V4.0
+// SYSTEM OPTIMIZER - FRONTEND NATIVE TAURI BRIDGE & TYPINGS V5.0
 // =================================================================
 
 export interface CommandResponse<T> {
@@ -18,7 +18,7 @@ export interface StepEvent {
 }
 
 // -------------------------------------------------------------
-// Tipagens do Módulo 1: Diagnóstico de Hardware & Profiler
+// Tipagens do Módulo 1: Diagnóstico de Hardware & Profiler V5.0
 // -------------------------------------------------------------
 export interface UptimeInfo {
   days: number;
@@ -29,8 +29,10 @@ export interface UptimeInfo {
 export interface OperatingSystemInfo {
   caption: string;
   buildNumber: string;
+  architecture?: string;
   uptime: UptimeInfo;
   formattedUptime: string;
+  uptimeFormatted?: string;
 }
 
 export interface CpuInfo {
@@ -40,7 +42,9 @@ export interface CpuInfo {
   physicalCores: number;
   logicalThreads: number;
   baseClockGhz: number;
+  currentClockGhz: number;
   maxClockGhz: number;
+  boostActive: boolean;
   l3CacheMb: number;
   socket: string;
 }
@@ -60,6 +64,8 @@ export interface GpuInfo {
   resolution: string;
   refreshRateHz: number;
   isPrimary: boolean;
+  resizableBar: boolean;
+  whqlSigned: boolean;
 }
 
 export interface RamSlot {
@@ -69,6 +75,8 @@ export interface RamSlot {
   partNumber: string;
   capacityGb: number;
   speedMhz: number;
+  memoryType: string;
+  voltage: string;
 }
 
 export interface MemoryInfo {
@@ -77,14 +85,21 @@ export interface MemoryInfo {
   usagePercent: number;
   moduleCount: number;
   modules: RamSlot[];
+  xmpActive: boolean;
+  xmpStatus: string;
   xmpAlert: boolean;
   xmpMessage: string;
+  memoryType: string;
 }
 
 export interface StorageDisk {
+  diskNumber: number;
   model: string;
   sizeGb: number;
   freeGb: number;
+  usedGb: number;
+  usagePercent: number;
+  driveLetters: string[] | string;
   mediaType: string; // "NVMe", "SSD", "HDD"
   busType: string;   // "NVMe", "SATA", "USB"
   healthStatus: string; // "Healthy", "Warning", "Unhealthy"
@@ -94,18 +109,48 @@ export interface DisplayInfo {
   name: string;
   manufacturer: string;
   inches: number;
+  diagonalInches?: number;
   resolution: string;
   refreshRateHz: number;
+  isInternal: boolean;
+  connection?: string;
 }
 
 export interface PeripheralsInfo {
   audioDevices: string[];
   inputDevices: string[];
+  mice?: string[];
+  keyboards?: string[];
+}
+
+export interface BatteryInfo {
+  status: string;
+  chargePercent: number;
+  isCharging: boolean;
+  healthPercent: number;
+  wearLevelPercent: number;
+}
+
+export interface SecurityAndBootInfo {
+  biosMode: string; // "UEFI" | "Legacy"
+  secureBoot: boolean;
+  tpmActive: boolean;
+  tpmVersion: string;
+  vbsActive: boolean;
+}
+
+export interface WindowsLicenseInfo {
+  activationStatus: string; // "Activated" | "NotActivated"
+  licenseType: string;      // "Digital / Retail" | "OEM (BIOS)" | "OEM"
+  productKey: string;
+  maskedKey: string;
 }
 
 export interface SystemDiagnostics {
   status: string;
   timestamp: string;
+  deviceType: 'Desktop' | 'Laptop' | string;
+  battery: BatteryInfo | null;
   operatingSystem: OperatingSystemInfo | null;
   cpu: CpuInfo | null;
   motherboard: MotherboardInfo | null;
@@ -115,6 +160,10 @@ export interface SystemDiagnostics {
   storage: StorageDisk[];
   displays: DisplayInfo[];
   peripherals: PeripheralsInfo;
+  security: SecurityAndBootInfo;
+  securityAndBoot?: SecurityAndBootInfo;
+  license: WindowsLicenseInfo;
+  windowsLicense?: WindowsLicenseInfo;
   setupExport: string;
   message: string;
 }
@@ -139,7 +188,7 @@ export interface CleanResult {
 }
 
 // -------------------------------------------------------------
-// Tipagens do Módulo 3: Gamer
+// Tipagens do Módulo 3: Gamer & Process Freezer
 // -------------------------------------------------------------
 export interface GamerStatus {
   timerResolutionActive: boolean;
@@ -147,8 +196,17 @@ export interface GamerStatus {
   ramAutocleanActive: boolean;
 }
 
+export interface HeavyProcess {
+  pid: number;
+  name: string;
+  memoryMb: number;
+  cpuPercent: number;
+}
+
+export type HeavyProcessItem = HeavyProcess;
+
 // -------------------------------------------------------------
-// Tipagens do Módulo 4: Sistema & Rede
+// Tipagens do Módulo 4: Sistema, Auditoria & Startup Manager
 // -------------------------------------------------------------
 export interface DnsProviderPing {
   name: string;
@@ -180,6 +238,44 @@ export interface SfcScanResult {
 export interface BloatwareResult {
   removedCount: number;
   removedApps: string[];
+}
+
+export interface SystemAuditResult {
+  estimatedJunkMb: number;
+  estimatedJunkGb?: number;
+  estimatedJunkFiles: number;
+  timer05msActive: boolean;
+  ultimatePowerActive: boolean;
+  telemetryDisabled: boolean;
+  hibernationDisabled: boolean;
+  mousePrecisionActive: boolean;
+  fsoDisabled: boolean;
+  vbsDisabled: boolean;
+  classicContextMenu: boolean;
+  showFileExtensions: boolean;
+  showHiddenFiles: boolean;
+  bingSearchDisabled: boolean;
+  windowsAdsDisabled: boolean;
+  hagsActive: boolean;
+  startupAppsCount: number;
+  optimizationScore: number;
+}
+
+export interface StartupApp {
+  name: string;
+  command: string;
+  location: string; // "HKCU Run" | "HKLM Run" | "Startup Folder"
+}
+
+export type StartupAppItem = StartupApp;
+
+export interface InstalledToolsStatus {
+  cpuzInstalled: boolean;
+  cpuzPath?: string | null;
+  hwmonitorInstalled: boolean;
+  hwmonitorPath?: string | null;
+  gpuzInstalled: boolean;
+  gpuzPath?: string | null;
 }
 
 // -------------------------------------------------------------
@@ -279,6 +375,8 @@ export async function getSystemDiagnostics(): Promise<SystemDiagnostics> {
   return {
     status: "Error",
     timestamp: new Date().toISOString(),
+    deviceType: "Desktop",
+    battery: null,
     operatingSystem: null,
     cpu: null,
     motherboard: null,
@@ -288,6 +386,19 @@ export async function getSystemDiagnostics(): Promise<SystemDiagnostics> {
     storage: [],
     displays: [],
     peripherals: { audioDevices: [], inputDevices: [] },
+    security: {
+      biosMode: "UEFI",
+      secureBoot: false,
+      tpmActive: false,
+      tpmVersion: "TPM 2.0",
+      vbsActive: false,
+    },
+    license: {
+      activationStatus: "Activated",
+      licenseType: "Digital / Retail",
+      productKey: "",
+      maskedKey: "*****-*****-*****-*****-*****",
+    },
     setupExport: "",
     message: res.message || "Falha ao ler dados de diagnóstico do sistema.",
   };
@@ -315,7 +426,7 @@ export async function cleanOldWindowsInstallations(): Promise<CommandResponse<Cl
   return invokeCommand<CleanResult>("clean_old_windows_installations");
 }
 
-// 4. Gamer & Baixa Latência
+// 4. Gamer & Baixa Latência + Process Freezer
 export async function getGamerStatus(): Promise<CommandResponse<GamerStatus>> {
   return invokeCommand<GamerStatus>("get_gamer_status");
 }
@@ -368,7 +479,15 @@ export async function toggleVbs(disable: boolean): Promise<CommandResponse<boole
   return invokeCommand<boolean>("toggle_vbs", { disable });
 }
 
-// 5. Sistema, Rede & Privacidade
+export async function getHeavyProcesses(): Promise<CommandResponse<HeavyProcess[]>> {
+  return invokeCommand<HeavyProcess[]>("get_heavy_processes");
+}
+
+export async function killProcess(pid: number): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("kill_process", { pid });
+}
+
+// 5. Sistema, Rede, Privacidade, Auditoria, Pós-Formatação & Startup
 export async function checkAdmin(): Promise<boolean> {
   const res = await invokeCommand<boolean>("check_admin");
   return Boolean(res.data);
@@ -442,7 +561,46 @@ export async function backupDrivers(): Promise<CommandResponse<string>> {
   return invokeCommand<string>("backup_drivers");
 }
 
+export async function runSystemAudit(): Promise<CommandResponse<SystemAuditResult>> {
+  return invokeCommand<SystemAuditResult>("run_system_audit");
+}
+
+export async function togglePostFormatTweak(tweakId: string, enable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("toggle_post_format_tweak", { tweakId, enable });
+}
+
+export async function getStartupApps(): Promise<CommandResponse<StartupApp[]>> {
+  return invokeCommand<StartupApp[]>("get_startup_apps");
+}
+
+export async function removeStartupApp(name: string, location: string): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("remove_startup_app", { name, location });
+}
+
+export async function generateBatteryOrEnergyReport(_isLaptop?: boolean): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("generate_battery_or_energy_report");
+}
+
+export async function openExternalUrl(url: string): Promise<CommandResponse<boolean>> {
+  if (typeof window !== "undefined") {
+    const isTauri = (window as any).__TAURI_INTERNALS__ !== undefined || (window as any).__TAURI__ !== undefined;
+    if (!isTauri) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return { success: true, message: "Opened in browser" };
+    }
+  }
+  return invokeCommand<boolean>("open_external_url", { url });
+}
+
 // 6. Hub da Comunidade & Ferramentas Externas
+export async function checkInstalledTools(): Promise<CommandResponse<InstalledToolsStatus>> {
+  return invokeCommand<InstalledToolsStatus>("check_installed_tools");
+}
+
+export async function launchOrInstallTool(toolId: string): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("launch_or_install_tool", { toolId });
+}
+
 export async function launchWinUtil(): Promise<CommandResponse<string>> {
   return invokeCommand<string>("launch_winutil");
 }
@@ -464,5 +622,5 @@ export async function launchAdwCleaner(): Promise<CommandResponse<string>> {
 }
 
 export async function installQuickTool(toolId: string): Promise<CommandResponse<string>> {
-  return invokeCommand<string>("install_quick_tool", { toolId });
+  return invokeCommand<string>("launch_or_install_tool", { toolId });
 }

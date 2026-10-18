@@ -1,5 +1,6 @@
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
+use std::path::Path;
 use std::process::Command;
 use tauri::Emitter;
 use windows::core::{w, PCWSTR};
@@ -53,10 +54,23 @@ pub fn is_process_elevated() -> bool {
     unsafe { IsUserAnAdmin().as_bool() }
 }
 
-/// Reinicia o executável atual com elevação de UAC ("runas")
-pub fn restart_elevated() -> Result<(), String> {
+/// Reinicia o executável atual com elevação de UAC ("runas").
+/// Em modo debug (`tauri dev`), oculta a janela não-elevada sem matar o processo pai,
+/// mantendo o servidor `localhost:3000` vivo para a nova instância elevada.
+pub fn restart_elevated(window: Option<&tauri::Window>) -> Result<(), String> {
     let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let work_dir = current_exe
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
     let path_wide: Vec<u16> = current_exe
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    let dir_wide: Vec<u16> = work_dir
         .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
@@ -68,16 +82,80 @@ pub fn restart_elevated() -> Result<(), String> {
             w!("runas"),
             PCWSTR(path_wide.as_ptr()),
             PCWSTR::null(),
+            PCWSTR(dir_wide.as_ptr()),
+            SW_SHOWNORMAL,
+        );
+
+        if instance.0 as usize > 32 {
+            #[cfg(debug_assertions)]
+            {
+                if let Some(win) = window {
+                    let _ = win.hide();
+                }
+                Ok(())
+            }
+            #[cfg(not(debug_assertions))]
+            {
+                let _ = window;
+                std::process::exit(0);
+            }
+        } else {
+            Err("Falha ao solicitar elevação de privilégios (UAC cancelado ou negado).".to_string())
+        }
+    }
+}
+
+/// Abre um executável, arquivo HTML ou URL usando ShellExecuteW ("open")
+pub fn shell_open(target: &str) -> Result<(), String> {
+    let target_wide: Vec<u16> = std::ffi::OsStr::new(target)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    unsafe {
+        let instance = ShellExecuteW(
+            None,
+            w!("open"),
+            PCWSTR(target_wide.as_ptr()),
+            PCWSTR::null(),
             PCWSTR::null(),
             SW_SHOWNORMAL,
         );
 
         if instance.0 as usize > 32 {
-            std::process::exit(0);
+            Ok(())
         } else {
-            Err("Falha ao solicitar elevação de privilégios (UAC).".to_string())
+            Err(format!("Falha ao abrir '{}'", target))
         }
     }
+}
+
+/// Calcula recursivamente o tamanho em bytes e a contagem de arquivos de um diretório sem apagar nada
+pub fn calculate_dir_size(dir_path: &Path) -> (u64, u64) {
+    let mut total_bytes = 0u64;
+    let mut total_files = 0u64;
+
+    if !dir_path.exists() {
+        return (0, 0);
+    }
+
+    if let Ok(entries) = std::fs::read_dir(dir_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() || path.is_symlink() {
+                if let Ok(meta) = entry.metadata() {
+                    total_bytes += meta.len();
+                    total_files += 1;
+                }
+            } else if path.is_dir() {
+                let (sub_b, sub_f) = calculate_dir_size(&path);
+                total_bytes += sub_b;
+                total_files += sub_f;
+            }
+        }
+    }
+
+    (total_bytes, total_files)
 }
 
 /// Esvazia a Lixeira do Windows nativamente sem confirmação, barra de progresso ou som

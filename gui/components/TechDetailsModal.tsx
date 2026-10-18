@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
-import { ShieldCheck, ShieldAlert, X, Info } from 'lucide-react';
+import { useSettings } from '@/lib/SettingsContext';
+import { ShieldCheck, ShieldAlert, X } from 'lucide-react';
 
 export interface TechDetailsData {
   title: string;
@@ -19,26 +20,37 @@ interface TechDetailsModalProps {
 
 export default function TechDetailsModal({ data, onClose }: TechDetailsModalProps) {
   const { t } = useLanguage();
+  const { theme } = useSettings();
 
   if (!data) return null;
 
   const isSafe = data.securityRating === 'safe';
+  const monoLogo = theme === 'light'
+    ? '/assets/branding/logo-monochrome-black.jpg'
+    : '/assets/branding/logo-monochrome-white.jpg';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-lg bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl overflow-hidden animate-scale-up"
+        className="w-full max-w-lg bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl overflow-hidden animate-scale-up relative"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header with official monochrome badge */}
         <div className="flex items-center justify-between px-5 py-4 bg-neutral-950/80 border-b border-neutral-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-              <Info className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg overflow-hidden border border-neutral-700/80 bg-neutral-900 flex items-center justify-center">
+              <img
+                src={monoLogo}
+                alt="Badge"
+                className="w-full h-full object-cover"
+              />
             </div>
             <div>
               <h3 className="text-sm font-bold text-neutral-100">{data.title}</h3>
-              <p className="text-[10px] text-neutral-400">Auditoria Técnica & Transparência do Kernel</p>
+              <p className="text-[10px] text-neutral-400">{t('tech_subtitle')}</p>
             </div>
           </div>
           <button
@@ -81,7 +93,7 @@ export default function TechDetailsModal({ data, onClose }: TechDetailsModalProp
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
               {t('tech_where')}
             </h4>
-            <p className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 text-neutral-200 leading-relaxed font-mono text-[11px] text-blue-300">
+            <p className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 leading-relaxed font-mono text-[11px] text-blue-300">
               {data.targetArea}
             </p>
           </div>
@@ -103,7 +115,7 @@ export default function TechDetailsModal({ data, onClose }: TechDetailsModalProp
             onClick={onClose}
             className="px-4 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs transition-colors"
           >
-            Entendido
+            {t('tech_understood')}
           </button>
         </div>
       </div>

@@ -60,10 +60,11 @@ pub async fn check_admin() -> Result<CommandResponse<bool>, String> {
 
 /// Reinicia o aplicativo solicitando elevação de privilégios (UAC)
 #[tauri::command]
-pub async fn restart_as_admin() -> Result<CommandResponse<bool>, String> {
-    restart_elevated()?;
+pub async fn restart_as_admin(window: tauri::Window) -> Result<CommandResponse<bool>, String> {
+    restart_elevated(Some(&window))?;
     Ok(CommandResponse::ok("Reiniciando com privilégios de Administrador...", Some(true)))
 }
+
 
 
 /// Cria um Ponto de Restauração do Sistema
@@ -743,3 +744,495 @@ pub async fn backup_drivers(app: tauri::AppHandle) -> Result<CommandResponse<Str
     .await
     .map_err(|e| e.to_string())?
 }
+
+// =================================================================
+// NOVAS FUNÇÕES V5.0: AUDITORIA DO SISTEMA, PÓS-FORMATAÇÃO & STARTUP
+// =================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemAuditResult {
+    pub estimated_junk_mb: f64,
+    pub estimated_junk_files: u64,
+    pub timer_05ms_active: bool,
+    pub ultimate_power_active: bool,
+    pub telemetry_disabled: bool,
+    pub hibernation_disabled: bool,
+    pub mouse_precision_active: bool,
+    pub fso_disabled: bool,
+    pub vbs_disabled: bool,
+    pub classic_context_menu: bool,
+    pub show_file_extensions: bool,
+    pub show_hidden_files: bool,
+    pub bing_search_disabled: bool,
+    pub windows_ads_disabled: bool,
+    pub hags_active: bool,
+    pub startup_apps_count: usize,
+    pub optimization_score: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupApp {
+    pub name: String,
+    pub command: String,
+    pub location: String, // "HKCU Run", "HKLM Run", "Startup Folder"
+}
+
+fn collect_startup_apps_sync() -> Vec<StartupApp> {
+    let mut apps = Vec::new();
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+
+    if let Ok(run_key) = hkcu.open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", winreg::enums::KEY_READ) {
+        for (name, val) in run_key.enum_values().flatten() {
+            let cmd_str = val.to_string();
+            if !name.trim().is_empty() {
+                apps.push(StartupApp {
+                    name,
+                    command: cmd_str,
+                    location: "HKCU Run".to_string(),
+                });
+            }
+        }
+    }
+
+    if let Ok(run_key) = hklm.open_subkey_with_flags(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", winreg::enums::KEY_READ) {
+        for (name, val) in run_key.enum_values().flatten() {
+            let cmd_str = val.to_string();
+            if !name.trim().is_empty() {
+                apps.push(StartupApp {
+                    name,
+                    command: cmd_str,
+                    location: "HKLM Run".to_string(),
+                });
+            }
+        }
+    }
+
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let startup_dir = Path::new(&appdata).join(r"Microsoft\Windows\Start Menu\Programs\Startup");
+        if startup_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&startup_dir) {
+                for entry in entries.flatten() {
+                    let fname = entry.file_name().to_string_lossy().to_string();
+                    if fname.eq_ignore_ascii_case("desktop.ini") {
+                        continue;
+                    }
+                    apps.push(StartupApp {
+                        name: fname,
+                        command: entry.path().to_string_lossy().to_string(),
+                        location: "Startup Folder".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    apps
+}
+
+/// Scanner de Auditoria do Sistema (Raio-X rápido sem deletar nada)
+#[tauri::command]
+pub async fn run_system_audit(state: tauri::State<'_, crate::state::AppState>) -> Result<CommandResponse<SystemAuditResult>, String> {
+    let timer_05ms_active = state
+        .gamer
+        .lock()
+        .map(|g| g.timer_resolution_active)
+        .unwrap_or(false);
+
+    let result = tokio::task::spawn_blocking(move || {
+        // 1. Calcular lixo acumulado estimado sem apagar
+        let temp_dir = std::env::var("TEMP").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
+        let win_temp = PathBuf::from("C:\\Windows\\Temp");
+        let prefetch = PathBuf::from("C:\\Windows\\Prefetch");
+        let local_appdata = std::env::var("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("C:\\Users\\Default\\AppData\\Local"));
+
+        let scan_dirs = vec![
+            temp_dir,
+            win_temp,
+            prefetch,
+            local_appdata.join("D3DSCache"),
+            local_appdata.join("NVIDIA\\DXCache"),
+            local_appdata.join("AMD\\DxCache"),
+        ];
+
+        let mut total_junk_bytes = 0u64;
+        let mut total_junk_files = 0u64;
+        for d in scan_dirs {
+            let (b, f) = crate::utils::calculate_dir_size(&d);
+            total_junk_bytes += b;
+            total_junk_files += f;
+        }
+        let estimated_junk_mb = ((total_junk_bytes as f64) / (1024.0 * 1024.0) * 10.0).round() / 10.0;
+
+        // 2. Verificar estados reais no Registro
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        let key_read = winreg::enums::KEY_READ;
+
+        // Ultimate Power Plan active check
+        let ultimate_power_active = hklm
+            .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes", key_read)
+            .and_then(|k| k.get_value::<String, _>("ActivePowerScheme"))
+            .map(|guid| {
+                let g = guid.to_lowercase();
+                g.contains("e9a42b02") || g.contains("8c5e7fda")
+            })
+            .unwrap_or(false);
+
+        // Telemetry disabled check
+        let telemetry_disabled = hklm
+            .open_subkey_with_flags(r"SOFTWARE\Policies\Microsoft\Windows\DataCollection", key_read)
+            .and_then(|k| k.get_value::<u32, _>("AllowTelemetry"))
+            .map(|v| v == 0)
+            .unwrap_or(false)
+            || hklm
+                .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Services\DiagTrack", key_read)
+                .and_then(|k| k.get_value::<u32, _>("Start"))
+                .map(|v| v == 4)
+                .unwrap_or(false);
+
+        // Hibernation disabled check
+        let hibernation_disabled = !Path::new("C:\\hiberfil.sys").exists()
+            || hklm
+                .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\Power", key_read)
+                .and_then(|k| k.get_value::<u32, _>("HibernateEnabled"))
+                .map(|v| v == 0)
+                .unwrap_or(false);
+
+        // Mouse precision 1:1 check
+        let mouse_precision_active = hkcu
+            .open_subkey_with_flags(r"Control Panel\Mouse", key_read)
+            .and_then(|k| k.get_value::<String, _>("MouseSpeed"))
+            .map(|v| v.trim() == "0")
+            .unwrap_or(false);
+
+        // FSO disabled check
+        let fso_disabled = hkcu
+            .open_subkey_with_flags(r"System\GameConfigStore", key_read)
+            .and_then(|k| k.get_value::<u32, _>("GameDVR_FSEBehaviorMode"))
+            .map(|v| v == 2)
+            .unwrap_or(false);
+
+        // VBS disabled check
+        let vbs_disabled = hklm
+            .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", key_read)
+            .and_then(|k| k.get_value::<u32, _>("Enabled"))
+            .map(|v| v == 0)
+            .unwrap_or(true);
+
+        // Classic Context Menu check
+        let classic_context_menu = hkcu
+            .open_subkey_with_flags(r"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32", key_read)
+            .is_ok();
+
+        // Show File Extensions check (HideFileExt == 0)
+        let show_file_extensions = hkcu
+            .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", key_read)
+            .and_then(|k| k.get_value::<u32, _>("HideFileExt"))
+            .map(|v| v == 0)
+            .unwrap_or(false);
+
+        // Show Hidden Files check (Hidden == 1)
+        let show_hidden_files = hkcu
+            .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", key_read)
+            .and_then(|k| k.get_value::<u32, _>("Hidden"))
+            .map(|v| v == 1)
+            .unwrap_or(false);
+
+        // Bing Search Disabled check
+        let bing_search_disabled = hkcu
+            .open_subkey_with_flags(r"Software\Policies\Microsoft\Windows\Explorer", key_read)
+            .and_then(|k| k.get_value::<u32, _>("DisableSearchBoxSuggestions"))
+            .map(|v| v == 1)
+            .unwrap_or(false)
+            || hkcu
+                .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Search", key_read)
+                .and_then(|k| k.get_value::<u32, _>("BingSearchEnabled"))
+                .map(|v| v == 0)
+                .unwrap_or(false);
+
+        // Windows Ads / Suggestions Disabled check
+        let windows_ads_disabled = hkcu
+            .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", key_read)
+            .and_then(|k| k.get_value::<u32, _>("SoftLandingEnabled"))
+            .map(|v| v == 0)
+            .unwrap_or(false);
+
+        // HAGS (Hardware Accelerated GPU Scheduling) check
+        let hags_active = hklm
+            .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", key_read)
+            .and_then(|k| k.get_value::<u32, _>("HwSchMode"))
+            .map(|v| v == 2)
+            .unwrap_or(false);
+
+        let startup_apps = collect_startup_apps_sync();
+        let startup_apps_count = startup_apps.len();
+
+        // 3. Calcular Score de Otimização (0 a 100%)
+        let flags = [
+            timer_05ms_active,
+            ultimate_power_active,
+            telemetry_disabled,
+            hibernation_disabled,
+            mouse_precision_active,
+            fso_disabled,
+            vbs_disabled,
+            classic_context_menu,
+            show_file_extensions,
+            bing_search_disabled,
+            windows_ads_disabled,
+            hags_active,
+        ];
+        let active_count = flags.iter().filter(|&&b| b).count() as u32;
+        // Base 30 points + up to 55 points from tweaks + up to 15 points from clean disk
+        let tweak_points = (active_count * 55) / (flags.len() as u32);
+        let clean_points = if estimated_junk_mb < 150.0 {
+            15
+        } else if estimated_junk_mb < 800.0 {
+            8
+        } else {
+            2
+        };
+        let optimization_score = (30 + tweak_points + clean_points).min(100);
+
+        SystemAuditResult {
+            estimated_junk_mb,
+            estimated_junk_files: total_junk_files,
+            timer_05ms_active,
+            ultimate_power_active,
+            telemetry_disabled,
+            hibernation_disabled,
+            mouse_precision_active,
+            fso_disabled,
+            vbs_disabled,
+            classic_context_menu,
+            show_file_extensions,
+            show_hidden_files,
+            bing_search_disabled,
+            windows_ads_disabled,
+            hags_active,
+            startup_apps_count,
+            optimization_score,
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(CommandResponse::ok("Auditoria do sistema concluída.", Some(result)))
+}
+
+/// Alterna tweaks do Checklist Pós-Formatação & Qualidade de Vida
+#[tauri::command]
+pub async fn toggle_post_format_tweak(tweak_id: String, enable: bool) -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(move || {
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+
+        match tweak_id.as_str() {
+            "file_extensions" => {
+                let (key, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced")
+                    .map_err(|e| e.to_string())?;
+                let val: u32 = if enable { 0 } else { 1 };
+                key.set_value("HideFileExt", &val).map_err(|e| e.to_string())?;
+                Ok(CommandResponse::ok(
+                    if enable { "Extensões de arquivos (.exe, .pdf) agora estão visíveis!" } else { "Extensões de arquivos ocultadas." },
+                    Some(enable),
+                ))
+            }
+            "hidden_files" => {
+                let (key, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced")
+                    .map_err(|e| e.to_string())?;
+                let val: u32 = if enable { 1 } else { 2 };
+                key.set_value("Hidden", &val).map_err(|e| e.to_string())?;
+                Ok(CommandResponse::ok(
+                    if enable { "Arquivos e pastas ocultas agora estão visíveis!" } else { "Arquivos e pastas ocultas escondidos." },
+                    Some(enable),
+                ))
+            }
+            "bing_search" => {
+                let (pol_key, _) = hkcu
+                    .create_subkey(r"Software\Policies\Microsoft\Windows\Explorer")
+                    .map_err(|e| e.to_string())?;
+                let (search_key, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Search")
+                    .map_err(|e| e.to_string())?;
+
+                if enable {
+                    pol_key.set_value("DisableSearchBoxSuggestions", &1u32).map_err(|e| e.to_string())?;
+                    search_key.set_value("BingSearchEnabled", &0u32).map_err(|e| e.to_string())?;
+                    search_key.set_value("CortanaConsent", &0u32).map_err(|e| e.to_string())?;
+                } else {
+                    pol_key.set_value("DisableSearchBoxSuggestions", &0u32).map_err(|e| e.to_string())?;
+                    search_key.set_value("BingSearchEnabled", &1u32).map_err(|e| e.to_string())?;
+                }
+                Ok(CommandResponse::ok(
+                    if enable { "Busca Web do Bing no Menu Iniciar desativada!" } else { "Busca Web do Bing restaurada." },
+                    Some(enable),
+                ))
+            }
+            "windows_ads" => {
+                let (cdm_key, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager")
+                    .map_err(|e| e.to_string())?;
+                let val: u32 = if enable { 0 } else { 1 };
+                let _ = cdm_key.set_value("SubscribedContent-338389Enabled", &val);
+                let _ = cdm_key.set_value("SubscribedContent-310093Enabled", &val);
+                let _ = cdm_key.set_value("SubscribedContent-338388Enabled", &val);
+                let _ = cdm_key.set_value("SoftLandingEnabled", &val);
+                let _ = cdm_key.set_value("SystemPaneSuggestionsEnabled", &val);
+                Ok(CommandResponse::ok(
+                    if enable { "Anúncios, dicas e sugestões do Windows desativados!" } else { "Sugestões do Windows restauradas." },
+                    Some(enable),
+                ))
+            }
+            "hags" => {
+                let (gfx_key, _) = hklm
+                    .create_subkey(r"SYSTEM\CurrentControlSet\Control\GraphicsDrivers")
+                    .map_err(|e| format!("Requer privilégios de Administrador: {}", e))?;
+                let val: u32 = if enable { 2 } else { 1 };
+                gfx_key.set_value("HwSchMode", &val).map_err(|e| e.to_string())?;
+                Ok(CommandResponse::ok(
+                    if enable { "Agendamento de GPU Acelerado por Hardware (HAGS) ativado!" } else { "HAGS desativado." },
+                    Some(enable),
+                ))
+            }
+            _ => Err(format!("Ajuste desconhecido: {}", tweak_id)),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Lista todos os programas configurados na inicialização do Windows
+#[tauri::command]
+pub async fn get_startup_apps() -> Result<CommandResponse<Vec<StartupApp>>, String> {
+    let apps = tokio::task::spawn_blocking(collect_startup_apps_sync)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(CommandResponse::ok("Lista de inicialização carregada.", Some(apps)))
+}
+
+/// Remove um programa da inicialização do Windows (HKCU Run, HKLM Run ou Startup Folder)
+#[tauri::command]
+pub async fn remove_startup_app(name: String, location: String) -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(move || {
+        match location.as_str() {
+            "HKCU Run" => {
+                let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+                let key = hkcu
+                    .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", winreg::enums::KEY_ALL_ACCESS)
+                    .map_err(|e| e.to_string())?;
+                key.delete_value(&name).map_err(|e| e.to_string())?;
+            }
+            "HKLM Run" => {
+                let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+                let key = hklm
+                    .open_subkey_with_flags(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", winreg::enums::KEY_ALL_ACCESS)
+                    .map_err(|e| format!("Requer privilégios de Administrador: {}", e))?;
+                key.delete_value(&name).map_err(|e| e.to_string())?;
+            }
+            "Startup Folder" => {
+                let appdata = std::env::var("APPDATA").map_err(|e| e.to_string())?;
+                let target = Path::new(&appdata)
+                    .join(r"Microsoft\Windows\Start Menu\Programs\Startup")
+                    .join(&name);
+                if target.exists() {
+                    std::fs::remove_file(&target).map_err(|e| e.to_string())?;
+                }
+            }
+            _ => return Err(format!("Localização desconhecida: {}", location)),
+        }
+
+        Ok(CommandResponse::ok(
+            format!("'{}' removido da inicialização com sucesso!", name),
+            Some(true),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Gera e abre o Relatório Oficial de Bateria (Notebooks) ou Relatório de Eficiência de Energia (Desktops)
+#[tauri::command]
+pub async fn generate_battery_or_energy_report() -> Result<CommandResponse<String>, String> {
+    tokio::task::spawn_blocking(|| {
+        let temp_dir = std::env::var("TEMP").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
+        let report_path = temp_dir.join("Relatorio_Bateria_Energia.html");
+        let report_str = report_path.to_string_lossy().to_string();
+
+        // Tenta gerar batteryreport (funciona em notebooks)
+        let bat_out = new_hidden_command("powercfg.exe")
+            .args(["/batteryreport", "/output", &report_str])
+            .output();
+
+        if bat_out.map(|o| o.status.success()).unwrap_or(false) && report_path.exists() {
+            let _ = crate::utils::shell_open(&report_str);
+            return Ok(CommandResponse::ok(
+                format!("Relatório oficial de bateria gerado e aberto no navegador ({})!", report_str),
+                Some(report_str),
+            ));
+        }
+
+        // Em Desktops (sem bateria), gera um relatório HTML detalhado dos planos de energia e estados de suspensão
+        let schemes_out = new_hidden_command("powercfg.exe").args(["/list"]).output();
+        let avail_out = new_hidden_command("powercfg.exe").args(["/availablesleepstates"]).output();
+        let req_out = new_hidden_command("powercfg.exe").args(["/requests"]).output();
+
+        let schemes_txt = schemes_out.map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+        let avail_txt = avail_out.map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+        let req_txt = req_out.map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+
+        let html = format!(
+            r#"<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<title>Relatório de Energia & ACPI - System Optimizer Tool V5.0</title>
+<style>
+  body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a0c; color: #e4e4e7; padding: 40px; max-width: 900px; margin: 0 auto; }}
+  h1 {{ color: #38bdf8; border-bottom: 1px solid #27272a; padding-bottom: 12px; }}
+  h2 {{ color: #a78bfa; margin-top: 28px; font-size: 16px; }}
+  pre {{ background: #18181b; border: 1px solid #27272a; padding: 16px; border-radius: 12px; overflow-x: auto; color: #d4d4d8; }}
+</style>
+</head>
+<body>
+  <h1>⚡ Diagnóstico de Energia & ACPI (Desktop) — System Optimizer V5.0</h1>
+  <h2>Esquemas de Energia Instalados (powercfg /list)</h2>
+  <pre>{}</pre>
+  <h2>Estados de Suspensão Suportados pela BIOS (powercfg /availablesleepstates)</h2>
+  <pre>{}</pre>
+  <h2>Requisições de Energia Ativas (powercfg /requests)</h2>
+  <pre>{}</pre>
+</body>
+</html>"#,
+            schemes_txt, avail_txt, req_txt
+        );
+
+        std::fs::write(&report_path, html).map_err(|e| e.to_string())?;
+        let _ = crate::utils::shell_open(&report_str);
+
+        Ok(CommandResponse::ok(
+            format!("Relatório de Energia & ACPI gerado e aberto no navegador ({})!", report_str),
+            Some(report_str),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Abre uma URL externa no navegador padrão do usuário via ShellExecuteW
+#[tauri::command]
+pub async fn open_external_url(url: String) -> Result<CommandResponse<bool>, String> {
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("URL inválida.".to_string());
+    }
+    crate::utils::shell_open(&url)?;
+    Ok(CommandResponse::ok("Link aberto no navegador.", Some(true)))
+}
+

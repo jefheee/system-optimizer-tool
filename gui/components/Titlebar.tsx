@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useLanguage } from '@/lib/LanguageContext';
-import { AVAILABLE_LANGUAGES, Language } from '@/lib/LanguageContext';
+import { useLanguage, AVAILABLE_LANGUAGES } from '@/lib/LanguageContext';
+import { useSettings } from '@/lib/SettingsContext';
 import { checkAdmin, restartAsAdmin, minimizeWindow, toggleMaximizeWindow, closeWindow } from '@/lib/api';
 import { Shield, ShieldAlert, RefreshCw, ChevronDown, Minus, Square, X } from 'lucide-react';
 
 export default function Titlebar() {
   const { language, setLanguage, t } = useLanguage();
+  const { theme } = useSettings();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -27,18 +28,23 @@ export default function Titlebar() {
   };
 
   const currentLangObj = AVAILABLE_LANGUAGES.find((l) => l.code === language) || AVAILABLE_LANGUAGES[0];
+  const logoSrc = theme === 'light'
+    ? '/assets/branding/logo-primary-white-bg.jpg'
+    : '/assets/branding/logo-transparent.png';
 
   return (
     <header
       data-tauri-drag-region
       className="h-10 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-800/80 flex items-center justify-between px-3 select-none z-50 sticky top-0"
     >
-      {/* Brand & Logo */}
+      {/* Official Brand & Logo */}
       <div data-tauri-drag-region className="flex items-center gap-2.5">
-        <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-sm shadow-cyan-500/30">
-          <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-          </svg>
+        <div className="w-6 h-6 rounded-md overflow-hidden flex items-center justify-center border border-neutral-700/60 bg-neutral-900">
+          <img
+            src={logoSrc}
+            alt="System Optimizer Tool"
+            className="w-full h-full object-contain pointer-events-none"
+          />
         </div>
         <div className="flex items-center gap-1.5 pointer-events-none">
           <span className="text-xs font-semibold tracking-wide text-neutral-200">

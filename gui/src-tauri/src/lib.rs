@@ -1,5 +1,5 @@
 // =================================================================
-// SYSTEM OPTIMIZER - TAURI CORE LIBRARY (RUST NATIVE BACKEND V4.0)
+// SYSTEM OPTIMIZER - TAURI CORE LIBRARY (RUST NATIVE BACKEND V5.0)
 // =================================================================
 
 pub mod clean;
@@ -30,7 +30,7 @@ pub fn run() {
             clean::toggle_hibernation,
             clean::clean_old_windows_installations,
 
-            // 4. Ferramentas Gamer & Baixa Latência
+            // 4. Ferramentas Gamer & Baixa Latência + Process Freezer
             gamer::get_gamer_status,
             gamer::toggle_timer_resolution,
             gamer::set_game_priority,
@@ -44,8 +44,10 @@ pub fn run() {
             gamer::reset_shader_cache,
             gamer::enable_ultimate_performance_plan,
             gamer::toggle_vbs,
+            gamer::get_heavy_processes,
+            gamer::kill_process,
 
-            // 5. Sistema, Rede & Privacidade
+            // 5. Sistema, Rede, Privacidade, Auditoria, Pós-Formatação & Startup Manager
             system::check_admin,
             system::restart_as_admin,
             system::create_restore_point,
@@ -64,8 +66,16 @@ pub fn run() {
             system::fix_bluetooth_cache,
             system::toggle_take_ownership_menu,
             system::backup_drivers,
+            system::run_system_audit,
+            system::toggle_post_format_tweak,
+            system::get_startup_apps,
+            system::remove_startup_app,
+            system::generate_battery_or_energy_report,
+            system::open_external_url,
 
             // 6. Hub da Comunidade & Ferramentas Externas
+            external_tools::check_installed_tools,
+            external_tools::launch_or_install_tool,
             external_tools::launch_winutil,
             external_tools::launch_mas_activator,
             external_tools::launch_ooshutup10,
