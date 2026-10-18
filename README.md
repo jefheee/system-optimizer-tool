@@ -9,7 +9,7 @@
 [![Release](https://img.shields.io/badge/release-v5.0-1d4ed8?style=flat-square)](https://github.com/jefheee/system-optimizer-tool/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0284c7?style=flat-square)](https://microsoft.com/windows)
 [![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](LICENSE)
-[![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20Next.js-64748b?style=flat-square)](https://tauri.app)
+[![Architecture](https://shields.io)](https://tauri.app)
 
 </div>
 
