@@ -1,12 +1,15 @@
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
 use std::process::Command;
+use tauri::Emitter;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::ProcessStatus::K32EmptyWorkingSet;
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_SET_QUOTA};
 use windows::Win32::UI::Shell::{IsUserAnAdmin, SHEmptyRecycleBinW, ShellExecuteW};
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+use crate::state::StepEvent;
 
 pub const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -20,6 +23,29 @@ pub fn new_hidden_tokio_command(program: &str) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new(program);
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd
+}
+
+/// Emite evento de progresso detalhado para o Drawer de Execução no Frontend
+pub fn emit_step(
+    app: &tauri::AppHandle,
+    step_id: &str,
+    step_name: &str,
+    status: &str,
+    details: &str,
+    current: usize,
+    total: usize,
+) {
+    let _ = app.emit(
+        "optimization-step",
+        StepEvent {
+            step_id: step_id.to_string(),
+            step_name: step_name.to_string(),
+            status: status.to_string(),
+            details: details.to_string(),
+            current,
+            total,
+        },
+    );
 }
 
 /// Verifica se o processo atual está rodando com privilégios de Administrador
@@ -57,9 +83,6 @@ pub fn restart_elevated() -> Result<(), String> {
 /// Esvazia a Lixeira do Windows nativamente sem confirmação, barra de progresso ou som
 pub fn empty_recycle_bin() -> Result<(), String> {
     unsafe {
-        // SHERB_NOCONFIRMATION = 0x00000001
-        // SHERB_NOPROGRESSUI = 0x00000002
-        // SHERB_NOSOUND = 0x00000004
         let flags = 0x00000001 | 0x00000002 | 0x00000004;
         let _ = SHEmptyRecycleBinW(None, PCWSTR::null(), flags);
         Ok(())

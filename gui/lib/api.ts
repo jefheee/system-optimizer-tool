@@ -1,5 +1,5 @@
 // =================================================================
-// SYSTEM OPTIMIZER - FRONTEND NATIVE TAURI BRIDGE & TYPINGS
+// SYSTEM OPTIMIZER - FRONTEND NATIVE TAURI BRIDGE & TYPINGS V4.0
 // =================================================================
 
 export interface CommandResponse<T> {
@@ -8,84 +8,134 @@ export interface CommandResponse<T> {
   data?: T;
 }
 
+export interface StepEvent {
+  stepId: string;
+  stepName: string;
+  status: 'running' | 'success' | 'error' | 'info';
+  details: string;
+  current: number;
+  total: number;
+}
+
 // -------------------------------------------------------------
-// Tipagens do Módulo 1: Diagnóstico de Hardware
+// Tipagens do Módulo 1: Diagnóstico de Hardware & Profiler
 // -------------------------------------------------------------
 export interface UptimeInfo {
-  Days: number;
-  Hours: number;
-  Minutes: number;
+  days: number;
+  hours: number;
+  minutes: number;
 }
 
 export interface OperatingSystemInfo {
-  Caption: string;
-  BuildNumber: string;
-  LastBootUpTime: string;
-  Uptime: UptimeInfo;
-  FormattedUptime?: string;
+  caption: string;
+  buildNumber: string;
+  uptime: UptimeInfo;
+  formattedUptime: string;
 }
 
 export interface CpuInfo {
-  Name: string;
-  UsagePercent?: number;
-  PhysicalCores?: number;
+  name: string;
+  manufacturer: string;
+  usagePercent: number;
+  physicalCores: number;
+  logicalThreads: number;
+  baseClockGhz: number;
+  maxClockGhz: number;
+  l3CacheMb: number;
+  socket: string;
+}
+
+export interface MotherboardInfo {
+  manufacturer: string;
+  product: string;
+  biosVersion: string;
+  biosReleaseDate: string;
 }
 
 export interface GpuInfo {
-  Name: string;
-  VramMb?: number;
+  name: string;
+  vramMb: number;
+  vramGb: number;
+  driverVersion: string;
+  resolution: string;
+  refreshRateHz: number;
+  isPrimary: boolean;
 }
 
-export interface RamModule {
-  CapacityGB: number;
-  SpeedMHz: number;
+export interface RamSlot {
+  slot: string;
+  bank: string;
+  manufacturer: string;
+  partNumber: string;
+  capacityGb: number;
+  speedMhz: number;
 }
 
 export interface MemoryInfo {
-  TotalGB: number;
-  UsedGB?: number;
-  UsagePercent?: number;
-  ModuleCount: number;
-  Modules: RamModule[];
-  XmpAlert?: boolean;
+  totalGb: number;
+  usedGb: number;
+  usagePercent: number;
+  moduleCount: number;
+  modules: RamSlot[];
+  xmpAlert: boolean;
+  xmpMessage: string;
 }
 
 export interface StorageDisk {
-  Model: string;
-  SizeGB: number;
-  FreeGB?: number;
-  MediaType: string;
-  HealthStatus: string;
+  model: string;
+  sizeGb: number;
+  freeGb: number;
+  mediaType: string; // "NVMe", "SSD", "HDD"
+  busType: string;   // "NVMe", "SATA", "USB"
+  healthStatus: string; // "Healthy", "Warning", "Unhealthy"
+}
+
+export interface DisplayInfo {
+  name: string;
+  manufacturer: string;
+  inches: number;
+  resolution: string;
+  refreshRateHz: number;
+}
+
+export interface PeripheralsInfo {
+  audioDevices: string[];
+  inputDevices: string[];
 }
 
 export interface SystemDiagnostics {
-  Status: "Success" | "Warning" | "Error";
-  Timestamp: string;
-  OperatingSystem: OperatingSystemInfo | null;
-  Cpu: CpuInfo | null;
-  Gpu: GpuInfo | null;
-  Memory: MemoryInfo | null;
-  Storage: StorageDisk[];
-  Message: string;
+  status: string;
+  timestamp: string;
+  operatingSystem: OperatingSystemInfo | null;
+  cpu: CpuInfo | null;
+  motherboard: MotherboardInfo | null;
+  gpu: GpuInfo | null;
+  allGpus: GpuInfo[];
+  memory: MemoryInfo | null;
+  storage: StorageDisk[];
+  displays: DisplayInfo[];
+  peripherals: PeripheralsInfo;
+  setupExport: string;
+  message: string;
 }
 
 // -------------------------------------------------------------
 // Tipagens do Módulo 2: Limpeza
 // -------------------------------------------------------------
 export interface CleanCategory {
-  Name: string;
-  BytesFreed: number;
-  MbFreed: number;
-  FilesDeleted: number;
-  Status: string;
+  name: string;
+  bytesFreed: number;
+  mbFreed: number;
+  filesDeleted: number;
+  status: string;
 }
 
 export interface CleanResult {
-  TotalFreedMb: number;
-  TotalFilesDeleted: number;
-  Categories: CleanCategory[];
-  Message: string;
-  BytesFreed?: number;
+  totalFreedMb: number;
+  totalFilesDeleted: number;
+  categories: CleanCategory[];
+  message: string;
+  bytesFreed: number;
 }
 
 // -------------------------------------------------------------
@@ -98,45 +148,43 @@ export interface GamerStatus {
 }
 
 // -------------------------------------------------------------
-// Tipagens do Módulo 4: Sistema
+// Tipagens do Módulo 4: Sistema & Rede
 // -------------------------------------------------------------
+export interface DnsProviderPing {
+  name: string;
+  primaryIp: string;
+  secondaryIp: string;
+  pingMs: number;
+}
+
+export interface DnsBenchmarkResult {
+  providers: DnsProviderPing[];
+  fastest: string;
+  fastestIp: string;
+  message: string;
+}
+
 export interface DnsOptimizationResult {
-  BestDns: string;
-  CloudflarePingMs: number;
-  GooglePingMs: number;
-  Message: string;
+  bestDns: string;
+  cloudflarePingMs: number;
+  googlePingMs: number;
+  message: string;
 }
 
 export interface SfcScanResult {
-  SfcExitCode: number;
-  DismExitCode: number;
-  Summary: string;
+  sfcExitCode: number;
+  dismExitCode: number;
+  summary: string;
 }
 
 export interface BloatwareResult {
-  RemovedCount: number;
-  RemovedApps: string[];
+  removedCount: number;
+  removedApps: string[];
 }
 
-// Resposta genérica para retrocompatibilidade
-export interface ActionResponse {
-  Status: "Success" | "Warning" | "Error";
-  Message: string;
-  BytesFreed?: number;
-  Tweak?: string;
-  Value?: string;
-  Step?: string;
-  Target?: string;
-  Action?: string;
-  BestDNS?: string;
-  DeletedCount?: number;
-  RemovedApps?: string[];
-  Destination?: string;
-}
-
-/**
- * Invoca de forma tipada e segura um comando Tauri nativo em Rust
- */
+// -------------------------------------------------------------
+// Invocação Base do Tauri
+// -------------------------------------------------------------
 export async function invokeCommand<T>(cmd: string, args: Record<string, unknown> = {}): Promise<CommandResponse<T>> {
   if (typeof window === "undefined") {
     throw new Error("Comando Tauri não pode ser executado em ambiente Server-Side.");
@@ -146,7 +194,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, unknown
   if (!isTauri) {
     return {
       success: false,
-      message: "A interface gráfica deve ser executada através do Tauri e não em um navegador web convencional.",
+      message: "Ambiente do navegador detectado. Execute o aplicativo nativo Tauri.",
       data: undefined,
     };
   }
@@ -167,28 +215,90 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, unknown
 }
 
 // -------------------------------------------------------------
-// Funções Específicas do Backend em Rust Nativo
+// Listener de Eventos de Otimização em Tempo Real (Drawer)
+// -------------------------------------------------------------
+export async function listenToOptimizationSteps(
+  callback: (step: StepEvent) => void
+): Promise<() => void> {
+  if (typeof window === "undefined") return () => {};
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    const unlisten = await listen<StepEvent>("optimization-step", (event) => {
+      callback(event.payload);
+    });
+    return unlisten;
+  } catch (err) {
+    console.warn("Falha ao registrar listener de passos:", err);
+    return () => {};
+  }
+}
+
+// -------------------------------------------------------------
+// Controles de Janela Frameless (Window API)
+// -------------------------------------------------------------
+export async function minimizeWindow(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().minimize();
+  } catch (e) {
+    console.error("Erro ao minimizar janela:", e);
+  }
+}
+
+export async function toggleMaximizeWindow(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().toggleMaximize();
+  } catch (e) {
+    console.error("Erro ao alternar maximizar janela:", e);
+  }
+}
+
+export async function closeWindow(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().close();
+  } catch (e) {
+    console.error("Erro ao fechar janela:", e);
+  }
+}
+
+// -------------------------------------------------------------
+// Funções da API Nativas em Rust
 // -------------------------------------------------------------
 
-// Diagnóstico
+// 1. Diagnóstico de Hardware & Profiler
 export async function getSystemDiagnostics(): Promise<SystemDiagnostics> {
   const res = await invokeCommand<SystemDiagnostics>("get_system_diagnostics");
   if (res.success && res.data) {
     return res.data;
   }
   return {
-    Status: "Error",
-    Timestamp: new Date().toISOString(),
-    OperatingSystem: null,
-    Cpu: null,
-    Gpu: null,
-    Memory: null,
-    Storage: [],
-    Message: res.message || "Falha ao ler dados de diagnóstico do sistema.",
+    status: "Error",
+    timestamp: new Date().toISOString(),
+    operatingSystem: null,
+    cpu: null,
+    motherboard: null,
+    gpu: null,
+    allGpus: [],
+    memory: null,
+    storage: [],
+    displays: [],
+    peripherals: { audioDevices: [], inputDevices: [] },
+    setupExport: "",
+    message: res.message || "Falha ao ler dados de diagnóstico do sistema.",
   };
 }
 
-// Limpeza
+// 2. Presets Inteligentes
+export async function runPreset(presetId: string): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("run_preset", { presetId });
+}
+
+// 3. Limpeza & Armazenamento
 export async function runDeepClean(): Promise<CommandResponse<CleanResult>> {
   return invokeCommand<CleanResult>("run_deep_clean");
 }
@@ -197,7 +307,15 @@ export async function runLiteClean(): Promise<CommandResponse<CleanResult>> {
   return invokeCommand<CleanResult>("run_lite_clean");
 }
 
-// Gamer
+export async function toggleHibernation(disable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("toggle_hibernation", { disable });
+}
+
+export async function cleanOldWindowsInstallations(): Promise<CommandResponse<CleanResult>> {
+  return invokeCommand<CleanResult>("clean_old_windows_installations");
+}
+
+// 4. Gamer & Baixa Latência
 export async function getGamerStatus(): Promise<CommandResponse<GamerStatus>> {
   return invokeCommand<GamerStatus>("get_gamer_status");
 }
@@ -230,6 +348,10 @@ export async function toggleRamAutoclean(enable: boolean): Promise<CommandRespon
   return invokeCommand<GamerStatus>("toggle_ram_autoclean", { enable });
 }
 
+export async function flushRamNow(): Promise<CommandResponse<number>> {
+  return invokeCommand<number>("flush_ram_now");
+}
+
 export async function addDefenderExclusion(folderPath: string): Promise<CommandResponse<string>> {
   return invokeCommand<string>("add_defender_exclusion", { folderPath });
 }
@@ -238,7 +360,15 @@ export async function resetShaderCache(): Promise<CommandResponse<number>> {
   return invokeCommand<number>("reset_shader_cache");
 }
 
-// Sistema
+export async function enableUltimatePerformancePlan(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("enable_ultimate_performance_plan");
+}
+
+export async function toggleVbs(disable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("toggle_vbs", { disable });
+}
+
+// 5. Sistema, Rede & Privacidade
 export async function checkAdmin(): Promise<boolean> {
   const res = await invokeCommand<boolean>("check_admin");
   return Boolean(res.data);
@@ -248,20 +378,28 @@ export async function restartAsAdmin(): Promise<void> {
   await invokeCommand<boolean>("restart_as_admin");
 }
 
-export async function launchWinUtil(): Promise<CommandResponse<string>> {
-  return invokeCommand<string>("launch_winutil");
+export async function createRestorePoint(description: string = ""): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("create_restore_point", { description });
 }
 
-export async function launchMasActivator(): Promise<CommandResponse<string>> {
-  return invokeCommand<string>("launch_mas_activator");
+export async function resetNetworkStack(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("reset_network_stack");
 }
 
-export async function repairWindowsUpdate(): Promise<CommandResponse<string>> {
-  return invokeCommand<string>("repair_windows_update");
+export async function toggleClassicContextMenu(enable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("toggle_classic_context_menu", { enable });
+}
+
+export async function benchmarkDns(): Promise<CommandResponse<DnsBenchmarkResult>> {
+  return invokeCommand<DnsBenchmarkResult>("benchmark_dns");
 }
 
 export async function optimizeDns(): Promise<CommandResponse<DnsOptimizationResult>> {
   return invokeCommand<DnsOptimizationResult>("optimize_dns");
+}
+
+export async function repairWindowsUpdate(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("repair_windows_update");
 }
 
 export async function runSfcScan(): Promise<CommandResponse<SfcScanResult>> {
@@ -304,201 +442,27 @@ export async function backupDrivers(): Promise<CommandResponse<string>> {
   return invokeCommand<string>("backup_drivers");
 }
 
-// -------------------------------------------------------------
-// Adaptador de Compatibilidade Retroativa (Ponte Nativa Rust)
-// Mapeia chamadas antigas para os novos comandos Rust de forma direta
-// -------------------------------------------------------------
-export async function invokePowerShell<T>(action: string, args: string = ""): Promise<T> {
-  switch (action) {
-    case "Diagnostics": {
-      const diag = await getSystemDiagnostics();
-      return diag as unknown as T;
-    }
-    case "OptimizeDeep": {
-      const res = await runDeepClean();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        BytesFreed: res.data?.TotalFreedMb || 0,
-      } as unknown as T;
-    }
-    case "OptimizeLite": {
-      const res = await runLiteClean();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        BytesFreed: res.data?.TotalFreedMb || 0,
-      } as unknown as T;
-    }
-    case "SetLatency": {
-      const isEnable = args === "true";
-      const res = await toggleTimerResolution(isEnable);
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "Timer Resolution",
-        Value: res.data?.timerResolutionActive ? "0.5ms" : "Default",
-      } as unknown as T;
-    }
-    case "SetPriority": {
-      const res = await setGamePriority(args);
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "CpuPriorityClass",
-        Value: `${args} -> High`,
-      } as unknown as T;
-    }
-    case "SetGameDVR": {
-      const res = await disableFullscreenOptimizations(true);
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "GameDVR_FSEBehaviorMode",
-        Value: "Disabled (2)",
-      } as unknown as T;
-    }
-    case "SetMouse": {
-      const res = await optimizeMouse(true);
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "MouseSpeed",
-        Value: "0",
-      } as unknown as T;
-    }
-    case "SetKeyboard": {
-      const res = await optimizeKeyboard();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "AutoRepeatDelay",
-        Value: "150",
-      } as unknown as T;
-    }
-    case "SetNetwork": {
-      const res = await optimizeTcpNetwork();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "TcpAckFrequency",
-        Value: `Enabled (${res.data || 0})`,
-      } as unknown as T;
-    }
-    case "SetRamClean": {
-      const res = await toggleRamAutoclean(true);
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "RAM Auto-Clean Job",
-        Value: "10min Loop",
-      } as unknown as T;
-    }
-    case "SetDefenderExclusion": {
-      const res = await addDefenderExclusion(args);
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "Defender Exclusion",
-        Value: args,
-      } as unknown as T;
-    }
-    case "ResetDirectX": {
-      const res = await resetShaderCache();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Tweak: "DirectX Shader Cache Reset",
-        Value: `${res.data || 0} files`,
-      } as unknown as T;
-    }
-    case "RepairWindowsUpdate": {
-      const res = await repairWindowsUpdate();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "Repair Windows Update",
-      } as unknown as T;
-    }
-    case "OptimizeDns": {
-      const res = await optimizeDns();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "Optimize DNS",
-        BestDNS: res.data?.BestDns || "",
-      } as unknown as T;
-    }
-    case "SystemScan": {
-      const res = await runSfcScan();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "System File Scan",
-      } as unknown as T;
-    }
-    case "RemoveOrphans": {
-      const res = await cleanOrphanTasks();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "Clean Orphaned Tasks",
-        DeletedCount: res.data || 0,
-      } as unknown as T;
-    }
-    case "RemoveBloatware": {
-      const res = await removeBloatware();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "Remove Bloatware",
-        RemovedApps: res.data?.RemovedApps || [],
-      } as unknown as T;
-    }
-    case "DisableTelemetry": {
-      const res = await disableTelemetry();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "Disable Telemetry",
-      } as unknown as T;
-    }
-    case "SetTakeOwnership": {
-      const res = await toggleTakeOwnershipMenu(true);
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "Add Take Ownership Context Menu",
-      } as unknown as T;
-    }
-    case "BackupDrivers": {
-      const res = await backupDrivers();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-        Action: "Backup Drivers",
-        Destination: "C:\\Backup_Drivers",
-      } as unknown as T;
-    }
-    case "RunWinUtil": {
-      const res = await launchWinUtil();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-      } as unknown as T;
-    }
-    case "ActivateWindows":
-    case "ActivateOffice": {
-      const res = await launchMasActivator();
-      return {
-        Status: res.success ? "Success" : "Error",
-        Message: res.message,
-      } as unknown as T;
-    }
-    default:
-      return {
-        Status: "Error",
-        Message: `Ação não reconhecida: ${action}`,
-      } as unknown as T;
-  }
+// 6. Hub da Comunidade & Ferramentas Externas
+export async function launchWinUtil(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("launch_winutil");
+}
+
+export async function launchMasActivator(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("launch_mas_activator");
+}
+
+export async function launchOoShutup10(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("launch_ooshutup10");
+}
+
+export async function runWingetUpgrade(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("run_winget_upgrade");
+}
+
+export async function launchAdwCleaner(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("launch_adwcleaner");
+}
+
+export async function installQuickTool(toolId: string): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("install_quick_tool", { toolId });
 }

@@ -30,6 +30,17 @@ impl<T> CommandResponse<T> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StepEvent {
+    pub step_id: String,
+    pub step_name: String,
+    pub status: String, // "running", "success", "error", "info"
+    pub details: String,
+    pub current: usize,
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GamerStatus {
     pub timer_resolution_active: bool,
     pub current_resolution_ms: f32,

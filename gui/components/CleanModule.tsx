@@ -1,31 +1,34 @@
 'use client';
 
-import { useState } from "react";
-import { runDeepClean, runLiteClean, cleanOrphanTasks, CleanResult } from "../lib/api";
-import { useLanguage } from "../lib/LanguageContext";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState } from 'react';
+import { useLanguage } from '../lib/LanguageContext';
+import { runDeepClean, runLiteClean, toggleHibernation, cleanOldWindowsInstallations, CleanResult } from '../lib/api';
+import TechDetailsModal, { TechDetailsData } from './TechDetailsModal';
 import { 
-  Zap, 
   Trash2, 
+  Sparkles, 
+  Zap, 
   Layers, 
   CheckCircle2, 
   AlertTriangle, 
-  Loader2,
-  Database,
-  HardDrive
-} from "lucide-react";
+  Loader2, 
+  Info,
+  Moon,
+  FolderArchive
+} from 'lucide-react';
 
 export default function CleanModule() {
   const { t } = useLanguage();
   const [running, setRunning] = useState<string | null>(null);
   const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
-  const [orphansResult, setOrphansResult] = useState<number | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [techModalData, setTechModalData] = useState<TechDetailsData | null>(null);
 
   const handleDeepClean = async () => {
-    setRunning("deep");
+    setRunning('deep');
     setCleanResult(null);
-    setOrphansResult(null);
+    setActionMessage(null);
     setErrorMessage(null);
     try {
       const res = await runDeepClean();
@@ -35,16 +38,16 @@ export default function CleanModule() {
         setErrorMessage(res.message);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || "Erro ao executar limpeza profunda.");
+      setErrorMessage(err?.message || 'Erro ao executar limpeza profunda.');
     } finally {
       setRunning(null);
     }
   };
 
   const handleLiteClean = async () => {
-    setRunning("lite");
+    setRunning('lite');
     setCleanResult(null);
-    setOrphansResult(null);
+    setActionMessage(null);
     setErrorMessage(null);
     try {
       const res = await runLiteClean();
@@ -54,222 +57,344 @@ export default function CleanModule() {
         setErrorMessage(res.message);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || "Erro ao executar limpeza lite.");
+      setErrorMessage(err?.message || 'Erro ao executar limpeza rápida.');
     } finally {
       setRunning(null);
     }
   };
 
-  const handleCleanOrphans = async () => {
-    setRunning("orphans");
-    setCleanResult(null);
-    setOrphansResult(null);
+  const handleToggleHibernation = async (disable: boolean) => {
+    setRunning('hibernation');
+    setActionMessage(null);
     setErrorMessage(null);
     try {
-      const res = await cleanOrphanTasks();
-      if (res.success && res.data !== undefined) {
-        setOrphansResult(res.data);
+      const res = await toggleHibernation(disable);
+      if (res.success) {
+        setActionMessage(res.message);
       } else {
         setErrorMessage(res.message);
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || "Erro ao limpar tarefas órfãs.");
+      setErrorMessage(err?.message || 'Erro ao alterar hibernação.');
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  const handleCleanOldWindows = async () => {
+    setRunning('old_win');
+    setCleanResult(null);
+    setActionMessage(null);
+    setErrorMessage(null);
+    try {
+      const res = await cleanOldWindowsInstallations();
+      if (res.success && res.data) {
+        setCleanResult(res.data);
+      } else {
+        setErrorMessage(res.message);
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Erro ao limpar instalações anteriores.');
     } finally {
       setRunning(null);
     }
   };
 
   return (
-    <div className="space-y-8 animate-card-entry">
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Header */}
       <div>
-        <h2 className="text-xl font-bold font-headline-lg text-[#e5e2e1] tracking-tight flex items-center gap-2">
-          <Trash2 className="w-5 h-5 text-primary" />
-          {t('clean_title')}
-        </h2>
-        <p className="text-xs text-[#bcc9cd] mt-1">
+        <div className="flex items-center gap-2 mb-1">
+          <Trash2 className="w-5 h-5 text-blue-400" />
+          <h2 className="text-xl font-bold text-neutral-100">
+            {t('clean_title')}
+          </h2>
+        </div>
+        <p className="text-xs text-neutral-400">
           {t('clean_subtitle')}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Limpeza Profunda (runDeepClean) */}
-        <div className="p-6 rounded-2xl glass-card flex flex-col justify-between hover:border-primary/20 transition-all duration-300 md:col-span-2 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-[40px] pointer-events-none group-hover:bg-primary/10 transition-all" />
-          
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary/10 rounded-lg text-primary">
-                <HardDrive className="w-5 h-5" />
+      {/* Action Banners */}
+      {actionMessage && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{actionMessage}</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Clean Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Deep Clean Card */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between group relative overflow-hidden">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('clean_deep_title')}</h3>
+                  <span className="text-[10px] text-blue-400 font-medium">Recomendado para SSD/NVMe</span>
+                </div>
               </div>
-              <h3 className="font-bold text-zinc-100">{t('clean_deep_title')}</h3>
             </div>
-            <p className="text-xs text-[#bcc9cd] leading-relaxed">
+
+            <p className="text-xs text-neutral-300 leading-relaxed">
               {t('clean_deep_desc')}
             </p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('clean_deep_title'),
+                  securityRating: 'safe',
+                  action: 'Varre e remove recursivamente arquivos de log, temporários de usuário e de sistema (%TEMP%, %WINDIR%\\Temp, Prefetch, SoftwareDistribution\\Download, Caches de Chrome/Edge/Brave/Opera). Esvazia a Lixeira via SHEmptyRecycleBinW e roda defrag C: /O (TRIM).',
+                  targetArea: '%TEMP%, C:\\Windows\\Prefetch, C:\\Windows\\SoftwareDistribution, Caches do Chromium e Win32 Shell API',
+                  expectedBenefit: 'Recuperação imediata de 2 GB a 25 GB de armazenamento em disco, redução de fragmentação no master file table e ganho de velocidade de escrita.',
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
-          <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
-            <span className="text-[10px] text-zinc-500 flex items-center gap-1.5 font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-              100% Rust Win32 Native
-            </span>
+          <div className="pt-4 mt-2">
             <button
               onClick={handleDeepClean}
               disabled={running !== null}
-              className="px-5 py-3 rounded-lg bg-gradient-to-r from-primary to-secondary text-zinc-950 text-xs font-bold hover:shadow-[0_0_15px_rgba(76,215,246,0.4)] transition-all hover:scale-105 flex items-center gap-2 disabled:opacity-50"
+              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20 active:scale-[0.98]"
             >
-              {running === "deep" ? (
+              {running === 'deep' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {t('clean_deep_loading')}
+                  <span>Limpando Sistema...</span>
                 </>
               ) : (
-                t('clean_deep_btn')
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t('clean_deep_btn')}</span>
+                </>
               )}
             </button>
           </div>
         </div>
 
-        {/* Limpeza Rápida (runLiteClean) */}
-        <div className="p-6 rounded-2xl glass-card flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-[#d0bcff]/10 rounded-lg text-secondary">
-                <Zap className="w-5 h-5" />
+        {/* Lite Clean Card */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between group relative overflow-hidden">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('clean_lite_title')}</h3>
+                  <span className="text-[10px] text-cyan-400 font-medium">Seguro para HDDs e SSDs</span>
+                </div>
               </div>
-              <h3 className="font-bold text-zinc-100">{t('clean_lite_title')}</h3>
             </div>
-            <p className="text-xs text-[#bcc9cd] leading-relaxed">
+
+            <p className="text-xs text-neutral-300 leading-relaxed">
               {t('clean_lite_desc')}
             </p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('clean_lite_title'),
+                  securityRating: 'safe',
+                  action: 'Limpa a pasta de arquivos temporários do usuário (%TEMP%), esvazia a Lixeira do Windows e limpa a tabela DNS local.',
+                  targetArea: '%LOCALAPPDATA%\\Temp e Lixeira do Windows',
+                  expectedBenefit: 'Limpeza instantânea sem desgaste de I/O em discos rígidos mecânicos e sem interferência em caches de navegação.',
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
-          <div className="mt-6 border-t border-white/5 pt-4 flex justify-end">
+          <div className="pt-4 mt-2">
             <button
               onClick={handleLiteClean}
               disabled={running !== null}
-              className="px-4 py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/10 hover:border-white/20 text-xs font-bold text-[#e5e2e1] transition-all hover:scale-105 disabled:opacity-50 flex items-center gap-2"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {running === "lite" ? (
+              {running === 'lite' ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {t('btn_executing')}
+                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                  <span>Limpando...</span>
                 </>
               ) : (
-                t('clean_lite_btn')
+                <>
+                  <Zap className="w-4 h-4 text-cyan-400" />
+                  <span>{t('clean_lite_btn')}</span>
+                </>
               )}
             </button>
           </div>
         </div>
 
-      </div>
+        {/* Hibernation Toggle Card */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-amber-500/30 transition-all flex flex-col justify-between group relative overflow-hidden">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Moon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('clean_hibernation_title')}</h3>
+                  <span className="text-[10px] text-amber-400 font-medium">Recupere de 8 a 32 GB no C:</span>
+                </div>
+              </div>
+            </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {/* Limpeza de Tarefas Agendadas Órfãs */}
-        <div className="p-5 rounded-xl glass-card hover:border-primary/20 transition-all duration-300 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-primary/10 rounded-lg text-primary">
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-bold text-zinc-100 text-sm">{t('clean_orphans_title')}</h4>
-              <p className="text-xs text-[#bcc9cd] mt-1">
-                {t('clean_orphans_desc')}
-              </p>
-            </div>
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              {t('clean_hibernation_desc')}
+            </p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('clean_hibernation_title'),
+                  securityRating: 'safe',
+                  action: 'Invoca powercfg.exe /hibernate off para excluir o arquivo C:\\hiberfil.sys, cujo tamanho é proporcional a 75% da sua memória RAM instalada.',
+                  targetArea: 'C:\\hiberfil.sys e gerenciador de energia do Windows',
+                  expectedBenefit: 'Liberação imediata de 8 GB a 32 GB de espaço no disco C: que ficava permanentemente reservado para a hibernação.',
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-amber-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
-          <button
-            onClick={handleCleanOrphans}
-            disabled={running !== null}
-            className="px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/10 hover:border-white/20 text-xs font-bold text-[#e5e2e1] transition-all hover:scale-105 shrink-0 ml-4 disabled:opacity-50 flex items-center gap-2"
-          >
-            {running === "orphans" ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                {t('btn_executing')}
-              </>
-            ) : (
-              t('clean_orphans_btn')
-            )}
-          </button>
+
+          <div className="pt-4 mt-2 flex gap-2">
+            <button
+              onClick={() => handleToggleHibernation(true)}
+              disabled={running !== null}
+              className="flex-1 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+            >
+              {running === 'hibernation' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Moon className="w-3.5 h-3.5" />}
+              <span>{t('clean_hibernation_btn_off')}</span>
+            </button>
+
+            <button
+              onClick={() => handleToggleHibernation(false)}
+              disabled={running !== null}
+              className="py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium border border-neutral-700 transition-all active:scale-[0.98]"
+            >
+              {t('clean_hibernation_btn_on')}
+            </button>
+          </div>
+        </div>
+
+        {/* Previous Windows Clean Card */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-purple-500/30 transition-all flex flex-col justify-between group relative overflow-hidden">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <FolderArchive className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('clean_old_win_title')}</h3>
+                  <span className="text-[10px] text-purple-400 font-medium">Windows.old & WinSxS</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              {t('clean_old_win_desc')}
+            </p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('clean_old_win_title'),
+                  securityRating: 'safe',
+                  action: 'Varre e remove as pastas C:\\Windows.old, C:\\$Windows.~BT e C:\\$Windows.~WS geradas por grandes atualizações do sistema, e executa dism.exe /Online /Cleanup-Image /StartComponentCleanup para descartar versões antigas de DLLs.',
+                  targetArea: 'C:\\Windows.old e C:\\Windows\\WinSxS',
+                  expectedBenefit: 'Pode liberar entre 10 GB e 40 GB de espaço que o Windows mantém desnecessariamente após atualizações estáveis.',
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-purple-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
+          </div>
+
+          <div className="pt-4 mt-2">
+            <button
+              onClick={handleCleanOldWindows}
+              disabled={running !== null}
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+            >
+              {running === 'old_win' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                  <span>Limpando Atualizações Antigas...</span>
+                </>
+              ) : (
+                <>
+                  <FolderArchive className="w-4 h-4 text-purple-400" />
+                  <span>{t('clean_old_win_btn')}</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Resultados e Detalhamento da Limpeza */}
-      <AnimatePresence>
-        {cleanResult && (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="space-y-6"
-          >
-            <div className="p-5 rounded-xl border bg-tertiary/10 border-tertiary/20 text-tertiary flex gap-4">
-              <CheckCircle2 className="w-6 h-6 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h4 className="font-bold text-zinc-100 text-sm">{t('msg_status_report')}</h4>
-                <p className="text-xs text-[#bcc9cd] mt-1 leading-snug">{cleanResult.Message}</p>
-                
-                <div className="mt-3 flex items-center gap-4 flex-wrap">
-                  <p className="text-sm font-bold text-tertiary flex items-center gap-1.5">
-                    <Database className="w-4 h-4" />
-                    {t('clean_freed')}: {cleanResult.TotalFreedMb} MB
-                  </p>
-                  <span className="text-xs text-zinc-400">
-                    &bull; {cleanResult.TotalFilesDeleted} arquivos excluídos com sucesso
-                  </span>
+      {/* Clean Results Panel */}
+      {cleanResult && (
+        <div className="p-5 rounded-2xl bg-neutral-900/80 border border-neutral-800 space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <h4 className="text-sm font-bold text-neutral-100">Resultado da Limpeza</h4>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-neutral-400 block">{t('clean_freed')}</span>
+              <span className="text-base font-extrabold text-emerald-400">
+                {(cleanResult.totalFreedMb ?? cleanResult.bytesFreed ?? 0).toFixed(1)} MB
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            {cleanResult.categories?.map((cat, i) => (
+              <div
+                key={i}
+                className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 text-xs flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-semibold text-neutral-200">{cat.name}</div>
+                  <div className="text-[10px] text-neutral-400 mt-0.5">{cat.filesDeleted} arquivos</div>
                 </div>
-
-                {cleanResult.Categories && cleanResult.Categories.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-3 border-t border-white/10">
-                    {cleanResult.Categories.map((cat, idx) => (
-                      <div key={idx} className="p-2.5 rounded bg-zinc-950/70 border border-white/5 text-[11px]">
-                        <span className="font-semibold text-zinc-300 block truncate">{cat.Name}</span>
-                        <span className="text-tertiary font-bold mt-1 block">
-                          {cat.MbFreed > 0 ? `${cat.MbFreed} MB` : cat.Status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <span className="font-bold text-cyan-400">{cat.mbFreed.toFixed(1)} MB</span>
               </div>
-            </div>
-          </motion.div>
-        )}
+            ))}
+          </div>
+        </div>
+      )}
 
-        {orphansResult !== null && (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="p-5 rounded-xl border bg-tertiary/10 border-tertiary/20 text-tertiary flex gap-4"
-          >
-            <CheckCircle2 className="w-6 h-6 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-bold text-zinc-100 text-sm">{t('clean_orphans_title')}</h4>
-              <p className="text-xs text-[#bcc9cd] mt-1">
-                Varredura concluída: {orphansResult} tarefa(s) agendada(s) órfã(s) foram excluídas com sucesso.
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {errorMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="p-5 rounded-xl border bg-red-500/10 border-red-500/20 text-red-400 flex gap-4"
-          >
-            <AlertTriangle className="w-6 h-6 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-bold text-zinc-100 text-sm">{t('msg_error')}</h4>
-              <p className="text-xs text-[#bcc9cd] mt-1 leading-snug">{errorMessage}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Tech Details Modal */}
+      <TechDetailsModal data={techModalData} onClose={() => setTechModalData(null)} />
     </div>
   );
 }

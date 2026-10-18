@@ -397,3 +397,100 @@ pub async fn reset_shader_cache() -> Result<CommandResponse<u32>, String> {
     .await
     .map_err(|e| e.to_string())?
 }
+
+/// Ativa e define como padrão o plano de energia de Desempenho Máximo (Ultimate Performance)
+#[tauri::command]
+pub async fn enable_ultimate_performance_plan(app: tauri::AppHandle) -> Result<CommandResponse<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::utils::emit_step(&app, "gamer_power_plan", "Desbloqueando plano Ultimate Performance...", "running", "Duplicando esquema OEM oculto e ativando.", 1, 2);
+
+        // Duplica esquema Ultimate Performance caso não exista
+        let dup = new_hidden_command("powercfg.exe")
+            .args(["-duplicatescheme", "e9a42b02-d5df-448d-aa00-03f14749eb61"])
+            .output();
+
+        let mut scheme_guid = "e9a42b02-d5df-448d-aa00-03f14749eb61".to_string();
+        if let Ok(out) = dup {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            // Se retornou um GUID específico no stdout: GUID do Esquema de Energia: xxxxx-xxxx
+            for word in stdout.split_whitespace() {
+                if word.len() == 36 && word.contains('-') {
+                    scheme_guid = word.to_string();
+                    break;
+                }
+            }
+        }
+
+        crate::utils::emit_step(&app, "gamer_power_plan", "Ativando plano como ativo...", "running", &format!("powercfg /setactive {}", scheme_guid), 2, 2);
+
+        // Ativa o plano
+        let act = new_hidden_command("powercfg.exe")
+            .args(["/setactive", &scheme_guid])
+            .output();
+
+        if act.map(|o| o.status.success()).unwrap_or(false) {
+            crate::utils::emit_step(&app, "gamer_power_plan", "Plano Desempenho Máximo Ativado!", "success", "Frequência de clock e latência de C-States travadas no perfil máximo.", 2, 2);
+            Ok(CommandResponse::ok(
+                "Plano de Energia 'Desempenho Máximo' (Ultimate Performance) ativado com sucesso!",
+                Some(scheme_guid),
+            ))
+        } else {
+            // Tentar ativar pelo GUID padrão de Alto Desempenho (8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c) como fallback
+            let _ = new_hidden_command("powercfg.exe")
+                .args(["/setactive", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"])
+                .output();
+            crate::utils::emit_step(&app, "gamer_power_plan", "Plano de Alto Desempenho Ativado (Fallback)", "success", "Esquema alternativo aplicado.", 2, 2);
+            Ok(CommandResponse::ok(
+                "Plano de Alto Desempenho aplicado como fallback.",
+                Some("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c".to_string()),
+            ))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Executa liberação imediata de memória RAM (Working Set Flush de todos os processos)
+#[tauri::command]
+pub async fn flush_ram_now() -> Result<CommandResponse<usize>, String> {
+    tokio::task::spawn_blocking(|| {
+        let count = flush_working_set_all_processes();
+        Ok(CommandResponse::ok(
+            format!("Memória RAM otimizada imediatamente! {} processos tiveram seu working set limpo.", count),
+            Some(count),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Ativa ou Desativa VBS (Virtualization-Based Security / Isolamento de Núcleo)
+#[tauri::command]
+pub async fn toggle_vbs(disable: bool, app: tauri::AppHandle) -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(move || {
+        let val = if disable { "off" } else { "auto" };
+        crate::utils::emit_step(&app, "gamer_vbs", "Configurando hypervisorlaunchtype via bcdedit...", "running", &format!("bcdedit /set hypervisorlaunchtype {}", val), 1, 1);
+
+        let out = new_hidden_command("bcdedit.exe")
+            .args(["/set", "hypervisorlaunchtype", val])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if out.status.success() {
+            let msg = if disable {
+                "Isolamento de Núcleo / VBS desativado no BCD. Reinicie o computador para aplicar o ganho de FPS."
+            } else {
+                "Isolamento de Núcleo / VBS reativado no BCD. Reinicie o computador para aplicar."
+            };
+            crate::utils::emit_step(&app, "gamer_vbs", "Configuração aplicada no BCD", "success", msg, 1, 1);
+            Ok(CommandResponse::ok(msg, Some(disable)))
+        } else {
+            let err = String::from_utf8_lossy(&out.stderr).to_string();
+            crate::utils::emit_step(&app, "gamer_vbs", "Falha ao aplicar no BCD", "error", &err, 1, 1);
+            Ok(CommandResponse::err(format!("Falha ao alterar VBS: {}", err)))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+

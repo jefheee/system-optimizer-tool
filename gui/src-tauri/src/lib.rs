@@ -1,10 +1,12 @@
 // =================================================================
-// SYSTEM OPTIMIZER - TAURI CORE LIBRARY (RUST NATIVE BACKEND)
+// SYSTEM OPTIMIZER - TAURI CORE LIBRARY (RUST NATIVE BACKEND V4.0)
 // =================================================================
 
 pub mod clean;
 pub mod diagnostics;
+pub mod external_tools;
 pub mod gamer;
+pub mod presets;
 pub mod state;
 pub mod system;
 pub mod utils;
@@ -16,14 +18,19 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
-            // 1. Diagnóstico de Hardware
+            // 1. Diagnóstico de Hardware & Profiler em Tempo Real
             diagnostics::get_system_diagnostics,
 
-            // 2. Limpeza e Otimização
+            // 2. Presets Inteligentes / 1-Click Profiles
+            presets::run_preset,
+
+            // 3. Limpeza & Armazenamento
             clean::run_deep_clean,
             clean::run_lite_clean,
+            clean::toggle_hibernation,
+            clean::clean_old_windows_installations,
 
-            // 3. Ferramentas Gamer & Baixa Latência
+            // 4. Ferramentas Gamer & Baixa Latência
             gamer::get_gamer_status,
             gamer::toggle_timer_resolution,
             gamer::set_game_priority,
@@ -32,14 +39,19 @@ pub fn run() {
             gamer::optimize_keyboard,
             gamer::optimize_tcp_network,
             gamer::toggle_ram_autoclean,
+            gamer::flush_ram_now,
             gamer::add_defender_exclusion,
             gamer::reset_shader_cache,
+            gamer::enable_ultimate_performance_plan,
+            gamer::toggle_vbs,
 
-            // 4. Ferramentas de Sistema, Reparos e Utilidades
+            // 5. Sistema, Rede & Privacidade
             system::check_admin,
             system::restart_as_admin,
-            system::launch_winutil,
-            system::launch_mas_activator,
+            system::create_restore_point,
+            system::reset_network_stack,
+            system::toggle_classic_context_menu,
+            system::benchmark_dns,
             system::repair_windows_update,
             system::optimize_dns,
             system::run_sfc_scan,
@@ -52,6 +64,14 @@ pub fn run() {
             system::fix_bluetooth_cache,
             system::toggle_take_ownership_menu,
             system::backup_drivers,
+
+            // 6. Hub da Comunidade & Ferramentas Externas
+            external_tools::launch_winutil,
+            external_tools::launch_mas_activator,
+            external_tools::launch_ooshutup10,
+            external_tools::run_winget_upgrade,
+            external_tools::launch_adwcleaner,
+            external_tools::install_quick_tool,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
