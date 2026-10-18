@@ -168,7 +168,7 @@ export default function Titlebar() {
                     }}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors ${
                       language === lang.code
-                        ? theme === 'light' ? 'bg-blue-50 text-blue-600 font-semibold' : 'bg-blue-600/20 text-blue-400 font-semibold'
+                        ? theme === 'light' ? 'bg-slate-100 text-slate-900 font-semibold' : 'bg-neutral-800 text-white font-semibold'
                         : theme === 'light' ? 'text-slate-700 hover:bg-slate-100' : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
                     }`}
                   >

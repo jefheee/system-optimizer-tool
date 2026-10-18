@@ -243,7 +243,7 @@ export default function GamerModule() {
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-neutral-100 truncate">{proc.name}</div>
                     <div className="text-[10px] text-neutral-400 mt-0.5">
-                      <span className="text-neutral-200 font-semibold">{proc.memoryMb.toFixed(0)} MB</span> • PID {proc.pid}
+                      <span className="text-neutral-200 font-semibold font-mono tabular-nums">{proc.memoryMb.toFixed(0)} MB</span> • <span className="font-mono tabular-nums">PID {proc.pid}</span>
                     </div>
                   </div>
 
@@ -277,7 +277,7 @@ export default function GamerModule() {
                   <span className="text-[10px] text-neutral-400 font-medium">NtSetTimerResolution</span>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700 font-mono tabular-nums">
                 {latencyResolution.toFixed(2)} ms
               </span>
             </div>
@@ -308,7 +308,7 @@ export default function GamerModule() {
               className={`w-full py-2.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
                 latencyEnabled
                   ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
-                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20'
+                  : 'bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700'
               }`}
             >
               {activeActions['latency'] ? (
@@ -439,7 +439,7 @@ export default function GamerModule() {
               className={`w-full py-2.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
                 ramCleanEnabled
                   ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
-                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20'
+                  : 'bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700'
               }`}
             >
               {activeActions['ram_job'] ? (

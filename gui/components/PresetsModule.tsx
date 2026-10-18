@@ -183,11 +183,7 @@ export default function PresetsModule() {
                 <button
                   onClick={() => handleRunPreset(preset.id)}
                   disabled={runningPreset !== null}
-                  className={`w-full py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] ${
-                    preset.recommended
-                      ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20'
-                      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
-                  } disabled:bg-neutral-800 disabled:text-neutral-500`}
+                  className="w-full py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] bg-neutral-800 hover:bg-neutral-700 text-neutral-100 border border-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-500"
                 >
                   {isRunning ? (
                     <>

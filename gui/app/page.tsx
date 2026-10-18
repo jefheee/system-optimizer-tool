@@ -229,14 +229,15 @@ export default function Page() {
 
         {/* Main Content Viewport */}
         <section className="flex-1 flex flex-col min-w-0 pl-[72px] overflow-y-auto">
-          <div className="px-4 sm:px-6 md:px-8 py-5 max-w-[1440px] w-full mx-auto">
+          <div className="p-3 sm:p-4 w-full max-w-[1600px] mx-auto min-h-0 flex-1 flex flex-col">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.16, ease: 'easeOut' }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className="flex-1 flex flex-col min-h-0"
               >
                 {renderModule()}
               </motion.div>

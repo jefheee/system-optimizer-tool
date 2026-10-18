@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* =========================================================
+   TYPOGRAPHY — Geist Sans (UI) + JetBrains Mono (technical data)
+   ========================================================= */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
 :root,
 html[data-theme="dark"],
 html.theme-dark {
@@ -34,12 +42,78 @@ html.theme-light {
 }
 
 /* Base Body & Main */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
 body {
   background-color: var(--bg-app);
   color: var(--text-main);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
+  font-weight: 400;
   overflow-x: hidden;
   transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.022em;
+}
+
+/* Monospace always uses tabular figures so live numbers don't jitter */
+.font-mono,
+code,
+kbd,
+pre,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.font-mono,
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+  font-feature-settings: "zero" 0, "calt" 0;
+}
+
+/* =========================================================
+   BENTO GRID PRIMITIVES (shared by every module)
+   ========================================================= */
+.bento-card {
+  background-color: rgba(20, 20, 24, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 1rem;
+  min-width: 0;
+  min-height: 0;
+}
+.bento-card-interactive {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.bento-card-interactive:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(26, 26, 31, 0.85);
+}
+.bento-inner {
+  background-color: rgba(10, 10, 13, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.75rem;
+}
+html.theme-light .bento-card,
+html[data-theme="light"] .bento-card {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+html.theme-light .bento-card-interactive:hover,
+html[data-theme="light"] .bento-card-interactive:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+html.theme-light .bento-inner,
+html[data-theme="light"] .bento-inner {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
 }
 
 /* =========================================================

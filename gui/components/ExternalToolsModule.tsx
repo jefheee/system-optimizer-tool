@@ -225,9 +225,9 @@ export default function ExternalToolsModule() {
             <button
               onClick={() => handleAction('winutil', launchWinUtil)}
               disabled={activeActions['winutil']}
-              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-neutral-100 font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['winutil'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+              {activeActions['winutil'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4 text-neutral-300" />}
               <span>{t('ext_winutil_btn')}</span>
             </button>
           </div>
@@ -555,7 +555,7 @@ export default function ExternalToolsModule() {
             <div className="px-5 py-3 bg-neutral-950 border-t border-neutral-800 flex justify-end">
               <button
                 onClick={() => setTutorialData(null)}
-                className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors"
+                className="px-4 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs border border-neutral-700 transition-colors"
               >
                 {t('ext_tutorial_close')}
               </button>

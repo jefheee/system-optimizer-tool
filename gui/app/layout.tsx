@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { GeistSans } from "geist/font/sans";
+import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 import { LanguageProvider } from "../lib/LanguageContext";
 import { SettingsProvider } from "../lib/SettingsContext";
@@ -15,8 +17,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt" className="h-full antialiased theme-dark">
-      <body className="min-h-full flex flex-col">
+    <html lang="pt" className={`${GeistSans.variable} h-full antialiased theme-dark`}>
+      <body className="min-h-full flex flex-col font-sans">
         <SettingsProvider>
           <LanguageProvider>
             <HardwareProvider>
