@@ -11,7 +11,6 @@
 [![License](https://shields.io)](LICENSE)
 [![Architecture](https://shields.io)](https://tauri.app)
 
-
 </div>
 
 ---
