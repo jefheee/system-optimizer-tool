@@ -69,6 +69,7 @@ pub fn run() {
             system::run_system_audit,
             system::toggle_post_format_tweak,
             system::get_startup_apps,
+            system::toggle_startup_app,
             system::remove_startup_app,
             system::generate_battery_or_energy_report,
             system::open_external_url,

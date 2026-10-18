@@ -12,7 +12,6 @@ import {
   Briefcase,
   BookOpen,
   Settings,
-  ExternalLink,
 } from 'lucide-react';
 
 import { openExternalUrl } from '../lib/api';
@@ -21,11 +20,11 @@ import { useSettings } from '../lib/SettingsContext';
 
 // Modules
 import HomeModule from '../components/HomeModule';
-import DashboardModule from '../components/DashboardModule';
 import PresetsModule from '../components/PresetsModule';
 import CleanModule from '../components/CleanModule';
 import GamerModule from '../components/GamerModule';
 import SystemModule from '../components/SystemModule';
+import DashboardModule from '../components/DashboardModule';
 import ExternalToolsModule from '../components/ExternalToolsModule';
 import DocsAndAboutModule from '../components/DocsAndAboutModule';
 import SettingsModule from '../components/SettingsModule';
@@ -34,11 +33,11 @@ import LiveProgressDrawer from '../components/LiveProgressDrawer';
 
 export type Tab =
   | 'home'
-  | 'dashboard'
   | 'presets'
   | 'clean'
   | 'gamer'
   | 'system'
+  | 'dashboard'
   | 'external'
   | 'docs'
   | 'settings';
@@ -49,28 +48,22 @@ export default function Page() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
+  // Logical order: Home -> 1-Click Presets -> Clean -> Gamer -> System -> Hardware -> External -> Docs
   const menuItems = [
-    { id: 'home', label: t('nav_home'), icon: Home, color: 'text-blue-400' },
-    { id: 'dashboard', label: t('nav_dashboard'), icon: Cpu, color: 'text-primary' },
-    { id: 'presets', label: t('nav_presets'), icon: Sparkles, color: 'text-amber-400' },
-    { id: 'clean', label: t('nav_clean'), icon: Trash2, color: 'text-orange-400' },
-    { id: 'gamer', label: t('nav_gamer'), icon: Gamepad2, color: 'text-cyan-400' },
-    { id: 'system', label: t('nav_system'), icon: Wrench, color: 'text-blue-400' },
-    { id: 'external', label: t('nav_external'), icon: Briefcase, color: 'text-indigo-400' },
-    { id: 'docs', label: t('nav_docs'), icon: BookOpen, color: 'text-emerald-400' },
+    { id: 'home', label: t('nav_home'), icon: Home },
+    { id: 'presets', label: t('nav_presets'), icon: Sparkles },
+    { id: 'clean', label: t('nav_clean'), icon: Trash2 },
+    { id: 'gamer', label: t('nav_gamer'), icon: Gamepad2 },
+    { id: 'system', label: t('nav_system'), icon: Wrench },
+    { id: 'dashboard', label: t('nav_dashboard'), icon: Cpu },
+    { id: 'external', label: t('nav_external'), icon: Briefcase },
+    { id: 'docs', label: t('nav_docs'), icon: BookOpen },
   ] as const;
-
-  const sidebarLogo =
-    theme === 'light'
-      ? '/assets/branding/logo-primary-white-bg.jpg'
-      : '/assets/branding/logo-transparent.png';
 
   const renderModule = () => {
     switch (activeTab) {
       case 'home':
         return <HomeModule onNavigate={(tab) => setActiveTab(tab)} />;
-      case 'dashboard':
-        return <DashboardModule />;
       case 'presets':
         return <PresetsModule />;
       case 'clean':
@@ -79,6 +72,8 @@ export default function Page() {
         return <GamerModule />;
       case 'system':
         return <SystemModule />;
+      case 'dashboard':
+        return <DashboardModule />;
       case 'external':
         return <ExternalToolsModule />;
       case 'docs':
@@ -89,45 +84,45 @@ export default function Page() {
   };
 
   return (
-    <main className="h-screen w-screen flex flex-col bg-[#050505] text-[#e5e2e1] font-sans selection:bg-primary/30 selection:text-primary overflow-hidden">
+    <main
+      className={`h-screen w-screen flex flex-col font-sans overflow-hidden transition-colors ${
+        theme === 'light' ? 'bg-[#f4f6f9] text-[#0f172a]' : 'bg-[#08080a] text-[#f1f5f9]'
+      }`}
+    >
       {/* Top Frameless Titlebar */}
       <Titlebar />
 
       {/* Main Workspace Area */}
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
-        {/* Background Neon Glow Orbs (automatically hidden in Performance Mode via CSS) */}
-        <div className="bg-glow-orb absolute top-[-10%] left-[20%] w-[600px] h-[600px] bg-primary/5 rounded-full blur-[140px] pointer-events-none -z-10 animate-pulse-soft" />
-        <div className="bg-glow-orb absolute bottom-[-10%] right-[10%] w-[600px] h-[600px] bg-secondary/5 rounded-full blur-[140px] pointer-events-none -z-10" />
+        {/* Subtle Background Glow Orbs */}
+        <div className="bg-glow-orb absolute top-[-10%] left-[20%] w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[140px] pointer-events-none -z-10 animate-pulse-soft" />
+        <div className="bg-glow-orb absolute bottom-[-10%] right-[10%] w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[140px] pointer-events-none -z-10" />
 
-        {/* Collapsible Sidebar */}
+        {/* Collapsible Sidebar Rail */}
         <aside
           onMouseEnter={() => setSidebarExpanded(true)}
           onMouseLeave={() => setSidebarExpanded(false)}
-          className={`absolute left-0 top-0 bottom-0 bg-neutral-950/90 backdrop-blur-3xl border-r border-neutral-800/80 flex flex-col py-4 transition-all duration-300 z-40 overflow-hidden shadow-[0_0_30px_rgba(76,215,246,0.05)] ${
-            sidebarExpanded ? 'w-64' : 'w-[72px]'
+          className={`absolute left-0 top-0 bottom-0 flex flex-col py-3 transition-all duration-300 z-40 no-scrollbar overflow-hidden border-r ${
+            sidebarExpanded ? 'w-60' : 'w-[72px]'
+          } ${
+            theme === 'light'
+              ? 'bg-white/95 border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
+              : 'bg-neutral-950/95 border-neutral-800/80 shadow-[0_0_30px_rgba(0,0,0,0.4)]'
           }`}
         >
-          {/* Sidebar Brand Header */}
-          <div className="px-3.5 pb-4 mb-2 border-b border-neutral-800/80 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl overflow-hidden border border-neutral-700/80 bg-neutral-900 shrink-0 flex items-center justify-center">
-              <img
-                src={sidebarLogo}
-                alt="System Optimizer Tool"
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div
-              className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
-                sidebarExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'
+          {/* Sidebar Top Header (No duplicate logo box!) */}
+          <div className="h-6 px-4 mb-2 flex items-center justify-between shrink-0">
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 transition-opacity duration-200 ${
+                sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
             >
-              <span className="text-xs font-extrabold text-neutral-100 block">System Optimizer</span>
-              <span className="text-[10px] text-cyan-400 font-bold">V5.0 Pro Edition</span>
-            </div>
+              {t('sidebar_menu', 'Menu')}
+            </span>
           </div>
 
-          {/* Sidebar Primary Navigation */}
-          <nav className="flex-1 flex flex-col gap-1.5 px-3 overflow-y-auto">
+          {/* Primary Navigation List */}
+          <nav className="flex-1 flex flex-col gap-1 px-2.5 overflow-y-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -135,22 +130,27 @@ export default function Page() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center p-3 rounded-xl transition-all duration-200 relative group/btn hover:scale-[1.01] border-l-2 ${
+                  title={!sidebarExpanded ? item.label : undefined}
+                  className={`w-full flex items-center py-2.5 rounded-xl transition-all duration-150 border-l-2 ${
+                    sidebarExpanded ? 'px-3' : 'justify-center px-0'
+                  } ${
                     isActive
-                      ? 'text-primary border-primary bg-primary/10 shadow-[0_0_15px_rgba(76,215,246,0.1)] font-semibold'
-                      : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800/50 border-transparent'
+                      ? theme === 'light'
+                        ? 'bg-blue-50 text-blue-600 border-blue-600 font-semibold'
+                        : 'bg-blue-500/10 text-blue-400 border-blue-500 font-semibold'
+                      : theme === 'light'
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                      : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60 border-transparent'
                   }`}
                 >
-                  <Icon
-                    className={`w-4 h-4 shrink-0 transition-transform duration-300 group-hover/btn:scale-110 ${
-                      isActive ? 'text-primary' : 'text-neutral-400'
-                    }`}
-                  />
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    <Icon className="w-4 h-4" />
+                  </div>
                   <span
-                    className={`ml-4 text-xs font-semibold tracking-wide transition-all duration-300 whitespace-nowrap ${
+                    className={`ml-3.5 text-xs font-semibold tracking-wide whitespace-nowrap transition-all duration-200 ${
                       sidebarExpanded
                         ? 'opacity-100 translate-x-0'
-                        : 'opacity-0 -translate-x-4 pointer-events-none'
+                        : 'opacity-0 -translate-x-3 pointer-events-none'
                     }`}
                   >
                     {item.label}
@@ -159,8 +159,8 @@ export default function Page() {
                   {isActive && sidebarExpanded && (
                     <motion.div
                       layoutId="sidebar-active-indicator"
-                      className="absolute right-3 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#4cd7f6]"
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                      className="absolute right-3 w-1.5 h-1.5 rounded-full bg-blue-500"
+                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
                   )}
                 </button>
@@ -168,36 +168,68 @@ export default function Page() {
             })}
           </nav>
 
-          {/* Sidebar Footer: Official GitHub + Settings Button (No redundant green shield!) */}
-          <div className="px-3 mt-auto shrink-0 pt-3 border-t border-neutral-800/80 space-y-1.5">
+          {/* Sidebar Footer: Official GitHub + Settings Button */}
+          <div
+            className={`px-2.5 mt-auto shrink-0 pt-2 border-t space-y-1 ${
+              theme === 'light' ? 'border-slate-200' : 'border-neutral-800/80'
+            }`}
+          >
+            {/* Official GitHub Link Button */}
             <button
               onClick={() => openExternalUrl('https://github.com/jefheee/system-optimizer-tool')}
               title={t('sidebar_github')}
-              className="w-full flex items-center p-2.5 rounded-xl text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800/60 transition-all"
+              className={`w-full flex items-center py-2.5 rounded-xl transition-all duration-150 ${
+                sidebarExpanded ? 'px-3' : 'justify-center px-0'
+              } ${
+                theme === 'light'
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60'
+              }`}
             >
-              <ExternalLink className="w-4 h-4 shrink-0 text-blue-400" />
+              <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                  />
+                </svg>
+              </div>
               <span
-                className={`ml-4 text-xs font-semibold whitespace-nowrap transition-all duration-300 ${
-                  sidebarExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'
+                className={`ml-3.5 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                  sidebarExpanded
+                    ? 'opacity-100 translate-x-0'
+                    : 'opacity-0 -translate-x-3 pointer-events-none'
                 }`}
               >
                 {t('sidebar_github')}
               </span>
             </button>
 
+            {/* Settings Button */}
             <button
               onClick={() => setActiveTab('settings')}
               title={t('nav_settings')}
-              className={`w-full flex items-center p-2.5 rounded-xl transition-all border-l-2 ${
+              className={`w-full flex items-center py-2.5 rounded-xl transition-all duration-150 border-l-2 ${
+                sidebarExpanded ? 'px-3' : 'justify-center px-0'
+              } ${
                 activeTab === 'settings'
-                  ? 'text-primary border-primary bg-primary/10 font-semibold'
-                  : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800/60 border-transparent'
+                  ? theme === 'light'
+                    ? 'bg-blue-50 text-blue-600 border-blue-600 font-semibold'
+                    : 'bg-blue-500/10 text-blue-400 border-blue-500 font-semibold'
+                  : theme === 'light'
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                  : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60 border-transparent'
               }`}
             >
-              <Settings className={`w-4 h-4 shrink-0 ${activeTab === 'settings' ? 'text-primary' : 'text-neutral-400'}`} />
+              <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                <Settings className="w-4 h-4" />
+              </div>
               <span
-                className={`ml-4 text-xs font-semibold whitespace-nowrap transition-all duration-300 ${
-                  sidebarExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'
+                className={`ml-3.5 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                  sidebarExpanded
+                    ? 'opacity-100 translate-x-0'
+                    : 'opacity-0 -translate-x-3 pointer-events-none'
                 }`}
               >
                 {t('nav_settings')}
@@ -206,16 +238,16 @@ export default function Page() {
           </div>
         </aside>
 
-        {/* Content Pane */}
+        {/* Main Content Viewport */}
         <section className="flex-1 flex flex-col min-w-0 pl-[72px] overflow-y-auto">
           <div className="px-6 sm:px-8 py-7 max-w-6xl w-full mx-auto">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.18, ease: 'easeInOut' }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
               >
                 {renderModule()}
               </motion.div>
@@ -224,7 +256,7 @@ export default function Page() {
         </section>
       </div>
 
-      {/* Real-time Step-by-Step Execution Console Drawer */}
+      {/* Step-by-Step Execution Console Drawer */}
       <LiveProgressDrawer />
     </main>
   );

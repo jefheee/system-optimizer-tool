@@ -777,6 +777,19 @@ pub struct StartupApp {
     pub name: String,
     pub command: String,
     pub location: String, // "HKCU Run", "HKLM Run", "Startup Folder"
+    pub enabled: bool,
+}
+
+fn is_startup_enabled(root: &RegKey, subkey: &str, name: &str) -> bool {
+    if let Ok(appr_key) = root.open_subkey_with_flags(subkey, winreg::enums::KEY_READ) {
+        if let Ok(raw_val) = appr_key.get_raw_value(name) {
+            if !raw_val.bytes.is_empty() {
+                // Byte 0 == 0x02 is Enabled, 0x03 is Disabled by Task Manager
+                return raw_val.bytes[0] == 0x02;
+            }
+        }
+    }
+    true
 }
 
 fn collect_startup_apps_sync() -> Vec<StartupApp> {
@@ -788,10 +801,16 @@ fn collect_startup_apps_sync() -> Vec<StartupApp> {
         for (name, val) in run_key.enum_values().flatten() {
             let cmd_str = val.to_string();
             if !name.trim().is_empty() {
+                let enabled = is_startup_enabled(
+                    &hkcu,
+                    r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+                    &name,
+                );
                 apps.push(StartupApp {
                     name,
                     command: cmd_str,
                     location: "HKCU Run".to_string(),
+                    enabled,
                 });
             }
         }
@@ -801,10 +820,16 @@ fn collect_startup_apps_sync() -> Vec<StartupApp> {
         for (name, val) in run_key.enum_values().flatten() {
             let cmd_str = val.to_string();
             if !name.trim().is_empty() {
+                let enabled = is_startup_enabled(
+                    &hklm,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run",
+                    &name,
+                );
                 apps.push(StartupApp {
                     name,
                     command: cmd_str,
                     location: "HKLM Run".to_string(),
+                    enabled,
                 });
             }
         }
@@ -819,10 +844,16 @@ fn collect_startup_apps_sync() -> Vec<StartupApp> {
                     if fname.eq_ignore_ascii_case("desktop.ini") {
                         continue;
                     }
+                    let enabled = is_startup_enabled(
+                        &hkcu,
+                        r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder",
+                        &fname,
+                    );
                     apps.push(StartupApp {
                         name: fname,
                         command: entry.path().to_string_lossy().to_string(),
                         location: "Startup Folder".to_string(),
+                        enabled,
                     });
                 }
             }
@@ -1102,6 +1133,59 @@ pub async fn toggle_post_format_tweak(tweak_id: String, enable: bool) -> Result<
                     Some(enable),
                 ))
             }
+            "sticky_keys" => {
+                let (key, _) = hkcu
+                    .create_subkey(r"Control Panel\Accessibility\StickyKeys")
+                    .map_err(|e| e.to_string())?;
+                let val = if enable { "506" } else { "510" };
+                key.set_value("Flags", &val).map_err(|e| e.to_string())?;
+                Ok(CommandResponse::ok(
+                    if enable { "Atalho de Teclas de Aderência (Shift 5x) desativado!" } else { "Teclas de Aderência restauradas." },
+                    Some(enable),
+                ))
+            }
+            "menu_delay" => {
+                let (key, _) = hkcu
+                    .create_subkey(r"Control Panel\Desktop")
+                    .map_err(|e| e.to_string())?;
+                let val = if enable { "0" } else { "400" };
+                key.set_value("MenuShowDelay", &val).map_err(|e| e.to_string())?;
+                Ok(CommandResponse::ok(
+                    if enable { "Atraso de abertura de menus definido para 0ms (instantâneo)!" } else { "Atraso padrão de menus restaurado (400ms)." },
+                    Some(enable),
+                ))
+            }
+            "fast_startup" => {
+                let (key, _) = hklm
+                    .create_subkey(r"SYSTEM\CurrentControlSet\Control\Session Manager\Power")
+                    .map_err(|e| format!("Requer privilégios de Administrador: {}", e))?;
+                let val: u32 = if enable { 0 } else { 1 };
+                key.set_value("HiberbootEnabled", &val).map_err(|e| e.to_string())?;
+                Ok(CommandResponse::ok(
+                    if enable { "Inicialização Rápida (Fast Startup) desativada para estabilidade do kernel!" } else { "Inicialização Rápida reativada." },
+                    Some(enable),
+                ))
+            }
+            "error_reporting" => {
+                let (key, _) = hklm
+                    .create_subkey(r"SOFTWARE\Microsoft\Windows\Windows Error Reporting")
+                    .map_err(|e| format!("Requer privilégios de Administrador: {}", e))?;
+                let val: u32 = if enable { 1 } else { 0 };
+                key.set_value("Disabled", &val).map_err(|e| e.to_string())?;
+                Ok(CommandResponse::ok(
+                    if enable { "Relatório de Erros do Windows (WerSvc / travamentos) desativado!" } else { "Relatório de erros restaurado." },
+                    Some(enable),
+                ))
+            }
+            "sync_time" => {
+                let out = crate::utils::new_hidden_command("w32tm")
+                    .args(["/resync", "/force"])
+                    .output();
+                match out {
+                    Ok(o) if o.status.success() => Ok(CommandResponse::ok("Relógio do Windows sincronizado com sucesso via NTP!", Some(true))),
+                    _ => Ok(CommandResponse::ok("Comando de sincronização enviado ao serviço de horário do Windows.", Some(true))),
+                }
+            }
             _ => Err(format!("Ajuste desconhecido: {}", tweak_id)),
         }
     })
@@ -1116,6 +1200,45 @@ pub async fn get_startup_apps() -> Result<CommandResponse<Vec<StartupApp>>, Stri
         .await
         .map_err(|e| e.to_string())?;
     Ok(CommandResponse::ok("Lista de inicialização carregada.", Some(apps)))
+}
+
+/// Alterna o status de um programa na inicialização (Ativado / Desativado via StartupApproved)
+#[tauri::command]
+pub async fn toggle_startup_app(name: String, location: String, enable: bool) -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(move || {
+        let (root, subkey) = match location.as_str() {
+            "HKCU Run" => (RegKey::predef(HKEY_CURRENT_USER), r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"),
+            "HKLM Run" => (RegKey::predef(HKEY_LOCAL_MACHINE), r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"),
+            "Startup Folder" => (RegKey::predef(HKEY_CURRENT_USER), r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder"),
+            _ => return Err(format!("Localização desconhecida: {}", location)),
+        };
+
+        let (key, _) = root.create_subkey(subkey).map_err(|e| format!("Erro no registro: {}", e))?;
+        let first_byte: u8 = if enable { 0x02 } else { 0x03 };
+        let mut bytes = vec![first_byte, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+        if let Ok(existing) = key.get_raw_value(&name) {
+            if existing.bytes.len() >= 12 {
+                bytes = existing.bytes;
+                bytes[0] = first_byte;
+            }
+        }
+
+        let reg_val = winreg::RegValue {
+            vtype: winreg::enums::REG_BINARY,
+            bytes,
+        };
+
+        key.set_raw_value(&name, &reg_val).map_err(|e| format!("Erro ao atualizar status: {}", e))?;
+
+        let status_str = if enable { "ativado" } else { "desativado" };
+        Ok(CommandResponse::ok(
+            format!("'{}' foi {} na inicialização com sucesso!", name, status_str),
+            Some(enable),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Remove um programa da inicialização do Windows (HKCU Run, HKLM Run ou Startup Folder)

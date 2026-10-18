@@ -265,6 +265,7 @@ export interface StartupApp {
   name: string;
   command: string;
   location: string; // "HKCU Run" | "HKLM Run" | "Startup Folder"
+  enabled: boolean;
 }
 
 export type StartupAppItem = StartupApp;
@@ -571,6 +572,10 @@ export async function togglePostFormatTweak(tweakId: string, enable: boolean): P
 
 export async function getStartupApps(): Promise<CommandResponse<StartupApp[]>> {
   return invokeCommand<StartupApp[]>("get_startup_apps");
+}
+
+export async function toggleStartupApp(name: string, location: string, enable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("toggle_startup_app", { name, location, enable });
 }
 
 export async function removeStartupApp(name: string, location: string): Promise<CommandResponse<boolean>> {

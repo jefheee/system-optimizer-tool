@@ -1,0 +1,55 @@
+name: "Release System Optimizer Tool"
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: "gui/package-lock.json"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./gui/src-tauri -> target"
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd gui
+          npm ci
+
+      - name: Build and Publish Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: "./gui"
+          tagName: ${{ github.ref_name }}
+          releaseName: "System Optimizer Tool ${{ github.ref_name }}"
+          releaseBody: "Release oficial gerado automaticamente via GitHub Actions com compilação nativa em Rust e Next.js estático."
+          releaseDraft: false
+          prerelease: false

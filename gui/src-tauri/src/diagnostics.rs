@@ -1197,11 +1197,11 @@ fn build_setup_export(
     security: &SecurityAndBootInfo,
 ) -> String {
     let mut s = String::new();
-    s.push_str("# 🖥️ Meu Setup - System Optimizer Tool V5.0\n\n");
+    s.push_str("# 🖥️ Relatório de Setup — System Optimizer Tool\n\n");
     s.push_str(&format!("- **Tipo de Dispositivo:** {}\n", device_type));
 
     if let Some(o) = os {
-        s.push_str(&format!("- **Sistema Operacional:** {} (Build {}) | Uptime: {}\n", o.caption, o.build_number, o.formatted_uptime));
+        s.push_str(&format!("- **Sistema Operacional:** {} (Build {})\n", o.caption, o.build_number));
     }
     if let Some(c) = cpu {
         s.push_str(&format!(
@@ -1222,9 +1222,10 @@ fn build_setup_export(
         ));
     }
     if let Some(ram) = mem {
+        let rounded_ram = ram.total_gb.round() as u64;
         s.push_str(&format!(
-            "- **Memória RAM:** {:.1} GB {} ({} pentes • {})\n",
-            ram.total_gb, ram.memory_type, ram.module_count, ram.xmp_status
+            "- **Memória RAM:** {} GB {} ({} pentes • {})\n",
+            rounded_ram, ram.memory_type, ram.module_count, ram.xmp_status
         ));
         for slot in &ram.modules {
             s.push_str(&format!(

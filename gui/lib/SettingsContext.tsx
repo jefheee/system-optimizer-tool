@@ -42,6 +42,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
     if (theme === 'light') {
       root.classList.add('theme-light');
       root.classList.remove('theme-dark');

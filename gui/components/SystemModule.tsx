@@ -20,8 +20,10 @@ import {
   backupDrivers,
   togglePostFormatTweak,
   getStartupApps,
+  toggleStartupApp,
   removeStartupApp,
   generateBatteryOrEnergyReport,
+  checkAdmin,
   DnsBenchmarkResult,
   StartupAppItem,
 } from '../lib/api';
@@ -32,6 +34,7 @@ import {
   Settings,
   RefreshCw,
   Wifi,
+  ShieldCheck,
   ShieldAlert,
   Trash2,
   FileText,
@@ -51,17 +54,22 @@ import {
   Layers,
   BatteryCharging,
   Zap,
+  ChevronDown,
+  ChevronUp,
+  Clock,
 } from 'lucide-react';
 
 export default function SystemModule() {
   const { t } = useLanguage();
   const { diagnostics, audit, refreshAudit } = useHardware();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [activeActions, setActiveActions] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [takeOwnershipActive, setTakeOwnershipActive] = useState<boolean>(false);
-  const [restoreDesc, setRestoreDesc] = useState<string>('System Optimizer V5.0 Restore Point');
+  const [restoreDesc, setRestoreDesc] = useState<string>('System Optimizer Restore Point');
   const [dnsBenchmark, setDnsBenchmark] = useState<DnsBenchmarkResult | null>(null);
   const [startupApps, setStartupApps] = useState<StartupAppItem[]>([]);
+  const [startupExpanded, setStartupExpanded] = useState<boolean>(false);
   const [loadingStartup, setLoadingStartup] = useState<boolean>(false);
   const [techModalData, setTechModalData] = useState<TechDetailsData | null>(null);
 
@@ -82,6 +90,7 @@ export default function SystemModule() {
   };
 
   useEffect(() => {
+    checkAdmin().then(setIsAdmin);
     loadStartupList();
   }, []);
 
@@ -97,7 +106,7 @@ export default function SystemModule() {
     } catch (err: any) {
       setResults((prev) => ({
         ...prev,
-        [id]: { success: false, message: err?.message || 'Communication error' },
+        [id]: { success: false, message: err?.message || 'Erro de comunicação.' },
       }));
     } finally {
       setActiveActions((prev) => ({ ...prev, [id]: false }));
@@ -115,6 +124,23 @@ export default function SystemModule() {
       }
       return await togglePostFormatTweak(tweakId, nextValue);
     });
+  };
+
+  const handleToggleStartup = async (item: StartupAppItem) => {
+    const key = `tg_${item.name}`;
+    const next = !item.enabled;
+    setActiveActions((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await toggleStartupApp(item.name, item.location, next);
+      setResults((prev) => ({
+        ...prev,
+        [key]: { success: res.success, message: res.message },
+      }));
+      await loadStartupList();
+      await refreshAudit();
+    } finally {
+      setActiveActions((prev) => ({ ...prev, [key]: false }));
+    }
   };
 
   const handleRemoveStartup = async (item: StartupAppItem) => {
@@ -160,36 +186,78 @@ export default function SystemModule() {
 
   const checklistItems = [
     {
-      id: 'show_file_extensions',
-      title: t('sys_chk_ext_title'),
-      desc: t('sys_chk_ext_desc'),
+      id: 'file_extensions',
+      title: t('sys_chk_ext_title', 'Mostrar Extensões de Arquivos (.exe, .pdf)'),
+      desc: t('sys_chk_ext_desc', 'Evita execução de scripts perigosos disfarçados de documentos.'),
       active: !!audit?.showFileExtensions,
+      requiresAdmin: false,
     },
     {
-      id: 'show_hidden_files',
-      title: t('sys_chk_hidden_title'),
-      desc: t('sys_chk_hidden_desc'),
+      id: 'hidden_files',
+      title: t('sys_chk_hidden_title', 'Mostrar Arquivos e Pastas Ocultas'),
+      desc: t('sys_chk_hidden_desc', 'Permite visualizar pastas essenciais como AppData e ProgramData.'),
       active: !!audit?.showHiddenFiles,
+      requiresAdmin: false,
     },
     {
-      id: 'bing_search_disabled',
-      title: t('sys_chk_bing_title'),
-      desc: t('sys_chk_bing_desc'),
+      id: 'bing_search',
+      title: t('sys_chk_bing_title', 'Desativar Busca Web do Bing no Iniciar'),
+      desc: t('sys_chk_bing_desc', 'Torna a pesquisa do menu iniciar instantânea, sem atraso de internet.'),
       active: !!audit?.bingSearchDisabled,
+      requiresAdmin: false,
+    },
+    {
+      id: 'sticky_keys',
+      title: t('sys_chk_sticky_keys', 'Desativar Teclas de Aderência (Shift 5x)'),
+      desc: t('sys_chk_sticky_keys_desc', 'Elimina a janela intrusiva ao pressionar Shift repetidamente em jogos.'),
+      active: true,
+      requiresAdmin: false,
+    },
+    {
+      id: 'menu_delay',
+      title: t('sys_chk_menu_delay', 'Menus e Barra de Tarefas Instantâneos'),
+      desc: t('sys_chk_menu_delay_desc', 'Reduz o atraso de abertura de menus do Windows de 400ms para 0ms.'),
+      active: true,
+      requiresAdmin: false,
+    },
+    {
+      id: 'fast_startup',
+      title: t('sys_chk_fast_startup', 'Desativar Inicialização Rápida (Fast Startup)'),
+      desc: t('sys_chk_fast_startup_desc', 'Garante que o Windows reinicie limpo e previne corrupção de drivers.'),
+      active: false,
+      requiresAdmin: true,
+    },
+    {
+      id: 'error_reporting',
+      title: t('sys_chk_error_reporting', 'Desativar Relatório de Erros (WerSvc)'),
+      desc: t('sys_chk_error_reporting_desc', 'Impede travamentos do Windows Explorer ao fechar programas problemáticos.'),
+      active: false,
+      requiresAdmin: true,
     },
     {
       id: 'classic_context_menu',
-      title: t('sys_chk_classic_title'),
-      desc: t('sys_chk_classic_desc'),
+      title: t('sys_chk_classic_title', 'Menu de Contexto Clássico (Win 11)'),
+      desc: t('sys_chk_classic_desc', 'Restaura o clique direito completo sem submenu intermediário.'),
       active: !!audit?.classicContextMenu,
+      requiresAdmin: false,
     },
     {
       id: 'telemetry_disabled',
-      title: t('sys_chk_tel_title'),
-      desc: t('sys_chk_tel_desc'),
+      title: t('sys_chk_tel_title', 'Bloquear Telemetria (DiagTrack)'),
+      desc: t('sys_chk_tel_desc', 'Desativa o envio de relatórios e telemetria contínua para a Microsoft.'),
       active: !!audit?.telemetryDisabled,
+      requiresAdmin: true,
+    },
+    {
+      id: 'sync_time',
+      title: t('sys_chk_sync_time', 'Sincronizar Relógio do Windows'),
+      desc: t('sys_chk_sync_time_desc', 'Sincroniza o relógio do sistema com o servidor NTP oficial.'),
+      active: false,
+      requiresAdmin: false,
     },
   ];
+
+  const activeStartupCount = startupApps.filter((a) => a.enabled).length;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -217,15 +285,58 @@ export default function SystemModule() {
         </div>
       ))}
 
-      {/* V5.0 Section 1: Post-Format & Usability Checklist (Real-Time Switches) */}
+      {/* Hero Protection Card: Ponto de Restauração (Priority 1) */}
+      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-neutral-100">
+                {t('sys_restore_title', 'Criar Ponto de Restauração')}
+              </h3>
+              {isAdmin === false && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <ShieldAlert className="w-3 h-3" />
+                  <span>{t('admin_required_badge', 'Requer Admin')}</span>
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-neutral-300 mt-1 max-w-2xl leading-relaxed">
+              {t('sys_restore_desc', 'Cria um instantâneo seguro do sistema e do Registro para você poder reverter alterações caso precise.')}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+          <input
+            type="text"
+            value={restoreDesc}
+            onChange={(e) => setRestoreDesc(e.target.value)}
+            className="px-3 py-2 text-xs rounded-xl bg-neutral-950 border border-neutral-700 text-neutral-200 focus:outline-none focus:border-blue-500"
+            placeholder="Nome do Ponto"
+          />
+          <button
+            onClick={() => handleAction('restore', () => createRestorePoint(restoreDesc))}
+            disabled={activeActions['restore']}
+            className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98]"
+          >
+            {activeActions['restore'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+            <span>{t('sys_restore_btn', 'Criar Ponto')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Post-Format & Usability Checklist (Real-Time Switches) */}
       <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <CheckSquare className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-neutral-100">{t('sys_checklist_title')}</h3>
-            <p className="text-xs text-neutral-400">{t('sys_checklist_sub')}</p>
+            <h3 className="text-sm font-bold text-neutral-100">{t('sys_checklist_title', 'Checklist Pós-Formatação & Qualidade de Vida')}</h3>
+            <p className="text-xs text-neutral-400">{t('sys_checklist_sub', 'Ative ou desative ajustes essenciais do Windows com leitura direta do Registro.')}</p>
           </div>
         </div>
 
@@ -237,8 +348,15 @@ export default function SystemModule() {
                 key={item.id}
                 className="p-3.5 rounded-xl bg-neutral-950/70 border border-neutral-800/80 flex items-center justify-between gap-4"
               >
-                <div className="min-w-0">
-                  <h4 className="text-xs font-bold text-neutral-100">{item.title}</h4>
+                <div className="min-w-0 pr-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-neutral-100">{item.title}</h4>
+                    {item.requiresAdmin && isAdmin === false && (
+                      <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                        <ShieldAlert className="w-3 h-3 text-amber-500" />
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-neutral-400 mt-0.5 leading-relaxed">{item.desc}</p>
                 </div>
 
@@ -246,7 +364,7 @@ export default function SystemModule() {
                   onClick={() => handleChecklistSwitch(item.id, item.active)}
                   disabled={busy}
                   aria-pressed={item.active}
-                  className={`w-12 h-6 rounded-full transition-colors p-0.5 shrink-0 flex items-center ${
+                  className={`w-11 h-6 rounded-full transition-colors p-0.5 shrink-0 flex items-center ${
                     item.active ? 'bg-emerald-600 justify-end' : 'bg-neutral-700 justify-start'
                   }`}
                 >
@@ -260,83 +378,116 @@ export default function SystemModule() {
         </div>
       </div>
 
-      {/* V5.0 Section 2: Startup Apps Manager */}
-      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+      {/* Startup Apps Manager (Collapsed by default to avoid clutter!) */}
+      <div className="rounded-2xl bg-neutral-900/60 border border-neutral-800/80 overflow-hidden transition-all">
+        <div
+          onClick={() => setStartupExpanded(!startupExpanded)}
+          className="p-5 cursor-pointer hover:bg-neutral-800/30 flex items-center justify-between transition-colors select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
               <Layers className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-neutral-100">
-                {t('sys_startup_title')} ({startupApps.length})
-              </h3>
-              <p className="text-xs text-neutral-400">{t('sys_startup_sub')}</p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-neutral-100">
+                  {t('sys_startup_title', 'Gerenciador de Inicialização')}
+                </h3>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700/80">
+                  {startupApps.length} {t('sys_startup_apps_count', 'programas')} • {activeStartupCount} {t('sys_startup_active', 'ativos')}
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                {t('sys_startup_sub', 'Clique para gerenciar programas que iniciam com o Windows.')}
+              </p>
             </div>
           </div>
 
-          <button
-            onClick={loadStartupList}
-            disabled={loadingStartup}
-            className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-center"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${loadingStartup ? 'animate-spin' : ''}`} />
-            <span>{t('sys_startup_refresh')}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                loadStartupList();
+              }}
+              disabled={loadingStartup}
+              className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors"
+              title={t('sys_startup_refresh', 'Recarregar')}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingStartup ? 'animate-spin' : ''}`} />
+            </button>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-400 hover:text-white">
+              {startupExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
+          </div>
         </div>
 
-        {startupApps.length === 0 ? (
-          <div className="p-4 rounded-xl bg-neutral-950/60 border border-neutral-800 text-xs text-neutral-400 text-center">
-            {t('sys_startup_empty')}
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-neutral-800">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-neutral-950 text-neutral-400 uppercase text-[10px]">
-                <tr>
-                  <th className="py-2.5 px-3">{t('sys_startup_col_name')}</th>
-                  <th className="py-2.5 px-3">{t('sys_startup_col_loc')}</th>
-                  <th className="py-2.5 px-3">{t('sys_startup_col_cmd')}</th>
-                  <th className="py-2.5 px-3 text-right">{t('sys_startup_col_action')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-800/70 bg-neutral-950/40">
-                {startupApps.map((app, i) => {
-                  const busy = !!activeActions[`rm_${app.name}`];
-                  return (
-                    <tr key={`${app.location}-${app.name}-${i}`} className="hover:bg-neutral-900/50">
-                      <td className="py-2.5 px-3 font-bold text-neutral-200">{app.name}</td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold">
-                          {app.location}
+        {startupExpanded && (
+          <div className="p-5 pt-0 border-t border-neutral-800/80 space-y-2 mt-3">
+            {startupApps.length === 0 ? (
+              <div className="text-center py-6 text-xs text-neutral-400">
+                {loadingStartup ? t('loading', 'Carregando...') : t('sys_startup_empty', 'Nenhum aplicativo encontrado na inicialização.')}
+              </div>
+            ) : (
+              startupApps.map((item) => {
+                const busyToggle = !!activeActions[`tg_${item.name}`];
+                const busyRm = !!activeActions[`rm_${item.name}`];
+                return (
+                  <div
+                    key={`${item.location}_${item.name}`}
+                    className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 flex items-center justify-between gap-4"
+                  >
+                    <div className="min-w-0 pr-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-neutral-200 truncate">{item.name}</span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 shrink-0">
+                          {item.location}
                         </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-[10px] text-neutral-400 max-w-xs truncate" title={app.command}>
-                        {app.command}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => handleRemoveStartup(app)}
-                          disabled={busy}
-                          className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
-                        >
-                          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                          <span>{t('sys_startup_remove')}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          item.enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-neutral-800 text-neutral-400'
+                        }`}>
+                          {item.enabled ? t('status_active', 'Ativo') : t('status_inactive', 'Desativado')}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-500 truncate mt-0.5 max-w-xl" title={item.command}>
+                        {item.command}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleToggleStartup(item)}
+                        disabled={busyToggle}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                          item.enabled
+                            ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
+                            : 'bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-700'
+                        }`}
+                      >
+                        {busyToggle ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        <span>{item.enabled ? t('sys_startup_disable', 'Desativar') : t('sys_startup_enable', 'Ativar')}</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleRemoveStartup(item)}
+                        disabled={busyRm}
+                        className="p-1.5 rounded-lg bg-neutral-800/80 hover:bg-red-500/20 text-neutral-400 hover:text-red-400 transition-colors"
+                        title={t('sys_startup_remove', 'Remover registro')}
+                      >
+                        {busyRm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
       </div>
 
-      {/* V5.0 Section 3: Official HTML Power & Battery Report */}
-      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+      {/* Diagnostic Report: Battery / Energy */}
+      <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
             {isLaptop ? <BatteryCharging className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
           </div>
           <div>
@@ -365,58 +516,7 @@ export default function SystemModule() {
 
       {/* Grid of System, Network & Privacy Tools */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card 1: Restore Point */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                <RotateCcw className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-neutral-100">{t('sys_restore_title')}</h3>
-                <span className="text-[10px] text-blue-400 font-medium">Checkpoint-Computer</span>
-              </div>
-            </div>
-
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_restore_desc')}</p>
-
-            <input
-              type="text"
-              value={restoreDesc}
-              onChange={(e) => setRestoreDesc(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-blue-500/50"
-            />
-
-            <button
-              onClick={() =>
-                setTechModalData({
-                  title: t('sys_restore_title'),
-                  securityRating: 'safe',
-                  action: 'Enable-ComputerRestore C: & Checkpoint-Computer -RestorePointType MODIFY_SETTINGS.',
-                  targetArea: 'VSS (Volume Shadow Copy Service) & Windows Registry',
-                  expectedBenefit: t('sys_restore_desc'),
-                })
-              }
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
-            >
-              <Info className="w-3.5 h-3.5" />
-              <span>{t('tech_btn')}</span>
-            </button>
-          </div>
-
-          <div className="pt-4 mt-2">
-            <button
-              onClick={() => handleAction('restore', () => createRestorePoint(restoreDesc))}
-              disabled={activeActions['restore']}
-              className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20 active:scale-[0.98]"
-            >
-              {activeActions['restore'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-              <span>{t('sys_restore_btn')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Card 2: DNS Benchmark & Optimization */}
+        {/* Card 1: DNS Benchmark & Optimization */}
         <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
@@ -480,7 +580,7 @@ export default function SystemModule() {
           </div>
         </div>
 
-        {/* Card 3: Network Stack Reset */}
+        {/* Card 2: Network Stack Reset */}
         <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
@@ -518,13 +618,13 @@ export default function SystemModule() {
               disabled={activeActions['net_reset']}
               className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['net_reset'] ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <Wifi className="w-4 h-4 text-blue-400" />}
+              {activeActions['net_reset'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
               <span>{t('sys_net_reset_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 4: Classic Context Menu (Win11) */}
+        {/* Card 3: Classic Context Menu (Win11) */}
         <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
@@ -537,16 +637,18 @@ export default function SystemModule() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_classic_menu_desc')}</p>
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              {t('sys_classic_menu_desc')}
+            </p>
 
             <button
               onClick={() =>
                 setTechModalData({
                   title: t('sys_classic_menu_title'),
                   securityRating: 'safe',
-                  action: 'HKCU\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32',
-                  targetArea: 'HKCU\\Software\\Classes\\CLSID & Windows Explorer Shell',
-                  expectedBenefit: t('sys_classic_menu_desc'),
+                  action: 'Cria a chave HKCU\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32 com valor vazio e reinicia o explorer.exe.',
+                  targetArea: 'HKCU\\Software\\Classes\\CLSID e Shell do Windows Explorer',
+                  expectedBenefit: 'Abre o menu de clique direito completo imediatamente, sem atraso de animação e sem submenu intermediário.',
                 })
               }
               className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
@@ -558,261 +660,567 @@ export default function SystemModule() {
 
           <div className="pt-4 mt-2 flex gap-2">
             <button
-              onClick={() => handleAction('classic_menu', () => toggleClassicContextMenu(true))}
-              disabled={activeActions['classic_menu']}
+              onClick={() => handleAction('classic_menu_on', () => toggleClassicContextMenu(true))}
+              disabled={activeActions['classic_menu_on']}
               className="flex-1 py-2.5 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-cyan-600/20 active:scale-[0.98]"
             >
-              {activeActions['classic_menu'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Menu className="w-4 h-4" />}
+              {activeActions['classic_menu_on'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Menu className="w-4 h-4" />}
               <span>{t('sys_classic_menu_btn_on')}</span>
             </button>
 
             <button
-              onClick={() => handleAction('classic_menu', () => toggleClassicContextMenu(false))}
-              disabled={activeActions['classic_menu']}
-              className="py-2.5 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium border border-neutral-700 transition-all active:scale-[0.98]"
+              onClick={() => handleAction('classic_menu_off', () => toggleClassicContextMenu(false))}
+              disabled={activeActions['classic_menu_off']}
+              className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {t('sys_classic_menu_btn_off')}
+              {activeActions['classic_menu_off'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              <span>{t('sys_classic_menu_btn_off')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 5: Disable Telemetry */}
+        {/* Card 4: Telemetry & Tracking */}
         <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-purple-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                <ShieldAlert className="w-4 h-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_tel_title')}</h3>
+                  <span className="text-[10px] text-purple-400 font-medium">DiagTrack & dmwappushservice</span>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-neutral-100">{t('sys_tel_title')}</h3>
-                <span className="text-[10px] text-purple-400 font-medium">DiagTrack & Policies</span>
-              </div>
+              {isAdmin === false && (
+                <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_tel_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_tel_title'),
+                  securityRating: 'safe',
+                  action: 'Stop & Disable DiagTrack, dmwappushservice; AllowTelemetry = 0 (Policies); DoNotShowFeedbackNotifications = 1.',
+                  targetArea: 'Windows Services & Group Policy Telemetry Registry',
+                  expectedBenefit: t('sys_tel_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-purple-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
           <div className="pt-4 mt-2">
             <button
               onClick={() => handleAction('telemetry', disableTelemetry)}
               disabled={activeActions['telemetry']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-purple-600/20 active:scale-[0.98]"
             >
-              {activeActions['telemetry'] ? <Loader2 className="w-4 h-4 animate-spin text-purple-400" /> : <ShieldAlert className="w-4 h-4 text-purple-400" />}
+              {activeActions['telemetry'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
               <span>{t('sys_tel_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 6: Remove Bloatware */}
+        {/* Card 5: Bloatware Remover */}
         <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-red-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
-                <Trash2 className="w-4 h-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_bloat_title')}</h3>
+                  <span className="text-[10px] text-red-400 font-medium">Remove-AppxPackage</span>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-neutral-100">{t('sys_bloat_title')}</h3>
-                <span className="text-[10px] text-red-400 font-medium">AppX Package Manager</span>
-              </div>
+              {isAdmin === false && (
+                <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_bloat_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_bloat_title'),
+                  securityRating: 'safe',
+                  action: 'Get-AppxPackage & Get-AppxProvisionedPackage: Remove Cortana, BingNews, Solitaire, XboxGamingOverlay (safe items).',
+                  targetArea: 'Windows AppX Deployment Server',
+                  expectedBenefit: t('sys_bloat_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-red-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
           <div className="pt-4 mt-2">
             <button
               onClick={() => handleAction('bloatware', removeBloatware)}
               disabled={activeActions['bloatware']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/20 active:scale-[0.98]"
             >
-              {activeActions['bloatware'] ? <Loader2 className="w-4 h-4 animate-spin text-red-400" /> : <Trash2 className="w-4 h-4 text-red-400" />}
+              {activeActions['bloatware'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               <span>{t('sys_bloat_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 7: Clean Orphan Tasks */}
+        {/* Card 6: Orphan Scheduled Tasks */}
         <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-amber-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                <Trash2 className="w-4 h-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_orphan_tasks_title')}</h3>
+                  <span className="text-[10px] text-amber-400 font-medium">schtasks & TaskScheduler</span>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-neutral-100">{t('sys_orphans_title')}</h3>
-                <span className="text-[10px] text-amber-400 font-medium">Task Scheduler Cleaner</span>
-              </div>
+              {isAdmin === false && (
+                <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_orphans_desc')}</p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_orphan_tasks_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_orphan_tasks_title'),
+                  securityRating: 'safe',
+                  action: 'Queries Win32_ScheduledJob and Task Scheduler CIM classes to detect tasks pointing to missing executables and removes them.',
+                  targetArea: 'C:\\Windows\\System32\\Tasks and Registry Task Cache',
+                  expectedBenefit: t('sys_orphan_tasks_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-amber-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
           <div className="pt-4 mt-2">
             <button
-              onClick={() => handleAction('orphans', cleanOrphanTasks)}
-              disabled={activeActions['orphans']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+              onClick={() => handleAction('orphan_tasks', cleanOrphanTasks)}
+              disabled={activeActions['orphan_tasks']}
+              className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-600/20 active:scale-[0.98]"
             >
-              {activeActions['orphans'] ? <Loader2 className="w-4 h-4 animate-spin text-amber-400" /> : <Trash2 className="w-4 h-4 text-amber-400" />}
-              <span>{t('sys_orphans_btn')}</span>
+              {activeActions['orphan_tasks'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              <span>{t('sys_orphan_tasks_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 8: Repair Windows Update */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+        {/* Card 7: Windows Update Repair */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-yellow-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                <RefreshCw className="w-4 h-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_wu_title')}</h3>
+                  <span className="text-[10px] text-yellow-400 font-medium">wuauserv, bits, SoftwareDistribution</span>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-neutral-100">{t('sys_wu_title')}</h3>
-                <span className="text-[10px] text-blue-400 font-medium">SoftwareDistribution & Catroot2</span>
-              </div>
+              {isAdmin === false && (
+                <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_wu_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_wu_title'),
+                  securityRating: 'safe',
+                  action: 'net stop wuauserv, bits, cryptsvc; Rename SoftwareDistribution & Catroot2; net start services; wuauclt /resetauthorization.',
+                  targetArea: 'C:\\Windows\\SoftwareDistribution and Windows Update Component Store',
+                  expectedBenefit: t('sys_wu_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-yellow-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
           <div className="pt-4 mt-2">
             <button
-              onClick={() => handleAction('wu', repairWindowsUpdate)}
-              disabled={activeActions['wu']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+              onClick={() => handleAction('wu_repair', repairWindowsUpdate)}
+              disabled={activeActions['wu_repair']}
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['wu'] ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <RefreshCw className="w-4 h-4 text-blue-400" />}
+              {activeActions['wu_repair'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               <span>{t('sys_wu_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 9: SFC & DISM */}
+        {/* Card 8: SFC & DISM Scan */}
         <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <FileText className="w-4 h-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_sfc_title')}</h3>
+                  <span className="text-[10px] text-emerald-400 font-medium">sfc /scannow & DISM /RestoreHealth</span>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-neutral-100">{t('sys_sfc_title')}</h3>
-                <span className="text-[10px] text-emerald-400 font-medium">sfc /scannow & dism /restorehealth</span>
-              </div>
+              {isAdmin === false && (
+                <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_sfc_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_sfc_title'),
+                  securityRating: 'safe',
+                  action: 'sfc /scannow and DISM /Online /Cleanup-Image /RestoreHealth execution in hidden background process.',
+                  targetArea: 'Windows Component Store (WinSxS) & Core System DLLs',
+                  expectedBenefit: t('sys_sfc_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
           <div className="pt-4 mt-2">
             <button
               onClick={() => handleAction('sfc', runSfcScan)}
               disabled={activeActions['sfc']}
-              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              {activeActions['sfc'] ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <FileText className="w-4 h-4 text-emerald-400" />}
+              {activeActions['sfc'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               <span>{t('sys_sfc_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 10: Store, OneDrive & Drivers */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-purple-500/30 transition-all flex flex-col justify-between">
+        {/* Card 9: Microsoft Store Repair */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                 <Store className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-neutral-100">{t('sys_store_title')} / {t('sys_drivers_title')}</h3>
-                <span className="text-[10px] text-purple-400 font-medium">Store, OneDrive & Drivers</span>
+                <h3 className="text-sm font-bold text-neutral-100">{t('sys_store_title')}</h3>
+                <span className="text-[10px] text-blue-400 font-medium">wsreset & AppX Re-register</span>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_drivers_desc')}</p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_store_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_store_title'),
+                  securityRating: 'safe',
+                  action: 'wsreset.exe -i and PowerShell AppX re-registration for Microsoft.WindowsStore package.',
+                  targetArea: 'Windows Store AppX Packages',
+                  expectedBenefit: t('sys_store_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
-          <div className="pt-4 mt-2 flex flex-wrap gap-2">
+          <div className="pt-4 mt-2">
             <button
-              onClick={() => handleAction('store', restoreWindowsStore)}
-              disabled={activeActions['store']}
-              className="flex-1 min-w-[120px] py-2 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+              onClick={() => handleAction('store_repair', restoreWindowsStore)}
+              disabled={activeActions['store_repair']}
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              <Store className="w-3.5 h-3.5 text-blue-400" />
+              {activeActions['store_repair'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Store className="w-4 h-4" />}
               <span>{t('sys_store_btn')}</span>
-            </button>
-
-            <button
-              onClick={() => handleAction('onedrive', removeOneDrive)}
-              disabled={activeActions['onedrive']}
-              className="flex-1 min-w-[120px] py-2 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
-            >
-              <FolderMinus className="w-3.5 h-3.5 text-red-400" />
-              <span>{t('sys_onedrive_btn')}</span>
-            </button>
-
-            <button
-              onClick={() => handleAction('drivers', backupDrivers)}
-              disabled={activeActions['drivers']}
-              className="w-full py-2 px-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
-            >
-              <Archive className="w-3.5 h-3.5 text-purple-400" />
-              <span>{t('sys_drivers_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Card 11: Fonts, Bluetooth & Take Ownership */}
-        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between md:col-span-2">
+        {/* Card 10: Remove OneDrive */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-red-500/30 transition-all flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                <KeyRound className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                <FolderMinus className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-neutral-100">
-                  {t('sys_font_title')} • {t('sys_bt_title')} • {t('sys_ownership_title')}
-                </h3>
-                <span className="text-[10px] text-cyan-400 font-medium">FontCache, Bluetooth & NTFS</span>
+                <h3 className="text-sm font-bold text-neutral-100">{t('sys_onedrive_title')}</h3>
+                <span className="text-[10px] text-red-400 font-medium">OneDriveSetup.exe /uninstall</span>
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_ownership_desc')}</p>
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_onedrive_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_onedrive_title'),
+                  securityRating: 'safe',
+                  action: 'OneDriveSetup.exe /uninstall + cleans OneDrive shell folder namespace from Registry.',
+                  targetArea: 'AppData\\Local\\Microsoft\\OneDrive & Explorer CLSID',
+                  expectedBenefit: t('sys_onedrive_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-red-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
           </div>
 
-          <div className="pt-4 mt-2 flex flex-wrap gap-2">
+          <div className="pt-4 mt-2">
             <button
-              onClick={() => handleAction('font', resetFontCache)}
-              disabled={activeActions['font']}
-              className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+              onClick={() => handleAction('onedrive', removeOneDrive)}
+              disabled={activeActions['onedrive']}
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
             >
-              <Type className="w-3.5 h-3.5 text-cyan-400" />
+              {activeActions['onedrive'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderMinus className="w-4 h-4" />}
+              <span>{t('sys_onedrive_btn')}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 11: Reset Font Cache */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-zinc-500/30 transition-all flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-300">
+                <Type className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-neutral-100">{t('sys_font_title')}</h3>
+                <span className="text-[10px] text-neutral-400 font-medium">FntCache.dat & Windows Font Cache</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_font_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_font_title'),
+                  securityRating: 'safe',
+                  action: 'net stop FontCache; Remove FntCache.dat & %LOCALAPPDATA%\\FontCache; net start FontCache.',
+                  targetArea: 'C:\\Windows\\ServiceProfiles\\LocalService\\AppData\\Local\\FontCache',
+                  expectedBenefit: t('sys_font_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-white transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
+          </div>
+
+          <div className="pt-4 mt-2">
+            <button
+              onClick={() => handleAction('font_cache', resetFontCache)}
+              disabled={activeActions['font_cache']}
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+            >
+              {activeActions['font_cache'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Type className="w-4 h-4" />}
               <span>{t('sys_font_btn')}</span>
             </button>
+          </div>
+        </div>
+
+        {/* Card 12: Bluetooth Cache Repair */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <Bluetooth className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-neutral-100">{t('sys_bt_title')}</h3>
+                <span className="text-[10px] text-blue-400 font-medium">bthserv, bthhfsrv, bthmodem</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_bt_desc')}</p>
 
             <button
-              onClick={() => handleAction('bt', fixBluetoothCache)}
-              disabled={activeActions['bt']}
-              className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_bt_title'),
+                  securityRating: 'safe',
+                  action: 'Restarts bthserv and bthhfsrv services and resets Bluetooth connection cache in Windows Registry.',
+                  targetArea: 'Windows Bluetooth Stack & Services',
+                  expectedBenefit: t('sys_bt_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-blue-400 transition-colors pt-1"
             >
-              <Bluetooth className="w-3.5 h-3.5 text-blue-400" />
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
+          </div>
+
+          <div className="pt-4 mt-2">
+            <button
+              onClick={() => handleAction('bt_fix', fixBluetoothCache)}
+              disabled={activeActions['bt_fix']}
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+            >
+              {activeActions['bt_fix'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bluetooth className="w-4 h-4" />}
               <span>{t('sys_bt_btn')}</span>
             </button>
+          </div>
+        </div>
 
+        {/* Card 13: Take Ownership */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-emerald-500/30 transition-all flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_take_ownership_title')}</h3>
+                  <span className="text-[10px] text-emerald-400 font-medium">takeown & icacls Shell Menu</span>
+                </div>
+              </div>
+              {isAdmin === false && (
+                <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_take_ownership_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_take_ownership_title'),
+                  securityRating: 'safe',
+                  action: 'Adds "Take Ownership" right-click context menu via takeown.exe and icacls.exe in Registry.',
+                  targetArea: 'HKCR\\*\\shell\\runas & HKCR\\Directory\\shell\\runas',
+                  expectedBenefit: t('sys_take_ownership_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-emerald-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
+          </div>
+
+          <div className="pt-4 mt-2">
             <button
               onClick={handleTakeOwnership}
               disabled={activeActions['ownership']}
-              className="flex-1 min-w-[140px] py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+              className={`w-full py-2.5 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
+                takeOwnershipActive
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700'
+              }`}
             >
-              <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{takeOwnershipActive ? t('sys_ownership_btn_off') : t('sys_ownership_btn_on')}</span>
+              {activeActions['ownership'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+              <span>{takeOwnershipActive ? t('sys_take_ownership_btn_remove') : t('sys_take_ownership_btn_add')}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 14: Backup Drivers */}
+        <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                  <Archive className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-100">{t('sys_driver_backup_title')}</h3>
+                  <span className="text-[10px] text-cyan-400 font-medium">pnputil /export-driver</span>
+                </div>
+              </div>
+              {isAdmin === false && (
+                <span title={t('admin_required_badge', 'Requer Admin')} className="inline-flex items-center">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">{t('sys_driver_backup_desc')}</p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: t('sys_driver_backup_title'),
+                  securityRating: 'safe',
+                  action: 'Runs pnputil.exe /export-driver * to C:\\DriverBackup for instant driver restoration after formatting.',
+                  targetArea: 'C:\\DriverBackup and Windows DriverStore',
+                  expectedBenefit: t('sys_driver_backup_desc'),
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors pt-1"
+            >
+              <Info className="w-3.5 h-3.5" />
+              <span>{t('tech_btn')}</span>
+            </button>
+          </div>
+
+          <div className="pt-4 mt-2">
+            <button
+              onClick={() => handleAction('driver_backup', backupDrivers)}
+              disabled={activeActions['driver_backup']}
+              className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-700 active:scale-[0.98]"
+            >
+              {activeActions['driver_backup'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+              <span>{t('sys_driver_backup_btn')}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Tech Details Modal */}
-      <TechDetailsModal data={techModalData} onClose={() => setTechModalData(null)} />
+      {/* Technical Transparency Popover Modal */}
+      {techModalData && (
+        <TechDetailsModal data={techModalData} onClose={() => setTechModalData(null)} />
+      )}
     </div>
   );
 }
