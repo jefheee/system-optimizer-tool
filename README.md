@@ -1,70 +1,119 @@
-# 🚀 System Optimizer & Command Center
+<div align="center">
 
-Um utilitário de otimização de sistema robusto, modular e de alto desempenho projetado para Windows (10 e 11). O projeto passou por uma evolução arquitetural completa, migrando de um monólito CLI para uma estrutura desacoplada baseada em uma **API Backend em PowerShell** e um **Frontend Moderno em Web GUI (Tauri + Next.js)**.
+<img src="public/assets/branding/logo-transparent.png" alt="System Optimizer" width="128" height="128" />
 
----
+# System Optimizer
 
-## 🏗️ Arquitetura do Projeto
+**Utilitário nativo de diagnóstico, ajuste de latência e manutenção profunda para Windows 10 e 11.**
 
-O repositório está organizado de forma modular para isolar a interface de usuário da lógica de otimização:
+[![Release](https://img.shields.io/badge/release-v5.0-1d4ed8?style=flat-square)](https://github.com/jefheee/system-optimizer-tool/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0284c7?style=flat-square)](https://microsoft.com/windows)
+[![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](LICENSE)
+[![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20Next.js-64748b?style=flat-square)](https://tauri.app)
 
-*   **[`/src`](file:///c:/Projetos/System-Optimizer-Tool/src)**: Contém as bibliotecas puras de backend do PowerShell (`/src/modules/`) e utilitários (`/src/utils/`). Não há interação com console ou exibição de texto aqui. Tudo retorna objetos estruturados `[PSCustomObject]`.
-*   **[`/gui`](file:///c:/Projetos/System-Optimizer-Tool/gui)**: A interface gráfica moderna construída com **Next.js (React)**, **TypeScript**, **Tailwind CSS** e **Framer Motion**, empacotada nativamente para Windows com **Tauri v2** em Rust.
-*   **[`/cli`](file:///c:/Projetos/System-Optimizer-Tool/cli)**: O ecossistema CLI legado e interativo (arquivos `.bat` e `.ps1` de terminal) mantido para compatibilidade histórica.
-
----
-
-## 🛠️ Como Executar e Compilar a Web GUI (Tauri)
-
-Para testar e buildar a nova interface gráfica do **System Optimizer**, você deve interagir a partir do diretório `/gui`.
-
-> [!WARNING]
-> **NÃO execute comandos NPM na raiz do repositório.** A inicialização das ferramentas frontend deve ser feita estritamente dentro do diretório `/gui`.
-
-### Pré-requisitos
-Antes de iniciar, certifique-se de ter instalado:
-1.  [Node.js](https://nodejs.org/) (Versão 18 ou superior)
-2.  [Rust & Cargo](https://www.rust-lang.org/tools/install) (Para compilar o instalador nativo do Tauri)
-3.  [C++ Build Tools do Visual Studio](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (Requisito padrão do Tauri para compilar no Windows)
+</div>
 
 ---
 
-### Passos para Desenvolvimento e Build
+O **System Optimizer** centraliza rotinas de diagnóstico de hardware em tempo real, mitigação de latência de entrada para jogos, limpeza granular de disco, gerenciamento de privacidade e automação pós-formatação.
 
-#### 1. Navegar para a pasta da interface gráfica
-Abra o terminal na raiz do projeto e execute:
-```bash
-cd gui
+Originalmente concebido como uma rotina em lote para manutenção técnica, o projeto foi reconstruído na versão 5.0 com um backend compilado nativamente em **Rust (Tauri v2)** conectado a uma interface reativa em **Next.js e React**. As operações executam diretamente contra as APIs de baixo nível do Windows (`Win32`, `ntdll.dll`, `psapi.dll`, WMI e manipulação segura de Registro em 64 bits), sem depender de consoles abertos em segundo plano.
+
+---
+
+## Destaques da Versão 5.0
+
+- **Diagnóstico e Telemetria de Hardware**
+  Leitura detalhada de CPU, GPU, canais e frequência de memória RAM, integridade de discos (SSD/NVMe com detecção TRIM), placas de rede e telas conectadas. Inclui pontuação de auditoria de sistema e exportação de relatórios em JSON, TXT e Markdown estruturado.
+
+- **Baixa Latência e Otimizações Gamer**
+  Ajuste do temporizador do sistema para resolução de 0.5 ms (`timeBeginPeriod` / `NtSetTimerResolution`), esvaziamento seguro do working set de memória via rotina controlada, otimização da pilha de rede TCP/IP, desativação de Fullscreen Optimizations e mitigação de VBS.
+
+- **Limpeza Profunda e Gestão de Espaço**
+  Limpeza seletiva de cache de shaders (DirectX, NVIDIA, AMD), logs do sistema, arquivos temporários de usuário e de sistema, remoção de instalações anteriores do Windows (`Windows.old`) e gerenciamento da hibernação (`hiberfil.sys`).
+
+- **Privacidade, Segurança e Sistema**
+  Desativação de telemetria diagnóstica invasiva, remoção de bloatware nativo e do OneDrive, reparo da pilha do Windows Update (`DISM` e `SFC`), restauração de menus de contexto clássicos e benchmark integrado de servidores DNS.
+
+- **Perfis em Um Clique**
+  Configurações prontas para uso corporativo, notebooks (foco em autonomia e conservação térmica), uso balanceado do dia a dia e estações dedicadas a jogos e alta performance.
+
+- **Transparência Técnica Integral**
+  Cada modificação exibe as chaves de registro afetadas, os comandos invocados, os benefícios práticos esperados e a instrução exata para reversão.
+
+---
+
+## Arquitetura do Repositório
+
+```
+System-Optimizer-Tool/
+├── gui/                      # Interface moderna e núcleo desktop
+│   ├── app/                  # Rotas e páginas do Next.js
+│   ├── components/           # Módulos da UI (Dashboard, Gamer, Clean, Presets, etc.)
+│   ├── lib/                  # Camada de comunicação IPC e i18n
+│   └── src-tauri/            # Backend nativo em Rust
+│       ├── src/              # Módulos Rust (clean, diagnostics, gamer, system, presets)
+│       └── tauri.conf.json   # Configuração de empacotamento desktop
+├── src/                      # Bibliotecas modulares legadas em PowerShell
+│   ├── core/                 # Gestores de idioma e renderizadores de console
+│   ├── modules/              # Lógicas originais de limpeza, gamer e sistema
+│   └── utils/                # Utilitários auxiliares Win32 e downloaders
+├── cli/                      # Lançador de terminal histórico (compatibilidade legada)
+└── public/                   # Recursos visuais e logotipos
 ```
 
-#### 2. Instalar as dependências do Next.js
-Instale as bibliotecas necessárias para o painel de controle (React, Framer Motion, Lucide, Tailwind):
+---
+
+## Compilação e Execução
+
+### Pré-requisitos
+
+1. **[Node.js](https://nodejs.org/)** (v18 ou superior)
+2. **[Rust & Cargo](https://www.rust-lang.org/tools/install)** (versão stable atual)
+3. **[Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)** (com suporte a desenvolvimento desktop para C++)
+
+### Ambiente de Desenvolvimento
+
+Clone o repositório e acerte as dependências dentro do diretório `gui`:
+
 ```bash
+git clone https://github.com/jefheee/system-optimizer-tool.git
+cd system-optimizer-tool/gui
 npm install
 ```
 
-#### 3. Rodar o ambiente de desenvolvimento em tempo real
-Inicie o servidor local do Next.js integrado com a janela nativa do Tauri. Qualquer alteração visual será refletida instantaneamente (Hot Reload):
+Inicie o servidor de desenvolvimento integrado com o binário nativo do Tauri:
+
 ```bash
 npm run tauri dev
 ```
 
-#### 4. Compilar o executável de produção (.exe)
-Gere a versão final compactada, otimizada e sem consoles em segundo plano:
+### Gerando o Instalador de Produção
+
+Para gerar o executável final otimizado (`.exe` com instalador NSIS/MSI e sem console de depuração):
+
 ```bash
+cd gui
 npm run tauri build
 ```
 
-> [!TIP]
-> Após o build ser concluído, o executável autônomo gerado estará localizado na pasta:
-> **`gui/src-tauri/target/release/system-optimizer.exe`**
+O binário final e os instaladores serão gerados em:
+```
+gui/src-tauri/target/release/
+```
 
 ---
 
-## 📜 Execução do Legado CLI (Terminal)
+## Filosofia de Segurança
 
-Para rodar a interface clássica do terminal, navegue até a pasta `/cli` e execute o lançador:
-*   [SystemOptimizer.bat](file:///c:/Projetos/System-Optimizer-Tool/cli/SystemOptimizer.bat) (Executará solicitando direitos de administrador e desbloqueando as subpastas automaticamente).
+Todas as operações executadas pelo utilitário respeitam as diretrizes de integridade do sistema operacional:
+
+1. **Sem Ofuscação:** O código-fonte dos scripts e dos módulos Rust é aberto e auditável.
+2. **Reversibilidade:** Modificações de registro e serviços possuem rotinas de reversão documentadas na aba de documentação interna.
+3. **Ponto de Restauração:** O aplicativo permite criar pontos de restauração do Windows com um clique antes de aplicar alterações extensas.
 
 ---
-*Desenvolvido por Jefherson Luiz & Antigravity.*
+
+## Licença
+
+Distribuído sob a licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para mais detalhes.
