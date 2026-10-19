@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "system-optimizer",
-  "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "productName": "System Optimizer Tool",
+  "version": "5.0.0",
+  "identifier": "com.systemoptimizer.app",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "System Optimizer",
+        "title": "System Optimizer Tool",
         "width": 1080,
         "height": 720,
         "minWidth": 900,

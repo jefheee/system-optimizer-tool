@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag de versão (ex: v5.0.0)'
+        required: false
+        default: 'v5.0.0'
 
 jobs:
   release:
@@ -48,8 +53,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: "./gui"
-          tagName: ${{ github.ref_name }}
-          releaseName: "System Optimizer Tool ${{ github.ref_name }}"
-          releaseBody: "Release oficial gerado automaticamente via GitHub Actions com compilação nativa em Rust e Next.js estático."
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: "System Optimizer Tool ${{ github.event.inputs.tag || github.ref_name }}"
+          releaseBody: |
+            ## 🚀 System Optimizer Tool v5.0.0
+
+            Utilitário nativo de alto desempenho em Rust e Next.js com zero telemetria, zero processos daemon em segundo plano e 100% de transparência técnica com reversibilidade atômica.
+
+            ### 📦 Como Instalar e Executar (Super Simples)
+            1. Baixe o instalador `.exe` anexado abaixo (`System-Optimizer-Tool_5.0.0_x64-setup.exe` ou `.msi`).
+            2. Dê um duplo-clique no executável para iniciar a instalação automática.
+            3. O atalho é criado na sua Área de Trabalho e Menu Iniciar.
+            4. Execute o programa normalmente! Todas as ferramentas contam com reversibilidade e criação de Ponto de Restauração em 1 clique.
+
+            ---
+
+            ### 🇬🇧 How to Install and Run
+            1. Download the setup `.exe` installer below (`System-Optimizer-Tool_5.0.0_x64-setup.exe` or `.msi`).
+            2. Double-click the file to install (1-click setup).
+            3. A shortcut is created on your Desktop and Start Menu.
+            4. Launch **System Optimizer Tool** and enjoy maximum performance!
           releaseDraft: false
           prerelease: false

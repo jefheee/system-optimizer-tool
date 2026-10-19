@@ -1,8 +1,8 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "5.0.0"
 description = "System Optimizer Tool"
-authors = ["you"]
+authors = ["Jefherson Luiz <jefhersonluiz08@gmail.com>"]
 license = ""
 repository = ""
 edition = "2021"
