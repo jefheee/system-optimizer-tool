@@ -91,15 +91,27 @@ try {
         
         # Novas Ações Mapeadas (Fase 9)
         "RunWinUtil" {
-            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13; iwr -useb https://christitus.com/win | iex`""
+            $winutilPath = "$env:TEMP\winutil.ps1"
+            if (-not (Test-Path $winutilPath) -or ((Get-Item $winutilPath).Length -lt 500)) {
+                curl.exe -L -s -o $winutilPath "https://christitus.com/win"
+            }
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$winutilPath`"" -Verb RunAs
             $OutputObj = [PSCustomObject]@{ Status = "Success"; Message = "WinUtil (Chris Titus) foi iniciado em uma nova janela de administrador." }
         }
         "ActivateWindows" {
-            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13; iwr -useb https://get.activated.win | iex`""
+            $masPath = "$env:TEMP\MAS_AIO.cmd"
+            if (-not (Test-Path $masPath) -or ((Get-Item $masPath).Length -lt 500)) {
+                curl.exe -L -s -o $masPath "https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
+            }
+            Start-Process cmd.exe -ArgumentList "/c `"$masPath`"" -Verb RunAs
             $OutputObj = [PSCustomObject]@{ Status = "Success"; Message = "MAS (Ativador de Windows HWID) foi iniciado em uma nova janela." }
         }
         "ActivateOffice" {
-            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13; iwr -useb https://get.activated.win | iex`""
+            $masPath = "$env:TEMP\MAS_AIO.cmd"
+            if (-not (Test-Path $masPath) -or ((Get-Item $masPath).Length -lt 500)) {
+                curl.exe -L -s -o $masPath "https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
+            }
+            Start-Process cmd.exe -ArgumentList "/c `"$masPath`"" -Verb RunAs
             $OutputObj = [PSCustomObject]@{ Status = "Success"; Message = "MAS (Ativador de Office) foi iniciado em uma nova janela." }
         }
     }

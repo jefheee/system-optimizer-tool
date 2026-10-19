@@ -105,29 +105,65 @@ pub fn restart_elevated(window: Option<&tauri::Window>) -> Result<(), String> {
     }
 }
 
-/// Abre um executável, arquivo HTML ou URL usando ShellExecuteW ("open")
-pub fn shell_open(target: &str) -> Result<(), String> {
+/// Abre um executável, arquivo ou URL usando ShellExecuteW ("open" ou "runas") com argumentos
+pub fn shell_run(target: &str, params: &str, run_as_admin: bool) -> Result<(), String> {
     let target_wide: Vec<u16> = std::ffi::OsStr::new(target)
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
 
+    let params_wide: Vec<u16> = std::ffi::OsStr::new(params)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    let verb = if run_as_admin { w!("runas") } else { w!("open") };
+
     unsafe {
         let instance = ShellExecuteW(
             None,
-            w!("open"),
+            verb,
             PCWSTR(target_wide.as_ptr()),
-            PCWSTR::null(),
+            if params.is_empty() {
+                PCWSTR::null()
+            } else {
+                PCWSTR(params_wide.as_ptr())
+            },
             PCWSTR::null(),
             SW_SHOWNORMAL,
         );
 
         if instance.0 as usize > 32 {
             Ok(())
+        } else if run_as_admin {
+            // Se o usuário recusar o UAC elevado ou falhar, tenta fallback com "open"
+            let fallback_instance = ShellExecuteW(
+                None,
+                w!("open"),
+                PCWSTR(target_wide.as_ptr()),
+                if params.is_empty() {
+                    PCWSTR::null()
+                } else {
+                    PCWSTR(params_wide.as_ptr())
+                },
+                PCWSTR::null(),
+                SW_SHOWNORMAL,
+            );
+
+            if fallback_instance.0 as usize > 32 {
+                Ok(())
+            } else {
+                Err(format!("Falha ao abrir '{}'", target))
+            }
         } else {
             Err(format!("Falha ao abrir '{}'", target))
         }
     }
+}
+
+/// Abre um executável, arquivo HTML ou URL usando ShellExecuteW ("open")
+pub fn shell_open(target: &str) -> Result<(), String> {
+    shell_run(target, "", false)
 }
 
 /// Calcula recursivamente o tamanho em bytes e a contagem de arquivos de um diretório sem apagar nada

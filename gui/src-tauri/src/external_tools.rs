@@ -4,7 +4,7 @@ use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
 use winreg::RegKey;
 
 use crate::state::CommandResponse;
-use crate::utils::{new_hidden_command, shell_open};
+use crate::utils::{new_hidden_command, shell_open, shell_run};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -122,65 +122,106 @@ pub async fn check_installed_tools() -> Result<CommandResponse<InstalledToolsSta
     Ok(CommandResponse::ok("Status de ferramentas verificado.", Some(status)))
 }
 
+fn ensure_downloaded(target_path: &Path, urls: &[&str]) -> Result<(), String> {
+    if target_path.exists() {
+        if let Ok(meta) = std::fs::metadata(target_path) {
+            if meta.len() > 500 {
+                return Ok(());
+            }
+        }
+        let _ = std::fs::remove_file(target_path);
+    }
+
+    for url in urls {
+        let status = new_hidden_command("curl.exe")
+            .args(["-L", "-s", "-f", "-o", target_path.to_str().unwrap(), url])
+            .output();
+
+        if let Ok(res) = status {
+            if res.status.success() && target_path.exists() {
+                if let Ok(meta) = std::fs::metadata(target_path) {
+                    if meta.len() > 500 {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+    }
+
+    Err("Falha ao baixar o utilitário. Verifique sua conexão com a internet.".to_string())
+}
+
 /// Inicia o Chris Titus WinUtil em uma janela visível de terminal
 #[tauri::command]
 pub async fn launch_winutil() -> Result<CommandResponse<String>, String> {
-    std::process::Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13; irm https://christitus.com/win | iex",
-        ])
-        .spawn()
-        .map_err(|e| format!("Falha ao iniciar WinUtil: {}", e))?;
+    tokio::task::spawn_blocking(|| {
+        let temp_dir = std::env::var("TEMP")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
+        let target_ps1 = temp_dir.join("winutil.ps1");
 
-    Ok(CommandResponse::ok(
-        "WinUtil (Chris Titus) iniciado em uma nova janela de terminal.",
-        Some("WinUtil Iniciado".to_string()),
-    ))
+        let urls = [
+            "https://christitus.com/win",
+            "https://raw.githubusercontent.com/ChrisTitusTech/winutil/main/winutil.ps1",
+        ];
+
+        ensure_downloaded(&target_ps1, &urls)?;
+
+        let params = format!(
+            "-NoProfile -ExecutionPolicy Bypass -File \"{}\"",
+            target_ps1.display()
+        );
+
+        shell_run("powershell.exe", &params, true)?;
+
+        Ok(CommandResponse::ok(
+            "WinUtil (Chris Titus) iniciado com sucesso em uma nova janela.",
+            Some("WinUtil Iniciado".to_string()),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Inicia o Microsoft Activation Scripts (MAS) em uma janela visível
 #[tauri::command]
 pub async fn launch_mas_activator() -> Result<CommandResponse<String>, String> {
-    std::process::Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            "irm https://get.activated.win | iex",
-        ])
-        .spawn()
-        .map_err(|e| format!("Falha ao iniciar MAS: {}", e))?;
+    tokio::task::spawn_blocking(|| {
+        let temp_dir = std::env::var("TEMP")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
+        let target_cmd = temp_dir.join("MAS_AIO.cmd");
 
-    Ok(CommandResponse::ok(
-        "Microsoft Activation Scripts (MAS) iniciado em uma nova janela.",
-        Some("MAS Iniciado".to_string()),
-    ))
+        let urls = [
+            "https://raw.githubusercontent.com/massgravel/Microsoft-Activation-Scripts/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd",
+            "https://git.activated.win/Microsoft-Activation-Scripts/plain/MAS/All-In-One-Version-KL/MAS_AIO.cmd",
+        ];
+
+        ensure_downloaded(&target_cmd, &urls)?;
+
+        shell_run(&target_cmd.display().to_string(), "", true)?;
+
+        Ok(CommandResponse::ok(
+            "Microsoft Activation Scripts (MAS) iniciado em uma nova janela.",
+            Some("MAS Iniciado".to_string()),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Baixa e executa o O&O ShutUp10++ (ferramenta líder mundial de privacidade no Windows)
 #[tauri::command]
 pub async fn launch_ooshutup10() -> Result<CommandResponse<String>, String> {
     tokio::task::spawn_blocking(|| {
-        let temp_dir = std::env::var("TEMP").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
+        let temp_dir = std::env::var("TEMP")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
         let target_exe = temp_dir.join("OOSU10.exe");
+        let urls = ["https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe"];
 
-        if !target_exe.exists() {
-            let dl_url = "https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe";
-            let dl_status = new_hidden_command("curl.exe")
-                .args(["-L", "-s", "-o", target_exe.to_str().unwrap(), dl_url])
-                .output();
-
-            if dl_status.is_err() || !target_exe.exists() {
-                return Err("Falha ao baixar O&O ShutUp10++ via curl.".to_string());
-            }
-        }
-
-        let _ = shell_open(&target_exe.to_string_lossy());
+        ensure_downloaded(&target_exe, &urls)?;
+        shell_run(&target_exe.display().to_string(), "", true)?;
 
         Ok(CommandResponse::ok(
             "O&O ShutUp10++ iniciado com sucesso.",
@@ -194,45 +235,31 @@ pub async fn launch_ooshutup10() -> Result<CommandResponse<String>, String> {
 /// Executa atualização geral de todos os programas instalados via Winget
 #[tauri::command]
 pub async fn run_winget_upgrade() -> Result<CommandResponse<String>, String> {
-    std::process::Command::new("cmd.exe")
-        .args([
-            "/c",
-            "start",
-            "winget",
-            "upgrade",
-            "--all",
-            "--include-unknown",
-            "--accept-package-agreements",
-            "--accept-source-agreements",
-        ])
-        .spawn()
-        .map_err(|e| format!("Falha ao disparar Winget Upgrade: {}", e))?;
+    tokio::task::spawn_blocking(|| {
+        let params = "/c start \"Winget Upgrade\" winget upgrade --all --include-unknown --accept-package-agreements --accept-source-agreements";
+        shell_run("cmd.exe", params, true)?;
 
-    Ok(CommandResponse::ok(
-        "Atualização de aplicativos via Winget disparada em janela de console.",
-        Some("Winget Upgrade Iniciado".to_string()),
-    ))
+        Ok(CommandResponse::ok(
+            "Atualização de aplicativos via Winget disparada em janela de console.",
+            Some("Winget Upgrade Iniciado".to_string()),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Baixa e executa o Malwarebytes AdwCleaner para remoção de malwares e adwares
 #[tauri::command]
 pub async fn launch_adwcleaner() -> Result<CommandResponse<String>, String> {
     tokio::task::spawn_blocking(|| {
-        let temp_dir = std::env::var("TEMP").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
+        let temp_dir = std::env::var("TEMP")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("C:\\Windows\\Temp"));
         let target_exe = temp_dir.join("adwcleaner.exe");
+        let urls = ["https://downloads.malwarebytes.com/file/adwcleaner"];
 
-        if !target_exe.exists() {
-            let dl_url = "https://downloads.malwarebytes.com/file/adwcleaner";
-            let dl_status = new_hidden_command("curl.exe")
-                .args(["-L", "-s", "-o", target_exe.to_str().unwrap(), dl_url])
-                .output();
-
-            if dl_status.is_err() || !target_exe.exists() {
-                return Err("Falha ao baixar AdwCleaner via curl.".to_string());
-            }
-        }
-
-        let _ = shell_open(&target_exe.to_string_lossy());
+        ensure_downloaded(&target_exe, &urls)?;
+        shell_run(&target_exe.display().to_string(), "", true)?;
 
         Ok(CommandResponse::ok(
             "Malwarebytes AdwCleaner iniciado com sucesso.",
