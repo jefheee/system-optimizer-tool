@@ -1,0 +1,4 @@
+# Root gitignore
+release/
+*.exe
+*.msi
