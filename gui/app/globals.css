@@ -1,4 +1,49 @@
 @import "tailwindcss";
+@import "../styles/theme.css";
+@import "../styles/typography.css";
+
+@plugin "tailwindcss-animate";
+@plugin "tailwindcss-react-aria-components";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where(.dark-mode, .dark, html[data-theme="dark"], html.theme-dark, .dark-mode *, .dark *));
+@custom-variant label (& [data-label]);
+@custom-variant focus-input-within (&:has(input:focus));
+
+@utility scrollbar-hide {
+    &::-webkit-scrollbar {
+        display: none;
+        -webkit-appearance: none;
+    }
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+@utility transition-inherit-all {
+    transition-property: inherit;
+    transition-duration: inherit;
+    transition-timing-function: inherit;
+}
+
+/* Hide default expand arrow on Safari */
+details summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Hide default arrows from number inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Hide default clear button from search inputs */
+input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+}
 
 /* =========================================================
    TYPOGRAPHY — Geist Sans (UI) + JetBrains Mono (technical data)
