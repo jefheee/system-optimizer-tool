@@ -122,11 +122,16 @@ export default function BottleneckModule() {
                   ? `Detected: ${detectedCpu}`
                   : `Detectado: ${detectedCpu}`}
               </option>
-              {(report?.catalogCpus || []).map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              {(report?.catalogCpus || []).map((c: any) => {
+                const cpuLabel = typeof c === "string" ? c : c?.name || c?.id;
+                const cpuVal = typeof c === "string" ? c : c?.name || c?.id;
+                const cpuKey = typeof c === "string" ? c : c?.id || c?.name;
+                return (
+                  <option key={cpuKey} value={cpuVal}>
+                    {cpuLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -168,11 +173,16 @@ export default function BottleneckModule() {
                   ? `Detected: ${detectedGpu}`
                   : `Detectada: ${detectedGpu}`}
               </option>
-              {(report?.catalogGpus || []).map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
+              {(report?.catalogGpus || []).map((g: any) => {
+                const gpuLabel = typeof g === "string" ? g : g?.name || g?.id;
+                const gpuVal = typeof g === "string" ? g : g?.name || g?.id;
+                const gpuKey = typeof g === "string" ? g : g?.id || g?.name;
+                return (
+                  <option key={gpuKey} value={gpuVal}>
+                    {gpuLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -180,8 +190,9 @@ export default function BottleneckModule() {
 
       {/* Resolution Selector Pills */}
       <div className="flex flex-wrap items-center gap-2">
-        {(report?.resolutions || []).map((r) => {
+        {(report?.resolutions || []).map((r: any) => {
           const active = selectedRes === r.resolution;
+          const score = r.balanceScore ?? Math.round((1 - ((r.severityPercent ?? r.bottleneckPercent ?? 5) / 100)) * 100);
           return (
             <button
               key={r.resolution}
@@ -189,11 +200,11 @@ export default function BottleneckModule() {
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                 active
                   ? "bg-white text-zinc-950 border-white shadow-md"
-                  : "bg-zinc-900/80 text-zinc-300 border-zinc-800 hover:bg-zinc-800"
+                  : "bg-zinc-900/50 backdrop-blur-sm text-zinc-300 border-zinc-800 hover:bg-zinc-800/70"
               }`}
             >
               {r.label} —{" "}
-              <span className="font-mono">{r.balanceScore}/100</span>
+              <span className="font-mono">{score}/100</span>
             </button>
           );
         })}

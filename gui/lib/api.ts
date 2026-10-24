@@ -862,8 +862,8 @@ export interface BottleneckReport {
   ramTotalGb: number;
   ramSpeedMhz: number;
   resolutions: ResolutionBottleneck[];
-  catalogCpus: string[];
-  catalogGpus: string[];
+  catalogCpus: (string | any)[];
+  catalogGpus: (string | any)[];
 }
 
 export interface DiskBenchmarkResult {
