@@ -11,6 +11,7 @@ import {
 interface HardwareContextType {
   diagnostics: SystemDiagnostics | null;
   loadingDiagnostics: boolean;
+  loading: boolean;
   errorDiagnostics: string | null;
   refreshDiagnostics: () => Promise<void>;
   audit: SystemAuditResult | null;
@@ -21,6 +22,7 @@ interface HardwareContextType {
 const HardwareContext = createContext<HardwareContextType>({
   diagnostics: null,
   loadingDiagnostics: true,
+  loading: true,
   errorDiagnostics: null,
   refreshDiagnostics: async () => {},
   audit: null,
@@ -81,6 +83,7 @@ export function HardwareProvider({ children }: { children: React.ReactNode }) {
       value={{
         diagnostics,
         loadingDiagnostics,
+        loading: loadingDiagnostics,
         errorDiagnostics,
         refreshDiagnostics,
         audit,

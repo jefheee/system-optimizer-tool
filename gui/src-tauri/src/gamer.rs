@@ -35,6 +35,20 @@ fn set_timer_resolution_raw(desired_100ns: u32, set: bool) -> Result<u32, String
     }
 }
 
+pub fn apply_kernel_timer(enable: bool, state: &AppState) -> Result<u32, String> {
+    let desired = if enable { 5000 } else { 156250 };
+    let actual_res = set_timer_resolution_raw(desired, enable)?;
+    if let Ok(mut gamer) = state.gamer.lock() {
+        gamer.timer_resolution_active = enable;
+        gamer.current_resolution_100ns = actual_res;
+    }
+    Ok(actual_res)
+}
+
+pub fn flush_working_sets_internal() -> usize {
+    flush_working_set_all_processes()
+}
+
 /// Consulta o estado atual dos ajustes gamer mantidos no AppState
 #[tauri::command]
 pub async fn get_gamer_status(state: State<'_, AppState>) -> Result<CommandResponse<GamerStatus>, String> {

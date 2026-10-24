@@ -1,34 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Home,
-  Cpu,
-  Sparkles,
-  Trash2,
-  Gamepad2,
-  Wrench,
-  Briefcase,
-  BookOpen,
-  Settings,
-} from 'lucide-react';
+import { X, Cpu, Monitor, MemoryStick } from 'lucide-react';
 
-import { openExternalUrl } from '../lib/api';
+import {
+  getLiveSensors,
+  LiveSensorSnapshot,
+  toggleHudOverlay,
+} from '../lib/api';
 import { useLanguage } from '../lib/LanguageContext';
 import { useSettings } from '../lib/SettingsContext';
 
-// Modules
+// Level 1 & Level 2 Navigation
+import TopNavbar, { SysTopTabId } from '../components/TopNavbar';
+import LeftSidebar, { SIDEBAR_ITEMS_BY_TOP_TAB } from '../components/LeftSidebar';
+import LightRays from '../components/ui/LightRays';
+
+// Level 3 & Content Modules
 import HomeModule from '../components/HomeModule';
+import SysCoreSystemView from '../components/SysCoreSystemView';
+import BottleneckModule from '../components/BottleneckModule';
+import SensorsAndStressModule from '../components/SensorsAndStressModule';
 import PresetsModule from '../components/PresetsModule';
 import CleanModule from '../components/CleanModule';
 import GamerModule from '../components/GamerModule';
 import SystemModule from '../components/SystemModule';
-import DashboardModule from '../components/DashboardModule';
+import BenchmarksModule from '../components/BenchmarksModule';
+import TuningModule from '../components/TuningModule';
+import SyncAndUsbModule from '../components/SyncAndUsbModule';
+import GamesLibraryModule from '../components/GamesLibraryModule';
+import DriversAndAppsModule from '../components/DriversAndAppsModule';
 import ExternalToolsModule from '../components/ExternalToolsModule';
 import DocsAndAboutModule from '../components/DocsAndAboutModule';
 import SettingsModule from '../components/SettingsModule';
-import Titlebar from '../components/Titlebar';
 import LiveProgressDrawer from '../components/LiveProgressDrawer';
 
 export type Tab =
@@ -43,212 +48,342 @@ export type Tab =
   | 'settings';
 
 export default function Page() {
-  const { t } = useLanguage();
-  const { theme } = useSettings();
-  const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const { lang } = useLanguage();
+  const { theme, performanceMode } = useSettings();
 
-  // Logical order: Home -> 1-Click Presets -> Clean -> Gamer -> System -> Hardware -> External -> Docs
-  const menuItems = [
-    { id: 'home', label: t('nav_home'), icon: Home },
-    { id: 'presets', label: t('nav_presets'), icon: Sparkles },
-    { id: 'clean', label: t('nav_clean'), icon: Trash2 },
-    { id: 'gamer', label: t('nav_gamer'), icon: Gamepad2 },
-    { id: 'system', label: t('nav_system'), icon: Wrench },
-    { id: 'dashboard', label: t('nav_dashboard'), icon: Cpu },
-    { id: 'external', label: t('nav_external'), icon: Briefcase },
-    { id: 'docs', label: t('nav_docs'), icon: BookOpen },
-  ] as const;
+  const [activeTopTab, setActiveTopTab] = useState<SysTopTabId>('sys-core');
+  const [activeSubTab, setActiveSubTab] = useState<string>('core-overview');
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [liveSensors, setLiveSensors] = useState<LiveSensorSnapshot | null>(null);
+  const [isOverlayWindow, setIsOverlayWindow] = useState<boolean>(false);
 
-  const renderModule = () => {
-    switch (activeTab) {
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('overlay=1')) {
+      setIsOverlayWindow(true);
+    }
+  }, []);
+
+  const pollSensors = useCallback(async () => {
+    try {
+      const res = await getLiveSensors();
+      if (res.success && res.data) {
+        setLiveSensors(res.data);
+      }
+    } catch {
+      // Ignore transient polling errors
+    }
+  }, []);
+
+  useEffect(() => {
+    pollSensors();
+    const interval = setInterval(pollSensors, 2000);
+    return () => clearInterval(interval);
+  }, [pollSensors]);
+
+  const handleSelectTopTab = (topTab: SysTopTabId) => {
+    setShowSettingsModal(false);
+    setActiveTopTab(topTab);
+    const items = SIDEBAR_ITEMS_BY_TOP_TAB[topTab];
+    if (items && items.length > 0) {
+      setActiveSubTab(items[0].id);
+    }
+  };
+
+  const handleLegacyNavigate = (tab: Tab) => {
+    setShowSettingsModal(false);
+    switch (tab) {
       case 'home':
-        return <HomeModule onNavigate={(tab) => setActiveTab(tab)} />;
-      case 'presets':
-        return <PresetsModule />;
-      case 'clean':
-        return <CleanModule />;
-      case 'gamer':
-        return <GamerModule />;
-      case 'system':
-        return <SystemModule />;
+        setActiveTopTab('sys-core');
+        setActiveSubTab('core-overview');
+        break;
       case 'dashboard':
-        return <DashboardModule />;
+        setActiveTopTab('sys-core');
+        setActiveSubTab('core-system');
+        break;
+      case 'presets':
+        setActiveTopTab('sys-otimiza');
+        setActiveSubTab('opt-presets');
+        break;
+      case 'clean':
+        setActiveTopTab('sys-otimiza');
+        setActiveSubTab('opt-clean');
+        break;
+      case 'gamer':
+        setActiveTopTab('sys-otimiza');
+        setActiveSubTab('opt-gamer');
+        break;
+      case 'system':
+        setActiveTopTab('sys-otimiza');
+        setActiveSubTab('opt-system');
+        break;
       case 'external':
-        return <ExternalToolsModule />;
+        setActiveTopTab('sys-drivers');
+        setActiveSubTab('drv-hub');
+        break;
       case 'docs':
-        return <DocsAndAboutModule />;
+        setActiveTopTab('sys-docs');
+        setActiveSubTab('docs-encyclopedia');
+        break;
       case 'settings':
-        return <SettingsModule />;
+        setShowSettingsModal(true);
+        break;
+    }
+  };
+
+  // Dedicated In-Game HUD Overlay Window (?overlay=1)
+  if (isOverlayWindow) {
+    const cpuTemp = liveSensors?.cpuTempC ?? 48;
+    const cpuLoad = liveSensors?.cpuLoadPercent ?? 18;
+    const gpuTemp = liveSensors?.gpuTempC ?? 52;
+    const gpuLoad = liveSensors?.gpuLoadPercent ?? 24;
+    const ramPct = liveSensors?.ramLoadPercent ?? 45;
+    const estFps = Math.max(60, Math.round(240 - cpuLoad * 0.65 - gpuLoad * 0.45));
+    const frametimeMs = (1000 / estFps).toFixed(1);
+
+    return (
+      <div
+        data-tauri-drag-region
+        className="w-screen h-screen bg-zinc-950/90 backdrop-blur-md border border-cyan-500/40 rounded-xl p-3 text-zinc-100 font-mono select-none flex flex-col justify-between overflow-hidden shadow-2xl"
+      >
+        <div
+          data-tauri-drag-region
+          className="flex items-center justify-between border-b border-zinc-800 pb-1.5"
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-bold tracking-wider text-cyan-400">
+              SYS HUD OVERLAY
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-extrabold text-emerald-400">
+              {estFps} FPS <span className="text-[10px] text-zinc-400">({frametimeMs}ms)</span>
+            </span>
+            <button
+              onClick={() => toggleHudOverlay(false)}
+              className="p-0.5 rounded hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition-colors"
+              title="Fechar Overlay"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 pt-1.5 text-[11px]">
+          <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-lg px-2 py-1.5">
+            <div className="flex items-center gap-1 text-[9px] text-zinc-400">
+              <Cpu className="w-3 h-3 text-cyan-400" /> CPU
+            </div>
+            <div className="font-bold text-zinc-100">
+              {cpuLoad.toFixed(0)}% <span className="text-amber-300">{cpuTemp.toFixed(0)}°C</span>
+            </div>
+          </div>
+
+          <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-lg px-2 py-1.5">
+            <div className="flex items-center gap-1 text-[9px] text-zinc-400">
+              <Monitor className="w-3 h-3 text-emerald-400" /> GPU
+            </div>
+            <div className="font-bold text-zinc-100">
+              {gpuLoad.toFixed(0)}% <span className="text-emerald-300">{gpuTemp.toFixed(0)}°C</span>
+            </div>
+          </div>
+
+          <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-lg px-2 py-1.5">
+            <div className="flex items-center gap-1 text-[9px] text-zinc-400">
+              <MemoryStick className="w-3 h-3 text-purple-400" /> RAM
+            </div>
+            <div className="font-bold text-zinc-100">
+              {ramPct.toFixed(0)}%{' '}
+              <span className="text-zinc-400 text-[10px]">
+                {liveSensors?.ramUsedGb?.toFixed(1) ?? '7.2'}G
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const renderMainContent = () => {
+    if (showSettingsModal) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase tracking-wider text-sky-400">
+              {lang === 'pt' ? 'Configurações Globais V6.0' : 'Global Settings V6.0'}
+            </span>
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors"
+            >
+              {lang === 'pt' ? '← Voltar ao Painel' : '← Back to Panel'}
+            </button>
+          </div>
+          <SettingsModule />
+        </div>
+      );
+    }
+
+    switch (activeTopTab) {
+      case 'sys-core': {
+        switch (activeSubTab) {
+          case 'core-overview':
+            return <HomeModule onNavigate={handleLegacyNavigate} />;
+          case 'core-system':
+            return <SysCoreSystemView directMode="system" initialPill="storage" />;
+          case 'core-sensors':
+            return (
+              <SensorsAndStressModule
+                mode="sensors"
+                liveSensors={liveSensors}
+                onRefreshSensors={pollSensors}
+              />
+            );
+          case 'core-gpu':
+            return <SysCoreSystemView directMode="gpu" />;
+          case 'core-disks':
+            return <SysCoreSystemView directMode="disks" />;
+          case 'core-power':
+            return <SysCoreSystemView directMode="power" />;
+          case 'core-network':
+            return <SysCoreSystemView directMode="network" />;
+          case 'core-bottleneck':
+            return <BottleneckModule />;
+          case 'core-overlay':
+            return (
+              <SensorsAndStressModule
+                mode="overlay"
+                liveSensors={liveSensors}
+                onRefreshSensors={pollSensors}
+              />
+            );
+          case 'core-stress':
+            return (
+              <SensorsAndStressModule
+                mode="stress"
+                liveSensors={liveSensors}
+                onRefreshSensors={pollSensors}
+              />
+            );
+          default:
+            return <SysCoreSystemView directMode="system" initialPill="storage" />;
+        }
+      }
+
+      case 'sys-otimiza': {
+        switch (activeSubTab) {
+          case 'opt-presets':
+            return <PresetsModule />;
+          case 'opt-clean':
+            return <CleanModule />;
+          case 'opt-gamer':
+            return <GamerModule />;
+          case 'opt-postformat':
+          case 'opt-system':
+          case 'opt-startup':
+            return <SystemModule />;
+          default:
+            return <PresetsModule />;
+        }
+      }
+
+      case 'sys-bench':
+        return <BenchmarksModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
+
+      case 'sys-tuning':
+        return <TuningModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
+
+      case 'sys-sync':
+        return <SyncAndUsbModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
+
+      case 'sys-jogos':
+        if (activeSubTab === 'games-booster') {
+          return <GamerModule />;
+        }
+        return <GamesLibraryModule />;
+
+      case 'sys-drivers':
+        if (activeSubTab === 'drv-hub') {
+          return <ExternalToolsModule />;
+        }
+        return <DriversAndAppsModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
+
+      case 'sys-docs':
+        return (
+          <DocsAndAboutModule
+            initialSubTab={activeSubTab === 'docs-about' ? 'about' : 'wiki'}
+          />
+        );
+
+      default:
+        return <HomeModule onNavigate={handleLegacyNavigate} />;
     }
   };
 
   return (
     <main
-      className={`h-screen w-screen flex flex-col font-sans overflow-hidden transition-colors ${
-        theme === 'light' ? 'bg-[#f4f6f9] text-[#0f172a]' : 'bg-[#08080a] text-[#f1f5f9]'
+      className={`h-screen w-screen flex flex-col font-sans overflow-hidden relative transition-colors ${
+        theme === 'light' ? 'bg-[#f4f6f9] text-[#0f172a]' : 'bg-[#07080c] text-[#f1f5f9]'
       }`}
     >
-      {/* Top Frameless Titlebar */}
-      <Titlebar />
+      {/* Global React Bits "Light Rays" WebGL2 Background (Spotlight Top Origin) */}
+      {!performanceMode && (
+        <LightRays
+          raysOrigin="top-center"
+          raysColor={theme === 'light' ? '#0284c7' : '#38bdf8'}
+          raysSpeed={0.85}
+          lightSpread={1.15}
+          rayLength={1.85}
+          pulsating={true}
+          fadeDistance={1.0}
+          saturation={0.9}
+          followMouse={true}
+          mouseInfluence={0.08}
+          opacity={theme === 'light' ? 0.22 : 0.36}
+          lightMode={theme === 'light'}
+        />
+      )}
 
-      {/* Main Workspace Area */}
-      <div className="flex-1 flex min-h-0 relative overflow-hidden">
-        {/* Subtle Background Glow Orbs */}
-        <div className="bg-glow-orb absolute top-[-10%] left-[20%] w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[140px] pointer-events-none -z-10 animate-pulse-soft" />
-        <div className="bg-glow-orb absolute bottom-[-10%] right-[10%] w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[140px] pointer-events-none -z-10" />
+      {/* Level 1: Frameless Top Navbar with Official Logo + 8 SYS Tabs */}
+      <TopNavbar
+        activeTopTab={activeTopTab}
+        onSelectTopTab={handleSelectTopTab}
+        onOpenSettings={() => setShowSettingsModal((prev) => !prev)}
+      />
 
-        {/* Collapsible Sidebar Rail */}
-        {/* Collapsible Sidebar Rail */}
-        <aside
-          onMouseEnter={() => setSidebarExpanded(true)}
-          onMouseLeave={() => setSidebarExpanded(false)}
-          className={`absolute left-0 top-0 bottom-0 flex flex-col py-3 z-40 no-scrollbar overflow-hidden border-r transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            sidebarExpanded ? 'w-72' : 'w-[72px]'
-          } ${
-            theme === 'light'
-              ? 'bg-white/95 border-slate-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
-              : 'bg-neutral-950/95 border-neutral-800/80 shadow-[0_0_30px_rgba(0,0,0,0.4)]'
-          }`}
-        >
-          {/* Sidebar Top Header */}
-          <div className="h-6 px-4 mb-2 flex items-center justify-between shrink-0 overflow-hidden">
-            <span
-              className={`text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 whitespace-nowrap transition-opacity duration-200 ${
-                sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-            >
-              {t('sidebar_menu', 'Menu')}
-            </span>
-          </div>
+      {/* Level 2 + Level 3 Workspace Area */}
+      <div className="flex-1 flex min-h-0 relative z-10 overflow-hidden">
+        {/* Level 2: Contextual Left Sidebar + Live Telemetry Footer ("AO VIVO") */}
+        <LeftSidebar
+          activeTopTab={activeTopTab}
+          activeSubTab={activeSubTab}
+          onSelectSubTab={(sub) => {
+            setShowSettingsModal(false);
+            setActiveSubTab(sub);
+          }}
+          liveSensors={liveSensors}
+        />
 
-          {/* Primary Navigation List */}
-          <nav className="flex-1 flex flex-col gap-1 px-2.5 overflow-y-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  title={!sidebarExpanded ? item.label : undefined}
-                  className={`w-full flex items-center h-10 px-3.5 rounded-xl transition-colors duration-150 relative ${
-                    isActive
-                      ? theme === 'light'
-                        ? 'bg-blue-50 text-blue-600 font-semibold'
-                        : 'bg-blue-500/10 text-blue-400 font-semibold'
-                      : theme === 'light'
-                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      : 'text-neutral-400 hover:text-neutral-100 hover:bg-neutral-900/60'
-                  }`}
-                >
-                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <span
-                    className={`text-xs font-semibold tracking-wide whitespace-nowrap overflow-hidden text-left ml-3 min-w-0 flex-1 transition-opacity duration-200 ${
-                      sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-
-                  {isActive && sidebarExpanded && (
-                    <motion.div
-                      layoutId="sidebar-active-indicator"
-                      className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 ml-2"
-                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Sidebar Footer: Kernel Status Pill + Action Bar */}
-          <div
-            className={`px-2.5 mt-auto shrink-0 pt-2 border-t space-y-2 ${
-              theme === 'light' ? 'border-slate-200' : 'border-neutral-800/80'
-            }`}
-          >
-            {/* Kernel 0.5ms Timer Live Status Card */}
-            <div
-              className={`rounded-xl border p-2 transition-all ${
-                theme === 'light'
-                  ? 'bg-emerald-50/70 border-emerald-200 text-slate-800'
-                  : 'bg-neutral-950/80 border-neutral-800/90 text-neutral-200'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-                {sidebarExpanded ? (
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-mono font-bold tracking-tight text-emerald-400 truncate">
-                      Kernel: 0.5ms Timer
-                    </div>
-                    <div className="text-[9px] font-mono text-neutral-400 truncate">
-                      Status Ativo
-                    </div>
-                  </div>
-                ) : (
-                  <span className="text-[9px] font-mono text-emerald-400 font-bold">0.5ms</span>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Controls Bar (<> and Settings) */}
-            <div className="flex items-center justify-between gap-1">
-              <button
-                onClick={() => setSidebarExpanded(!sidebarExpanded)}
-                title="Expandir / Recolher Sidebar"
-                className={`flex-1 flex items-center justify-center h-8 rounded-lg text-xs font-mono transition-colors border ${
-                  theme === 'light'
-                    ? 'border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    : 'border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <span className="text-[11px] font-mono tracking-tighter">&lt;/&gt;</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('settings')}
-                title={t('nav_settings')}
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors border shrink-0 ${
-                  activeTab === 'settings'
-                    ? theme === 'light'
-                      ? 'bg-blue-50 text-blue-600 border-blue-200'
-                      : 'bg-neutral-800 text-neutral-100 border-neutral-600'
-                    : theme === 'light'
-                    ? 'border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    : 'border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        {/* Main Content Viewport (Edge-to-edge Bento Grid with minimal breathing margin) */}
-        <section className="flex-1 flex flex-col min-w-0 pl-[72px] overflow-y-auto no-scrollbar">
-          <div className="p-2 sm:p-2.5 md:p-3 w-full min-h-0 flex-1 flex flex-col">
+        {/* Level 3: Main Content Viewport */}
+        <section className="flex-1 flex flex-col min-w-0 overflow-y-auto no-scrollbar">
+          <div className="p-4 md:p-5 w-full min-h-0 flex-1 flex flex-col max-w-[1600px] mx-auto">
             <AnimatePresence mode="wait">
               <motion.div
-                key={activeTab}
+                key={showSettingsModal ? 'settings-modal' : `${activeTopTab}-${activeSubTab}`}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.12, ease: 'easeOut' }}
                 className="flex-1 flex flex-col min-h-0"
               >
-                {renderModule()}
+                {renderMainContent()}
               </motion.div>
             </AnimatePresence>
           </div>
         </section>
       </div>
 
-      {/* Step-by-Step Execution Console Drawer */}
+      {/* Step-by-Step Real-Time Execution Console Drawer */}
       <LiveProgressDrawer />
     </main>
   );

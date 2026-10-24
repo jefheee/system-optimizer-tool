@@ -104,6 +104,23 @@ pub struct StorageDisk {
     pub media_type: String,
     pub bus_type: String,
     pub health_status: String,
+    pub serial_number: String,
+    pub firmware_revision: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogicalVolume {
+    pub letter: String,
+    pub label: String,
+    pub file_system: String,
+    pub kind: String,
+    pub total_gb: u64,
+    pub free_gb: u64,
+    pub used_gb: u64,
+    pub usage_percent: f32,
+    pub physical_disk_model: String,
+    pub physical_disk_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -167,6 +184,7 @@ pub struct SystemDiagnostics {
     pub all_gpus: Vec<GpuInfo>,
     pub memory: Option<MemoryInfo>,
     pub storage: Vec<StorageDisk>,
+    pub logical_volumes: Vec<LogicalVolume>,
     pub displays: Vec<DisplayInfo>,
     pub peripherals: PeripheralsInfo,
     pub security: SecurityAndBootInfo,
@@ -684,41 +702,84 @@ fn detect_ram_modules(com_lib: COMLibrary, sys: &System) -> MemoryInfo {
 // -------------------------------------------------------------
 // Storage Disks: Exact Mapping PhysicalDisk -> Partition -> LogicalDisk
 // -------------------------------------------------------------
-fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
+fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVolume>) {
     let mut disks: Vec<StorageDisk> = Vec::new();
 
-    // 1. Collect exact free space and size per drive letter ("C:", "D:", "E:", etc.)
-    let mut logical_volumes: HashMap<String, (u64, u64)> = HashMap::new(); // "C:" -> (total_bytes, free_bytes)
+    // 1. Collect exact free space, size, label, and filesystem per drive letter ("C:", "D:", "E:", etc.)
+    // Map: "C:" -> (total_bytes, free_bytes, label, file_system, drive_type_code)
+    let mut logical_map: HashMap<String, (u64, u64, String, String, u32)> = HashMap::new();
 
     let sysinfo_disks = Disks::new_with_refreshed_list();
     for d in sysinfo_disks.list() {
         let mount = d.mount_point().to_string_lossy().to_uppercase();
         let letter = mount.trim_end_matches('\\').trim().to_string();
         if !letter.is_empty() {
-            logical_volumes.insert(letter, (d.total_space(), d.available_space()));
+            let fs = d.file_system().to_string_lossy().to_string();
+            let label = d.name().to_string_lossy().to_string();
+            logical_map.insert(
+                letter,
+                (
+                    d.total_space(),
+                    d.available_space(),
+                    label,
+                    if fs.is_empty() { "NTFS".to_string() } else { fs },
+                    3,
+                ),
+            );
         }
     }
 
     // Map physical disk number (0, 1, 2...) -> Vec<DriveLetter> ("C:", "D:")
     let mut disk_to_letters: HashMap<u32, Vec<String>> = HashMap::new();
+    // Map physical disk number -> (serial_number, firmware_revision) from Win32_DiskDrive
+    let mut disk_serial_fw: HashMap<u32, (String, String)> = HashMap::new();
 
     if let Ok(wmi_con) = WMIConnection::new(com_lib) {
-        // Supplement logical_volumes from Win32_LogicalDisk
-        if let Ok(rows) = wmi_con.raw_query::<HashMap<String, Variant>>("SELECT DeviceID, Size, FreeSpace FROM Win32_LogicalDisk") {
+        // Supplement logical_map from Win32_LogicalDisk
+        if let Ok(rows) = wmi_con.raw_query::<HashMap<String, Variant>>(
+            "SELECT DeviceID, VolumeName, FileSystem, DriveType, Size, FreeSpace FROM Win32_LogicalDisk",
+        ) {
             for row in rows {
                 if let Some(dev_id) = row.get("DeviceID").and_then(variant_to_string) {
                     let letter = dev_id.trim().to_uppercase();
                     let sz = row.get("Size").and_then(variant_to_u64).unwrap_or(0);
                     let fr = row.get("FreeSpace").and_then(variant_to_u64).unwrap_or(0);
+                    let vol_name = row.get("VolumeName").and_then(variant_to_string).unwrap_or_default();
+                    let fs = row
+                        .get("FileSystem")
+                        .and_then(variant_to_string)
+                        .unwrap_or_else(|| "NTFS".to_string());
+                    let dtype = row.get("DriveType").and_then(variant_to_u32).unwrap_or(3);
                     if sz > 0 {
-                        logical_volumes.insert(letter, (sz, fr));
+                        logical_map.insert(letter, (sz, fr, vol_name, fs, dtype));
                     }
                 }
             }
         }
 
+        // Read SerialNumber and FirmwareRevision from Win32_DiskDrive
+        if let Ok(rows) = wmi_con.raw_query::<HashMap<String, Variant>>(
+            "SELECT Index, SerialNumber, FirmwareRevision FROM Win32_DiskDrive",
+        ) {
+            for row in rows {
+                if let Some(idx) = row.get("Index").and_then(variant_to_u32) {
+                    let sn = row
+                        .get("SerialNumber")
+                        .and_then(variant_to_string)
+                        .unwrap_or_default();
+                    let fw = row
+                        .get("FirmwareRevision")
+                        .and_then(variant_to_string)
+                        .unwrap_or_default();
+                    disk_serial_fw.insert(idx, (sn, fw));
+                }
+            }
+        }
+
         // Map Disk #X -> Drive Letter via Win32_LogicalDiskToPartition
-        if let Ok(rows) = wmi_con.raw_query::<HashMap<String, Variant>>("SELECT Antecedent, Dependent FROM Win32_LogicalDiskToPartition") {
+        if let Ok(rows) = wmi_con.raw_query::<HashMap<String, Variant>>(
+            "SELECT Antecedent, Dependent FROM Win32_LogicalDiskToPartition",
+        ) {
             for row in rows {
                 let ant = row.get("Antecedent").and_then(variant_to_string).unwrap_or_default();
                 let dep = row.get("Dependent").and_then(variant_to_string).unwrap_or_default();
@@ -749,7 +810,9 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
 
     // 2. Query MSFT_Partition & MSFT_PhysicalDisk in root\Microsoft\Windows\Storage
     if let Ok(wmi_storage) = WMIConnection::with_namespace_path(r"root\Microsoft\Windows\Storage", com_lib) {
-        if let Ok(part_rows) = wmi_storage.raw_query::<HashMap<String, Variant>>("SELECT DiskNumber, DriveLetter FROM MSFT_Partition") {
+        if let Ok(part_rows) = wmi_storage.raw_query::<HashMap<String, Variant>>(
+            "SELECT DiskNumber, DriveLetter FROM MSFT_Partition",
+        ) {
             for row in part_rows {
                 if let Some(d_num) = row.get("DiskNumber").and_then(variant_to_u32) {
                     let letter_opt = match row.get("DriveLetter") {
@@ -780,7 +843,7 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
             }
         }
 
-        let query = "SELECT DeviceId, FriendlyName, MediaType, BusType, Size, HealthStatus FROM MSFT_PhysicalDisk";
+        let query = "SELECT DeviceId, FriendlyName, MediaType, BusType, Size, HealthStatus, SerialNumber, FirmwareVersion FROM MSFT_PhysicalDisk";
         if let Ok(rows) = wmi_storage.raw_query::<HashMap<String, Variant>>(query) {
             for (idx, row) in rows.iter().enumerate() {
                 let disk_number = row
@@ -789,7 +852,9 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
                     .and_then(|s| s.trim().parse::<u32>().ok())
                     .unwrap_or(idx as u32);
 
-                let model = row.get("FriendlyName").and_then(variant_to_string)
+                let model = row
+                    .get("FriendlyName")
+                    .and_then(variant_to_string)
                     .unwrap_or_else(|| format!("Physical Disk #{}", disk_number));
 
                 let size_bytes = row.get("Size").and_then(variant_to_u64).unwrap_or(0);
@@ -809,7 +874,11 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
                 let media_type = match media_num {
                     3 => "HDD".to_string(),
                     4 => {
-                        if bus_type == "NVMe" { "NVMe".to_string() } else { "SSD".to_string() }
+                        if bus_type == "NVMe" {
+                            "NVMe".to_string()
+                        } else {
+                            "SSD".to_string()
+                        }
                     }
                     5 => "NVMe".to_string(),
                     _ => {
@@ -831,6 +900,23 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
                     _ => "Healthy".to_string(),
                 };
 
+                let (fallback_sn, fallback_fw) = disk_serial_fw
+                    .get(&disk_number)
+                    .cloned()
+                    .unwrap_or_else(|| (String::new(), String::new()));
+
+                let serial_number = row
+                    .get("SerialNumber")
+                    .and_then(variant_to_string)
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(fallback_sn);
+
+                let firmware_revision = row
+                    .get("FirmwareVersion")
+                    .and_then(variant_to_string)
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(fallback_fw);
+
                 let mut letters = disk_to_letters.get(&disk_number).cloned().unwrap_or_default();
                 letters.sort();
 
@@ -838,7 +924,7 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
                 let mut free_bytes_sum = 0u64;
                 let mut total_logical_bytes = 0u64;
                 for letter in &letters {
-                    if let Some(&(vol_total, vol_free)) = logical_volumes.get(letter) {
+                    if let Some(&(vol_total, vol_free, _, _, _)) = logical_map.get(letter) {
                         total_logical_bytes += vol_total;
                         free_bytes_sum += vol_free;
                     }
@@ -867,6 +953,8 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
                     media_type,
                     bus_type,
                     health_status,
+                    serial_number,
+                    firmware_revision,
                 });
             }
         }
@@ -879,7 +967,61 @@ fn detect_storage_disks(com_lib: COMLibrary) -> Vec<StorageDisk> {
         b_has_c.cmp(&a_has_c).then(a.disk_number.cmp(&b.disk_number))
     });
 
-    disks
+    // Build LogicalVolume list mapped to physical disks
+    let mut volumes: Vec<LogicalVolume> = Vec::new();
+    for (letter, (total_b, free_b, label, fs, dtype)) in &logical_map {
+        let total_gb = total_b / (1024 * 1024 * 1024);
+        if total_gb == 0 {
+            continue;
+        }
+        let free_gb = free_b / (1024 * 1024 * 1024);
+        let used_gb = total_gb.saturating_sub(free_gb);
+        let usage_percent = ((used_b_ratio(*total_b, *free_b) * 1000.0).round()) / 10.0;
+
+        let matched_disk = disks.iter().find(|d| d.drive_letters.contains(letter));
+        let physical_disk_model = matched_disk
+            .map(|d| d.model.clone())
+            .unwrap_or_else(|| "Volume Lógico".to_string());
+        let physical_disk_type = matched_disk
+            .map(|d| format!("{} ({})", d.media_type, d.bus_type))
+            .unwrap_or_else(|| "Fixo".to_string());
+
+        let kind = match dtype {
+            2 => "Removível".to_string(),
+            4 => "Rede".to_string(),
+            5 => "Óptico".to_string(),
+            _ => "Fixo".to_string(),
+        };
+
+        volumes.push(LogicalVolume {
+            letter: letter.clone(),
+            label: if label.is_empty() {
+                " Volume Local".trim().to_string()
+            } else {
+                label.clone()
+            },
+            file_system: fs.clone(),
+            kind,
+            total_gb,
+            free_gb,
+            used_gb,
+            usage_percent,
+            physical_disk_model,
+            physical_disk_type,
+        });
+    }
+
+    volumes.sort_by(|a, b| a.letter.cmp(&b.letter));
+
+    (disks, volumes)
+}
+
+fn used_b_ratio(total: u64, free: u64) -> f32 {
+    if total == 0 {
+        return 0.0;
+    }
+    let used = total.saturating_sub(free);
+    (used as f64 / total as f64) as f32
 }
 
 // -------------------------------------------------------------
@@ -1265,7 +1407,7 @@ fn build_setup_export(
         if security.vbs_active { "Ativo" } else { "Desativado" }
     ));
 
-    s.push_str("\n*Gerado automaticamente pelo System Optimizer Tool V5.0*\n");
+    s.push_str("\n*Gerado automaticamente pelo System Optimizer Tool V6.0*\n");
     s
 }
 
@@ -1301,14 +1443,14 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
 
         let com_lib = COMLibrary::new().ok();
 
-        let (device_type, battery, cpu, motherboard, gpu, all_gpus, memory, storage, displays, peripherals) = if let Some(com) = com_lib {
+        let (device_type, battery, cpu, motherboard, gpu, all_gpus, memory, storage, logical_volumes, displays, peripherals) = if let Some(com) = com_lib {
             let (dev_type, bat_data) = detect_chassis_and_battery(com);
             let is_laptop = dev_type == "Laptop";
             let cpu_data = detect_cpu_details(com, &sys);
             let mb_data = detect_motherboard_and_bios(com);
             let (primary_gpu, gpus) = detect_gpus(com);
             let ram_data = detect_ram_modules(com, &sys);
-            let storage_data = detect_storage_disks(com);
+            let (storage_data, logical_vols) = detect_storage_disks(com);
             let display_data = detect_displays(com, &primary_gpu, is_laptop);
             let periph_data = detect_peripherals(com);
 
@@ -1321,6 +1463,7 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
                 gpus,
                 Some(ram_data),
                 storage_data,
+                logical_vols,
                 display_data,
                 periph_data,
             )
@@ -1333,6 +1476,7 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
                 None,
                 Vec::new(),
                 None,
+                Vec::new(),
                 Vec::new(),
                 Vec::new(),
                 PeripheralsInfo { audio_devices: Vec::new(), input_devices: Vec::new() },
@@ -1366,6 +1510,7 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
             all_gpus,
             memory,
             storage,
+            logical_volumes,
             displays,
             peripherals,
             security,

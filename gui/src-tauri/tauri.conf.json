@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "System Optimizer Tool",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "identifier": "com.systemoptimizer.app",
   "build": {
     "frontendDist": "../out",
@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "System Optimizer Tool",
-        "width": 1080,
-        "height": 720,
-        "minWidth": 900,
-        "minHeight": 600,
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1024,
+        "minHeight": 660,
         "resizable": true,
         "fullscreen": false,
         "decorations": false
@@ -27,7 +27,7 @@
     }
   },
   "bundle": {
-    "resources": [],
+    "resources": ["drivers/**/*"],
     "active": true,
     "targets": ["nsis", "msi"],
     "icon": [

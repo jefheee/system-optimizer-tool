@@ -81,10 +81,18 @@ const WIKI_ITEMS_DEF: WikiItemDef[] = [
   { id: 'hw_monitors', category: 'tools', securityRating: 'safe' },
 ];
 
-export default function DocsAndAboutModule() {
+export default function DocsAndAboutModule({
+  initialSubTab = 'wiki',
+}: {
+  initialSubTab?: 'wiki' | 'about';
+}) {
   const { t } = useLanguage();
   const { theme } = useSettings();
-  const [subTab, setSubTab] = useState<'wiki' | 'about'>('wiki');
+  const [subTab, setSubTab] = useState<'wiki' | 'about'>(initialSubTab);
+
+  React.useEffect(() => {
+    setSubTab(initialSubTab);
+  }, [initialSubTab]);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string>('deep_clean');

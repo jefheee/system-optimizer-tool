@@ -1,4 +1,5 @@
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
+use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
@@ -54,8 +55,19 @@ pub struct GamerStateInner {
     pub ram_autoclean_cancel: Option<watch::Sender<bool>>,
 }
 
+pub struct StressStateShared {
+    pub running: Arc<AtomicBool>,
+    pub start_epoch_ms: Arc<AtomicU64>,
+    pub mem_errors: Arc<AtomicU64>,
+    pub mem_passes: Arc<AtomicU64>,
+    pub max_temp_mc: Arc<AtomicU32>,
+    pub cpu_enabled: Arc<AtomicBool>,
+    pub ram_enabled: Arc<AtomicBool>,
+}
+
 pub struct AppState {
     pub gamer: Mutex<GamerStateInner>,
+    pub stress: StressStateShared,
 }
 
 impl Default for AppState {
@@ -67,6 +79,15 @@ impl Default for AppState {
                 ram_autoclean_active: false,
                 ram_autoclean_cancel: None,
             }),
+            stress: StressStateShared {
+                running: Arc::new(AtomicBool::new(false)),
+                start_epoch_ms: Arc::new(AtomicU64::new(0)),
+                mem_errors: Arc::new(AtomicU64::new(0)),
+                mem_passes: Arc::new(AtomicU64::new(0)),
+                max_temp_mc: Arc::new(AtomicU32::new(0)),
+                cpu_enabled: Arc::new(AtomicBool::new(true)),
+                ram_enabled: Arc::new(AtomicBool::new(true)),
+            },
         }
     }
 }

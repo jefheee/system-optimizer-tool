@@ -14,6 +14,8 @@ export type TFunction = (
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
+  lang: 'pt' | 'en';
+  setLang: (lang: 'pt' | 'en' | Language) => void;
   t: TFunction;
 }
 
@@ -30,6 +32,8 @@ const HTML_LANG_MAP: Record<Language, string> = {
 const LanguageContext = createContext<LanguageContextType>({
   language: 'PT',
   setLanguage: () => {},
+  lang: 'pt',
+  setLang: () => {},
   t: (key: string, fallbackOrVars?: string | Record<string, string | number>) =>
     typeof fallbackOrVars === 'string' ? fallbackOrVars : key,
 });
@@ -58,6 +62,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('system_optimizer_lang', lang);
     } catch {}
   }, []);
+
+  const setLang = useCallback(
+    (l: 'pt' | 'en' | Language) => {
+      const normalized = l.toUpperCase() === 'EN' ? 'EN' : 'PT';
+      setLanguage(normalized);
+    },
+    [setLanguage]
+  );
+
+  const lang: 'pt' | 'en' = language === 'EN' ? 'en' : 'pt';
 
   const t = useCallback<TFunction>(
     (
@@ -98,7 +112,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, lang, setLang, t }}>
       {children}
     </LanguageContext.Provider>
   );

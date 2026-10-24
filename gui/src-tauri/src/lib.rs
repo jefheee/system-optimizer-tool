@@ -1,12 +1,17 @@
 // =================================================================
-// SYSTEM OPTIMIZER - TAURI CORE LIBRARY (RUST NATIVE BACKEND V5.0)
+// SYSTEM OPTIMIZER - TAURI CORE LIBRARY (RUST NATIVE BACKEND V6.0)
 // =================================================================
 
+pub mod benchmarks;
+pub mod bottleneck;
 pub mod clean;
 pub mod diagnostics;
+pub mod drivers;
 pub mod external_tools;
 pub mod gamer;
+pub mod games;
 pub mod presets;
+pub mod sensors;
 pub mod state;
 pub mod system;
 pub mod utils;
@@ -20,17 +25,46 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // 1. Diagnóstico de Hardware & Profiler em Tempo Real
             diagnostics::get_system_diagnostics,
+            sensors::get_live_sensors,
+            bottleneck::analyze_bottleneck,
 
-            // 2. Presets Inteligentes / 1-Click Profiles
+            // 2. Suíte de Benchmarks & Stress Test (SYS BENCH & SYS CORE)
+            benchmarks::run_disk_benchmark,
+            benchmarks::run_ram_benchmark,
+            benchmarks::run_cpu_benchmark,
+            benchmarks::start_stress_test,
+            benchmarks::stop_stress_test,
+            benchmarks::get_stress_status,
+
+            // 3. Biblioteca Automática de Jogos, Game Booster Launcher & HUD Overlay (SYS JOGOS & SYS CORE)
+            games::scan_installed_games,
+            games::launch_game_optimized,
+            games::toggle_hud_overlay,
+
+            // 4. Auditor de Drivers, Scanner Overclock/WHEA, USB Fantasmas, RGB Sync, Maker & Winget (SYS TUNING, SYS SYNC, SYS DRIVERS)
+            drivers::get_driver_inventory,
+            drivers::scan_oc_and_errors,
+            drivers::set_power_plan,
+            drivers::get_usb_devices,
+            drivers::remove_ghost_usb_devices,
+            drivers::get_rgb_status,
+            drivers::apply_rgb_effect,
+            drivers::get_maker_drivers,
+            drivers::install_maker_driver,
+            drivers::clean_arduino_cache,
+            drivers::get_winget_catalog,
+            drivers::install_winget_batch,
+
+            // 5. Presets Inteligentes / 1-Click Profiles (SYS OTIMIZA)
             presets::run_preset,
 
-            // 3. Limpeza & Armazenamento
+            // 6. Limpeza & Armazenamento (SYS OTIMIZA)
             clean::run_deep_clean,
             clean::run_lite_clean,
             clean::toggle_hibernation,
             clean::clean_old_windows_installations,
 
-            // 4. Ferramentas Gamer & Baixa Latência + Process Freezer
+            // 7. Ferramentas Gamer & Baixa Latência + Process Freezer (SYS OTIMIZA)
             gamer::get_gamer_status,
             gamer::toggle_timer_resolution,
             gamer::set_game_priority,
@@ -47,7 +81,7 @@ pub fn run() {
             gamer::get_heavy_processes,
             gamer::kill_process,
 
-            // 5. Sistema, Rede, Privacidade, Auditoria, Pós-Formatação & Startup Manager
+            // 8. Sistema, Rede, Privacidade, Auditoria, Pós-Formatação & Startup Manager
             system::check_admin,
             system::restart_as_admin,
             system::create_restore_point,
@@ -74,7 +108,7 @@ pub fn run() {
             system::generate_battery_or_energy_report,
             system::open_external_url,
 
-            // 6. Hub da Comunidade & Ferramentas Externas
+            // 9. Hub da Comunidade & Ferramentas Externas (SYS DRIVERS)
             external_tools::check_installed_tools,
             external_tools::launch_or_install_tool,
             external_tools::launch_winutil,
