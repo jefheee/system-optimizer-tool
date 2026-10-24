@@ -61,32 +61,32 @@ export default function SettingsModule() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
           <button
             onClick={() => setTheme('dark')}
-            className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all ${
+            className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
               theme === 'dark'
-                ? 'bg-neutral-800 text-white border-neutral-600 shadow-sm'
-                : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
+                ? 'bg-zinc-800 text-white border-sky-500 shadow-md ring-1 ring-sky-500/30'
+                : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <Moon className="w-4 h-4 text-neutral-300" />
+              <Moon className="w-4 h-4 text-sky-400" />
               <span className="text-xs font-semibold">{t('settings_theme_dark')}</span>
             </div>
-            {theme === 'dark' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+            {theme === 'dark' && <CheckCircle2 className="w-4 h-4 text-sky-400" />}
           </button>
 
           <button
             onClick={() => setTheme('light')}
-            className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all ${
+            className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
               theme === 'light'
-                ? 'bg-neutral-800 text-white border-neutral-600 shadow-sm'
-                : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900'
+                ? 'bg-sky-600 text-white border-sky-600 shadow-md font-bold'
+                : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <Sun className="w-4 h-4 text-neutral-300" />
+              <Sun className={`w-4 h-4 ${theme === 'light' ? 'text-amber-200' : 'text-amber-400'}`} />
               <span className="text-xs font-semibold">{t('settings_theme_light')}</span>
             </div>
-            {theme === 'light' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+            {theme === 'light' && <CheckCircle2 className="w-4 h-4 text-white" />}
           </button>
         </div>
       </div>
@@ -131,21 +131,29 @@ export default function SettingsModule() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-          {AVAILABLE_LANGUAGES.map((lang) => (
+          {AVAILABLE_LANGUAGES.map((item) => (
             <button
-              key={lang.code}
-              onClick={() => setLanguage(lang.code)}
-              className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-                language === lang.code
-                  ? 'bg-neutral-800 text-white border-neutral-600 shadow-sm'
-                  : 'bg-neutral-950/60 border-neutral-800 text-neutral-300 hover:bg-neutral-900'
+              key={item.code}
+              onClick={() => setLanguage(item.code)}
+              className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                language === item.code
+                  ? theme === 'light'
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-md font-bold'
+                    : 'bg-zinc-800 text-white border-sky-500 shadow-md ring-1 ring-sky-500/30'
+                  : theme === 'light'
+                  ? 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-300 hover:bg-zinc-800'
               }`}
             >
               <span className="flex items-center gap-2">
-                <span className="text-base">{lang.flag}</span>
-                <span>{lang.label}</span>
+                <span className="text-base">{item.flag}</span>
+                <span>{item.label}</span>
               </span>
-              {language === lang.code && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+              {language === item.code && (
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-white' : 'text-sky-400'}`}
+                />
+              )}
             </button>
           ))}
         </div>

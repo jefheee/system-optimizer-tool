@@ -47,6 +47,49 @@ export type Tab =
   | 'docs'
   | 'settings';
 
+const PAGE_TITLES: Record<SysTopTabId, { name: string; descPt: string; descEn: string }> = {
+  'sys-core': {
+    name: 'CORE',
+    descPt: 'Diagnóstico profundo de hardware, sensores térmicos e análise de gargalo',
+    descEn: 'Deep hardware diagnostics, thermal telemetry, and bottleneck analysis',
+  },
+  'sys-otimiza': {
+    name: 'OTIMIZA',
+    descPt: 'Presets 1-clique, limpeza de armazenamento SSD/NVMe, gamer 0.5ms e debloat',
+    descEn: '1-click presets, NVMe/SSD storage cleanup, gamer 0.5ms timer, and debloat',
+  },
+  'sys-bench': {
+    name: 'BENCH',
+    descPt: 'Benchmarks reais sequenciais e aleatórios de disco, RAM e simulador de FPS',
+    descEn: 'Real sequential/random storage benchmarks, memory bandwidth, and FPS sim',
+  },
+  'sys-tuning': {
+    name: 'TUNING',
+    descPt: 'Overclock, perfil XMP/EXPO, esquemas de energia e erros de estabilidade WHEA',
+    descEn: 'Overclock, XMP/EXPO verification, power schemes, and WHEA stability logs',
+  },
+  'sys-sync': {
+    name: 'SYNC',
+    descPt: 'Limpador de dispositivos USB fantasmas, árbitro de portas COM e iluminação RGB',
+    descEn: 'Ghost USB peripheral cleaner, COM port arbiter, and universal RGB sync',
+  },
+  'sys-jogos': {
+    name: 'JOGOS',
+    descPt: 'Biblioteca unificada Steam/Epic/Riot/Xbox e Game Booster com timer 0.5ms',
+    descEn: 'Unified Steam/Epic/Riot/Xbox game library and low-latency Game Booster',
+  },
+  'sys-drivers': {
+    name: 'DRIVERS',
+    descPt: 'Auditoria de drivers, instalador Maker CH340/FTDI/Arduino e pacotes Winget',
+    descEn: 'Driver inventory audit, Maker CH340/FTDI/Arduino drivers, and Winget hub',
+  },
+  'sys-docs': {
+    name: 'DOCS',
+    descPt: 'Enciclopédia técnica de otimizações, transparência de kernel e sobre o projeto',
+    descEn: 'Technical encyclopedia, kernel optimization transparency, and about suite',
+  },
+};
+
 export default function Page() {
   const { lang } = useLanguage();
   const { theme, performanceMode } = useSettings();
@@ -321,9 +364,9 @@ export default function Page() {
   };
 
   return (
-    <main
+    <div
       className={`h-screen w-screen flex flex-col font-sans overflow-hidden relative transition-colors ${
-        theme === 'light' ? 'bg-[#f4f6f9] text-[#0f172a]' : 'bg-[#07080c] text-[#f1f5f9]'
+        theme === 'light' ? 'bg-[#eef2f6] text-[#0f172a]' : 'bg-[#07080c] text-[#f1f5f9]'
       }`}
     >
       {/* Global React Bits "Light Rays" WebGL2 Background (Spotlight Top Origin) */}
@@ -336,24 +379,25 @@ export default function Page() {
           rayLength={1.85}
           pulsating={true}
           fadeDistance={1.0}
-          saturation={0.9}
+          saturation={theme === 'light' ? 1.0 : 0.9}
           followMouse={true}
           mouseInfluence={0.08}
-          opacity={theme === 'light' ? 0.22 : 0.36}
+          intensity={theme === 'light' ? 0.45 : 0.4}
+          opacity={theme === 'light' ? 0.35 : 0.38}
           lightMode={theme === 'light'}
         />
       )}
 
-      {/* Level 1: Frameless Top Navbar with Official Logo + 8 SYS Tabs */}
+      {/* Level 1: TopNavbar strictly at top, shrink-0, z-20 */}
       <TopNavbar
         activeTopTab={activeTopTab}
         onSelectTopTab={handleSelectTopTab}
         onOpenSettings={() => setShowSettingsModal((prev) => !prev)}
       />
 
-      {/* Level 2 + Level 3 Workspace Area */}
-      <div className="flex-1 flex min-h-0 relative z-10 overflow-hidden">
-        {/* Level 2: Contextual Left Sidebar + Live Telemetry Footer ("AO VIVO") */}
+      {/* Level 2 + Level 3 Workspace Area: z-10 flex flex-1 min-h-0 overflow-hidden */}
+      <div className="relative z-10 flex flex-1 min-h-0 overflow-hidden">
+        {/* Level 2: Contextual Left Sidebar */}
         <LeftSidebar
           activeTopTab={activeTopTab}
           activeSubTab={activeSubTab}
@@ -365,8 +409,38 @@ export default function Page() {
         />
 
         {/* Level 3: Main Content Viewport */}
-        <section className="flex-1 flex flex-col min-w-0 overflow-y-auto no-scrollbar">
-          <div className="p-4 md:p-5 w-full min-h-0 flex-1 flex flex-col max-w-[1600px] mx-auto">
+        <main className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 md:p-6">
+          <div className="w-full min-h-0 max-w-[1600px] mx-auto flex flex-col">
+            {/* Prominent Page Header with Stylized "SYS" Written Logo */}
+            {!showSettingsModal && (
+              <div
+                className={`mb-4 pb-3 border-b ${
+                  theme === 'light' ? 'border-slate-200' : 'border-zinc-800/70'
+                } flex flex-wrap items-center justify-between gap-2`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-sky-500 font-black text-2xl tracking-widest select-none drop-shadow-[0_0_12px_rgba(56,189,248,0.4)]">
+                      SYS
+                    </span>
+                    <span
+                      className={`font-black text-2xl tracking-tight ${
+                        theme === 'light' ? 'text-slate-900' : 'text-zinc-100'
+                      }`}
+                    >
+                      {PAGE_TITLES[activeTopTab].name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-500 border border-sky-500/25">
+                    V6.0
+                  </span>
+                </div>
+                <p className={`text-xs ${theme === 'light' ? 'text-slate-500 font-medium' : 'text-zinc-400'}`}>
+                  {lang === 'pt' ? PAGE_TITLES[activeTopTab].descPt : PAGE_TITLES[activeTopTab].descEn}
+                </p>
+              </div>
+            )}
+
             <AnimatePresence mode="wait">
               <motion.div
                 key={showSettingsModal ? 'settings-modal' : `${activeTopTab}-${activeSubTab}`}
@@ -380,11 +454,11 @@ export default function Page() {
               </motion.div>
             </AnimatePresence>
           </div>
-        </section>
+        </main>
       </div>
 
       {/* Step-by-Step Real-Time Execution Console Drawer */}
       <LiveProgressDrawer />
-    </main>
+    </div>
   );
 }

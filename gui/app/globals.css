@@ -168,52 +168,53 @@ html[data-theme="light"] body,
 html.theme-light body,
 html[data-theme="light"] main,
 html.theme-light main {
-  background-color: #f4f6f9 !important;
+  background-color: #eef2f6 !important;
   color: #0f172a !important;
 }
 
 html[data-theme="light"] aside,
 html.theme-light aside {
   background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.05) !important;
 }
 
 html[data-theme="light"] header,
 html.theme-light header {
   background-color: rgba(255, 255, 255, 0.98) !important;
-  border-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
   color: #0f172a !important;
 }
 
 /* All Cards, Panels, Modals & Drawers in Light Theme */
-html[data-theme="light"] [class*="bg-neutral-900"],
-html.theme-light [class*="bg-neutral-900"],
-html[data-theme="light"] [class*="bg-neutral-950"],
-html.theme-light [class*="bg-neutral-950"],
-html[data-theme="light"] [class*="bg-zinc-900"],
-html.theme-light [class*="bg-zinc-900"],
-html[data-theme="light"] [class*="bg-zinc-950"],
-html.theme-light [class*="bg-zinc-950"],
+html[data-theme="light"] [class*="bg-neutral-900"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html.theme-light [class*="bg-neutral-900"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html[data-theme="light"] [class*="bg-neutral-950"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html.theme-light [class*="bg-neutral-950"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html[data-theme="light"] [class*="bg-zinc-900"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html.theme-light [class*="bg-zinc-900"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html[data-theme="light"] [class*="bg-zinc-950"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html.theme-light [class*="bg-zinc-950"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
 html[data-theme="light"] .glass-card,
 html.theme-light .glass-card {
   background-color: #ffffff !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05) !important;
 }
 
 /* Sub-panels, Badges, Inner Button Backgrounds */
-html[data-theme="light"] [class*="bg-neutral-800"],
-html.theme-light [class*="bg-neutral-800"],
-html[data-theme="light"] [class*="bg-zinc-800"],
-html.theme-light [class*="bg-zinc-800"] {
+html[data-theme="light"] [class*="bg-neutral-800"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html.theme-light [class*="bg-neutral-800"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html[data-theme="light"] [class*="bg-zinc-800"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]),
+html.theme-light [class*="bg-zinc-800"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-rose-"]):not([class*="bg-red-"]) {
   background-color: #f1f5f9 !important;
   color: #1e293b !important;
 }
 
-html[data-theme="light"] [class*="hover:bg-neutral-800"]:hover,
-html.theme-light [class*="hover:bg-neutral-800"]:hover,
-html[data-theme="light"] [class*="hover:bg-neutral-700"]:hover,
-html.theme-light [class*="hover:bg-neutral-700"]:hover {
+html[data-theme="light"] [class*="hover:bg-neutral-800"]:hover:not([class*="hover:bg-sky-"]):not([class*="hover:bg-emerald-"]),
+html.theme-light [class*="hover:bg-neutral-800"]:hover:not([class*="hover:bg-sky-"]):not([class*="hover:bg-emerald-"]),
+html[data-theme="light"] [class*="hover:bg-neutral-700"]:hover:not([class*="hover:bg-sky-"]):not([class*="hover:bg-emerald-"]),
+html.theme-light [class*="hover:bg-neutral-700"]:hover:not([class*="hover:bg-sky-"]):not([class*="hover:bg-emerald-"]) {
   background-color: #e2e8f0 !important;
   color: #0f172a !important;
 }
@@ -229,16 +230,16 @@ html[data-theme="light"] [class*="border-zinc-700"],
 html.theme-light [class*="border-zinc-700"],
 html[data-theme="light"] [class*="border-white/"],
 html.theme-light [class*="border-white/"] {
-  border-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
 }
 
 /* Text Colors in Light Theme */
-html[data-theme="light"] [class*="text-neutral-100"],
-html.theme-light [class*="text-neutral-100"],
-html[data-theme="light"] [class*="text-neutral-200"],
-html.theme-light [class*="text-neutral-200"],
-html[data-theme="light"] [class*="text-zinc-100"],
-html.theme-light [class*="text-zinc-100"] {
+html[data-theme="light"] [class*="text-neutral-100"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-indigo-"]),
+html.theme-light [class*="text-neutral-100"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-indigo-"]),
+html[data-theme="light"] [class*="text-neutral-200"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-indigo-"]),
+html.theme-light [class*="text-neutral-200"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-indigo-"]),
+html[data-theme="light"] [class*="text-zinc-100"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-indigo-"]),
+html.theme-light [class*="text-zinc-100"]:not([class*="bg-sky-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-indigo-"]) {
   color: #0f172a !important;
 }
 
@@ -251,6 +252,18 @@ html.theme-light [class*="text-zinc-400"],
 html[data-theme="light"] [class*="text-zinc-500"],
 html.theme-light [class*="text-zinc-500"] {
   color: #475569 !important;
+}
+
+/* Strictly preserve white text on colored accent buttons and badges */
+html[data-theme="light"] .text-white,
+html.theme-light .text-white,
+html[data-theme="light"] [class*="bg-sky-600"],
+html.theme-light [class*="bg-sky-600"],
+html[data-theme="light"] [class*="bg-emerald-600"],
+html.theme-light [class*="bg-emerald-600"],
+html[data-theme="light"] [class*="bg-blue-600"],
+html.theme-light [class*="bg-blue-600"] {
+  color: #ffffff;
 }
 
 /* Inputs, Textareas, Selects */

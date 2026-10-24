@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { LiveSensorSnapshot, openExternalUrl } from "../lib/api";
 import { useLanguage } from "../lib/LanguageContext";
+import { useSettings } from "../lib/SettingsContext";
 import { SysTopTabId } from "./TopNavbar";
 
 export interface SidebarSubItem {
@@ -106,6 +107,7 @@ export default function LeftSidebar({
   liveSensors,
 }: LeftSidebarProps) {
   const { lang } = useLanguage();
+  const { theme } = useSettings();
   const items = SIDEBAR_ITEMS_BY_TOP_TAB[activeTopTab] || [];
 
   const fmtComma = (num: number | undefined, decimals = 1) => {
@@ -121,11 +123,28 @@ export default function LeftSidebar({
   const stressRunning = Boolean(liveSensors?.stressRunning);
 
   return (
-    <aside className="w-56 shrink-0 bg-zinc-950/75 backdrop-blur-xl border-r border-zinc-800/80 flex flex-col justify-between select-none z-20">
+    <aside
+      className={`w-56 shrink-0 ${
+        theme === "light"
+          ? "bg-white/95 border-r border-slate-200 text-slate-800 shadow-sm"
+          : "bg-zinc-950/80 border-r border-zinc-800/80 text-zinc-100"
+      } backdrop-blur-xl flex flex-col justify-between select-none z-20`}
+    >
       {/* Contextual Navigation Items */}
-      <div className="p-2.5 space-y-1 overflow-y-auto flex-1">
-        <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-          {activeTopTab.replace("sys-", "SYS ").toUpperCase()}
+      <div className="p-2.5 space-y-1 overflow-y-auto flex-1 no-scrollbar">
+        <div className="px-2.5 py-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider">
+          <span className="text-sky-500 font-black text-sm tracking-widest drop-shadow-[0_0_8px_rgba(56,189,248,0.3)]">
+            SYS
+          </span>
+          <span
+            className={
+              theme === "light"
+                ? "text-slate-800 font-black text-sm"
+                : "text-zinc-200 font-black text-sm"
+            }
+          >
+            {activeTopTab.replace("sys-", "").toUpperCase()}
+          </span>
         </div>
         {items.map((item) => {
           const Icon = item.icon;
@@ -136,13 +155,17 @@ export default function LeftSidebar({
               onClick={() => onSelectSubTab(item.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 active
-                  ? "bg-zinc-800/95 text-white font-semibold border border-zinc-700/80 shadow-sm"
+                  ? theme === "light"
+                    ? "bg-sky-50 text-sky-800 font-bold border border-sky-200 shadow-sm"
+                    : "bg-zinc-800/95 text-white font-semibold border border-zinc-700/80 shadow-sm"
+                  : theme === "light"
+                  ? "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60 border border-transparent"
               }`}
             >
               <Icon
                 className={`w-3.5 h-3.5 shrink-0 ${
-                  active ? "text-sky-400" : "text-zinc-500"
+                  active ? "text-sky-500" : theme === "light" ? "text-slate-400" : "text-zinc-500"
                 }`}
               />
               <span className="truncate">
@@ -153,51 +176,83 @@ export default function LeftSidebar({
         })}
       </div>
 
-      {/* Fixed "AO VIVO" Telemetry Footer Widget (Inspired by reference screenshot) */}
-      <div className="p-2.5 pt-1 border-t border-zinc-800/60 space-y-2">
-        <div className="rounded-xl bg-zinc-900/90 border border-zinc-800/90 p-3 shadow-inner">
+      {/* Fixed "AO VIVO" Telemetry Footer Widget */}
+      <div
+        className={`p-2.5 pt-1.5 ${
+          theme === "light" ? "border-t border-slate-200" : "border-t border-zinc-800/60"
+        } space-y-2`}
+      >
+        <div
+          className={`rounded-xl ${
+            theme === "light"
+              ? "bg-slate-50 border border-slate-200 shadow-sm"
+              : "bg-zinc-900/90 border border-zinc-800/90 shadow-inner"
+          } p-3`}
+        >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+            <span
+              className={`text-[10px] font-bold uppercase tracking-widest ${
+                theme === "light" ? "text-slate-600 font-extrabold" : "text-zinc-400"
+              }`}
+            >
               {lang === "en" ? "LIVE" : "AO VIVO"}
             </span>
-            <span className="inline-flex items-center gap-1 text-[9px] font-mono text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1 text-[9px] font-mono text-emerald-500 font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               POLL
             </span>
           </div>
 
           <div className="space-y-1 text-[11px] font-mono">
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">CPU temp</span>
-              <span className="text-zinc-100 font-semibold">{cpuTemp}</span>
+              <span className={theme === "light" ? "text-slate-500" : "text-zinc-400"}>CPU temp</span>
+              <span className={theme === "light" ? "text-slate-800 font-bold" : "text-zinc-100 font-semibold"}>
+                {cpuTemp}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">
+              <span className={theme === "light" ? "text-slate-500" : "text-zinc-400"}>
                 {lang === "en" ? "CPU load" : "CPU carga"}
               </span>
-              <span className="text-zinc-100 font-semibold">{cpuLoad}</span>
+              <span className={theme === "light" ? "text-slate-800 font-bold" : "text-zinc-100 font-semibold"}>
+                {cpuLoad}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">GPU temp</span>
-              <span className="text-zinc-100 font-semibold">{gpuTemp}</span>
+              <span className={theme === "light" ? "text-slate-500" : "text-zinc-400"}>GPU temp</span>
+              <span className={theme === "light" ? "text-slate-800 font-bold" : "text-zinc-100 font-semibold"}>
+                {gpuTemp}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">
+              <span className={theme === "light" ? "text-slate-500" : "text-zinc-400"}>
                 {lang === "en" ? "GPU load" : "GPU carga"}
               </span>
-              <span className="text-zinc-100 font-semibold">{gpuLoad}</span>
+              <span className={theme === "light" ? "text-slate-800 font-bold" : "text-zinc-100 font-semibold"}>
+                {gpuLoad}
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">
+              <span className={theme === "light" ? "text-slate-500" : "text-zinc-400"}>
                 {lang === "en" ? "RAM use" : "RAM uso"}
               </span>
-              <span className="text-zinc-100 font-semibold">{ramLoad}</span>
+              <span className={theme === "light" ? "text-slate-800 font-bold" : "text-zinc-100 font-semibold"}>
+                {ramLoad}
+              </span>
             </div>
-            <div className="flex items-center justify-between pt-0.5 border-t border-zinc-800/70">
-              <span className="text-zinc-400">Stress</span>
+            <div
+              className={`flex items-center justify-between pt-0.5 ${
+                theme === "light" ? "border-t border-slate-200" : "border-t border-zinc-800/70"
+              }`}
+            >
+              <span className={theme === "light" ? "text-slate-500" : "text-zinc-400"}>Stress</span>
               <span
                 className={`font-semibold ${
-                  stressRunning ? "text-amber-400 animate-pulse" : "text-zinc-400"
+                  stressRunning
+                    ? "text-amber-500 animate-pulse font-bold"
+                    : theme === "light"
+                    ? "text-slate-400"
+                    : "text-zinc-400"
                 }`}
               >
                 {stressRunning
@@ -213,14 +268,22 @@ export default function LeftSidebar({
         </div>
 
         {/* Version + Discrete GitHub Icon */}
-        <div className="flex items-center justify-between px-1 text-[11px] text-zinc-500">
-          <span className="font-mono">v6.0</span>
+        <div
+          className={`flex items-center justify-between px-1 text-[11px] ${
+            theme === "light" ? "text-slate-500" : "text-zinc-500"
+          }`}
+        >
+          <span className="font-mono font-medium">v6.0</span>
           <button
             onClick={() =>
               openExternalUrl("https://github.com/Jefherson/System-Optimizer-Tool")
             }
             title="GitHub Repository"
-            className="p-1 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 transition-colors cursor-pointer"
+            className={`p-1 rounded-md ${
+              theme === "light"
+                ? "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900"
+            } transition-colors cursor-pointer`}
           >
             <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />

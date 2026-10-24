@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useHardware } from "../lib/HardwareContext";
 import { useLanguage } from "../lib/LanguageContext";
+import { useSettings } from "../lib/SettingsContext";
 import {
   benchmarkDns,
   optimizeDns,
@@ -83,6 +84,7 @@ export default function SysCoreSystemView({
 }: SysCoreSystemViewProps) {
   const { diagnostics, loading, refreshDiagnostics } = useHardware();
   const { lang } = useLanguage();
+  const { theme } = useSettings();
   const [activePill, setActivePill] = useState<SystemCategoryPill>(initialPill);
   const [copiedReport, setCopiedReport] = useState(false);
   const [showKey, setShowKey] = useState(false);
@@ -351,7 +353,11 @@ export default function SysCoreSystemView({
                 onClick={() => setActivePill(pill.id)}
                 className={`px-4 py-2.5 rounded-full text-left text-xs transition-all cursor-pointer whitespace-nowrap ${
                   isActive
-                    ? "bg-white text-zinc-950 font-semibold shadow-[0_0_20px_rgba(255,255,255,0.18)]"
+                    ? theme === "light"
+                      ? "bg-sky-600 text-white font-bold shadow-md"
+                      : "bg-white text-zinc-950 font-bold shadow-[0_0_20px_rgba(255,255,255,0.18)]"
+                    : theme === "light"
+                    ? "text-slate-600 hover:text-slate-900 hover:bg-slate-200/80"
                     : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/70"
                 }`}
               >
@@ -418,7 +424,11 @@ export default function SysCoreSystemView({
             </button>
             <button
               onClick={handleExportReport}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-zinc-800/90 hover:bg-zinc-700/90 border border-zinc-700 text-[11px] font-bold tracking-wider uppercase text-zinc-100 transition-all cursor-pointer"
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg ${
+                theme === 'light'
+                  ? 'bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800'
+                  : 'bg-zinc-800/90 hover:bg-zinc-700/90 border border-zinc-700 text-zinc-100'
+              } text-[11px] font-bold tracking-wider uppercase transition-all cursor-pointer`}
             >
               {copiedReport ? (
                 <>

@@ -221,13 +221,10 @@ void main() {
 
   float grain = (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5) / 255.0;
   if (uLight > 0.5) {
-    vec3 color = hue * light;
-    float energy = max(color.r, max(color.g, color.b));
-    vec3 tone = clamp(1.0 - (1.0 - hue / max(max(hue.r, max(hue.g, hue.b)), 1e-4)) * 1.8, 0.0, 1.0);
-    float warm = clamp((min(tone.r, tone.g) - tone.b) * 2.0, 0.0, 1.0);
-    vec3 ink = tone * (mix(0.66, 0.94, warm) - 0.1 * smoothstep(0.4, 1.2, energy));
-    float density = clamp(0.82 * (1.0 - exp(-1.5 * energy * energy)) * uOpacity + grain, 0.0, 1.0);
-    fragColor = vec4(ink * density, density);
+    // For light mode: produce crisp, visible blue/cyan rays with proper opacity
+    vec3 rayColor = mix(uColor, vec3(0.01, 0.45, 0.8), 0.35);
+    float rayAlpha = clamp(light * 1.35 * uOpacity, 0.0, 0.52);
+    fragColor = vec4(rayColor * rayAlpha, rayAlpha);
     return;
   }
   float level = light < 0.75 ? light : 0.75 + 0.25 * (1.0 - exp(-(light - 0.75) / 0.25));
@@ -626,10 +623,18 @@ const LightRays = ({
   return (
     <div
       ref={containerRef}
-      className={`pointer-events-none relative h-full w-full overflow-hidden ${className}`.trim()}
-      style={style}
+      className={`fixed inset-0 pointer-events-none z-0 overflow-hidden ${className}`.trim()}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        pointerEvents: 'none',
+        zIndex: 0,
+        ...style,
+      }}
     >
-      <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" aria-hidden="true" />
+      <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full pointer-events-none" aria-hidden="true" />
     </div>
   );
 };
