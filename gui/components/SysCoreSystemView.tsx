@@ -369,7 +369,7 @@ export default function SysCoreSystemView({
       )}
 
       {/* Right Main Card (Matches Reference Image Layout + EXPORTAR RELATÓRIO button) */}
-      <div className="flex-1 w-full rounded-2xl bg-zinc-900/75 backdrop-blur-xl border border-zinc-800/90 p-6 shadow-2xl">
+      <div className="flex-1 w-full rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/70 p-6 shadow-2xl">
         {/* Card Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-5 mb-5 border-b border-zinc-800/80">
           <div>

@@ -93,7 +93,7 @@ export default function BottleneckModule() {
       {/* Hardware Selector Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* CPU Card */}
-        <div className="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800/90 space-y-3">
+        <div className="p-5 rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/80 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
               <Cpu className="w-3.5 h-3.5 text-sky-400" />
@@ -132,7 +132,7 @@ export default function BottleneckModule() {
         </div>
 
         {/* GPU Card */}
-        <div className="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800/90 space-y-3">
+        <div className="p-5 rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/80 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
               <Monitor className="w-3.5 h-3.5 text-emerald-400" />
@@ -201,7 +201,7 @@ export default function BottleneckModule() {
 
       {/* Main Bottleneck Verdict Card */}
       {activeResObj && (
-        <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/90 p-6 space-y-5">
+        <div className="rounded-2xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/80 p-6 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -212,14 +212,14 @@ export default function BottleneckModule() {
                 )}
                 <h3 className="text-lg font-bold text-zinc-100">
                   {lang === "en"
-                    ? activeResObj.headlineEn
-                    : activeResObj.headlinePt}
+                    ? activeResObj.headlineEn || (activeResObj as any).statusLabel || activeResObj.label
+                    : activeResObj.headlinePt || (activeResObj as any).statusLabel || activeResObj.label}
                 </h3>
               </div>
               <p className="text-xs text-zinc-300 max-w-3xl leading-relaxed">
                 {lang === "en"
-                  ? activeResObj.explanationEn
-                  : activeResObj.explanationPt}
+                  ? activeResObj.explanationEn || (activeResObj as any).recommendationEn || ""
+                  : activeResObj.explanationPt || (activeResObj as any).recommendationPt || ""}
               </p>
             </div>
 
@@ -228,7 +228,7 @@ export default function BottleneckModule() {
                 {lang === "en" ? "Synergy Index" : "Índice de Equilíbrio"}
               </span>
               <span className="text-3xl font-black font-mono text-sky-400">
-                {activeResObj.balanceScore}%
+                {activeResObj.balanceScore ?? Math.round((1 - ((activeResObj.severityPercent ?? (activeResObj as any).bottleneckPercent ?? 5) / 100)) * 100)}%
               </span>
             </div>
           </div>
@@ -239,7 +239,7 @@ export default function BottleneckModule() {
               <span>
                 {lang === "en" ? "Bottleneck Severity" : "Severidade do Gargalo"}:{" "}
                 <strong className="text-zinc-100">
-                  {activeResObj.severityPercent}%
+                  {activeResObj.severityPercent ?? (activeResObj as any).bottleneckPercent ?? 0}%
                 </strong>
               </span>
               <span>
@@ -249,17 +249,17 @@ export default function BottleneckModule() {
                 </strong>
               </span>
             </div>
-            <div className="h-3 w-full rounded-full bg-zinc-950 border border-zinc-800 overflow-hidden">
+            <div className="h-3 w-full rounded-full bg-zinc-950/80 border border-zinc-800 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  activeResObj.severityPercent <= 12
+                  (activeResObj.severityPercent ?? (activeResObj as any).bottleneckPercent ?? 0) <= 12
                     ? "bg-emerald-500"
-                    : activeResObj.severityPercent <= 25
+                    : (activeResObj.severityPercent ?? (activeResObj as any).bottleneckPercent ?? 0) <= 25
                     ? "bg-amber-500"
                     : "bg-red-500"
                 }`}
                 style={{
-                  width: `${Math.max(8, Math.min(100, activeResObj.balanceScore))}%`,
+                  width: `${Math.max(8, Math.min(100, activeResObj.balanceScore ?? 90))}%`,
                 }}
               />
             </div>
@@ -273,10 +273,14 @@ export default function BottleneckModule() {
                 : "Recomendações Práticas"}
             </h4>
             <ul className="space-y-1.5 text-xs text-zinc-300">
-              {(lang === "en"
-                ? activeResObj.recommendationsEn
-                : activeResObj.recommendationsPt
-              ).map((rec, i) => (
+              {((Array.isArray(lang === "en" ? activeResObj.recommendationsEn : activeResObj.recommendationsPt)
+                ? (lang === "en" ? activeResObj.recommendationsEn : activeResObj.recommendationsPt)
+                : null) ||
+                ((activeResObj as any).recommendationPt || (activeResObj as any).recommendationEn
+                  ? [lang === "en" ? ((activeResObj as any).recommendationEn || (activeResObj as any).recommendationPt) : ((activeResObj as any).recommendationPt || (activeResObj as any).recommendationEn)]
+                  : [lang === "en" ? "Hardware balanced for this resolution." : "Hardware equilibrado para esta resolução."]
+                )
+              ).map((rec: string, i: number) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="text-sky-400 font-bold">•</span>
                   <span>{rec}</span>

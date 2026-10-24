@@ -126,9 +126,9 @@ export default function LeftSidebar({
     <aside
       className={`w-56 shrink-0 ${
         theme === "light"
-          ? "bg-white/95 border-r border-slate-200 text-slate-800 shadow-sm"
-          : "bg-zinc-950/80 border-r border-zinc-800/80 text-zinc-100"
-      } backdrop-blur-xl flex flex-col justify-between select-none z-20`}
+          ? "bg-white/80 border-r border-slate-200/80 text-slate-800 shadow-sm"
+          : "bg-zinc-950/45 border-r border-zinc-800/60 text-zinc-100"
+      } backdrop-blur-md flex flex-col justify-between select-none z-20`}
     >
       {/* Contextual Navigation Items */}
       <div className="p-2.5 space-y-1 overflow-y-auto flex-1 no-scrollbar">

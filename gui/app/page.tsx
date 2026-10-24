@@ -366,7 +366,7 @@ export default function Page() {
   return (
     <div
       className={`h-screen w-screen flex flex-col font-sans overflow-hidden relative transition-colors ${
-        theme === 'light' ? 'bg-[#eef2f6] text-[#0f172a]' : 'bg-[#07080c] text-[#f1f5f9]'
+        theme === 'light' ? 'bg-[#eef2f6] text-[#0f172a]' : 'bg-[#050608] text-[#f1f5f9]'
       }`}
     >
       {/* Global React Bits "Light Rays" WebGL2 Background (Spotlight Top Origin) */}
@@ -374,16 +374,16 @@ export default function Page() {
         <LightRays
           raysOrigin="top-center"
           raysColor={theme === 'light' ? '#0284c7' : '#38bdf8'}
-          raysSpeed={0.85}
-          lightSpread={1.15}
-          rayLength={1.85}
+          raysSpeed={0.95}
+          lightSpread={1.4}
+          rayLength={2.1}
           pulsating={true}
           fadeDistance={1.0}
-          saturation={theme === 'light' ? 1.0 : 0.9}
+          saturation={theme === 'light' ? 1.0 : 0.95}
           followMouse={true}
-          mouseInfluence={0.08}
-          intensity={theme === 'light' ? 0.45 : 0.4}
-          opacity={theme === 'light' ? 0.35 : 0.38}
+          mouseInfluence={0.10}
+          intensity={theme === 'light' ? 0.65 : 0.72}
+          opacity={theme === 'light' ? 0.55 : 0.62}
           lightMode={theme === 'light'}
         />
       )}

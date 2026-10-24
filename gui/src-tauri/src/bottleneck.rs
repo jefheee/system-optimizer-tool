@@ -35,11 +35,20 @@ pub struct ResolutionAnalysis {
     pub resolution: String,       // "1080p", "1440p", "2160p"
     pub label: String,            // "1920x1080 (Full HD)", etc.
     pub bottleneck_percent: f64,  // 0.0 .. 100.0
+    pub severity_percent: f64,    // alias para frontend
     pub limiting_component: String, // "CPU", "GPU", "Balanced"
     pub balance_ratio: f64,
+    pub balance_score: u32,
+    pub severity_level: String,
     pub status_label: String,
+    pub headline_pt: String,
+    pub headline_en: String,
+    pub explanation_pt: String,
+    pub explanation_en: String,
     pub recommendation_pt: String,
     pub recommendation_en: String,
+    pub recommendations_pt: Vec<String>,
+    pub recommendations_en: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,15 +209,56 @@ fn analyze_for_resolution(cpu_idx: f64, gpu_idx: f64, res_key: &str, label: &str
         )
     };
 
+    let severity_level = if bottleneck_pct <= 12.0 {
+        "Balanced".to_string()
+    } else if bottleneck_pct <= 25.0 {
+        "Mild".to_string()
+    } else {
+        "Severe".to_string()
+    };
+    let balance_score = (100.0 - bottleneck_pct).round().clamp(10.0, 99.0) as u32;
+
+    let (headline_pt, headline_en, explanation_pt, explanation_en) = if limiting_component == "CPU" {
+        (
+            format!("Gargalo de CPU ({:.1}%) em {}", bottleneck_pct, label),
+            format!("CPU Bottleneck ({:.1}%) at {}", bottleneck_pct, label),
+            "A placa de vídeo entrega mais quadros do que o processador consegue preparar nesta resolução.".to_string(),
+            "The graphics card outputs more frames than the processor can feed at this resolution.".to_string(),
+        )
+    } else if limiting_component == "GPU" {
+        (
+            format!("Limitado pela GPU ({:.1}%) em {}", bottleneck_pct, label),
+            format!("GPU Limited ({:.1}%) at {}", bottleneck_pct, label),
+            "Em resoluções altas a GPU assume a maior parte da carga gráfica enquanto o processador tem folga.".to_string(),
+            "At higher resolutions the GPU bears the main graphics workload with plenty of CPU headroom.".to_string(),
+        )
+    } else {
+        (
+            format!("Conjunto Equilibrado em {}", label),
+            format!("Balanced Setup at {}", label),
+            "O processador e a placa de vídeo operam em harmonia nesta resolução, extraindo o potencial máximo em jogos.".to_string(),
+            "CPU and GPU operate in harmony at this resolution, utilizing the hardware effectively.".to_string(),
+        )
+    };
+
     ResolutionAnalysis {
         resolution: res_key.to_string(),
         label: label.to_string(),
         bottleneck_percent: bottleneck_pct,
+        severity_percent: bottleneck_pct,
         limiting_component,
         balance_ratio: (ratio * 100.0).round() / 100.0,
+        balance_score,
+        severity_level,
         status_label,
-        recommendation_pt: rec_pt,
-        recommendation_en: rec_en,
+        headline_pt,
+        headline_en,
+        explanation_pt,
+        explanation_en,
+        recommendation_pt: rec_pt.clone(),
+        recommendation_en: rec_en.clone(),
+        recommendations_pt: vec![rec_pt],
+        recommendations_en: vec![rec_en],
     }
 }
 
@@ -220,7 +270,16 @@ pub async fn analyze_bottleneck(
     detected_gpu_name: Option<String>,
     detected_cores: Option<usize>,
     detected_ghz: Option<f32>,
+    cpu_name: Option<String>,
+    gpu_name: Option<String>,
+    physical_cores: Option<usize>,
+    base_ghz: Option<f32>,
 ) -> Result<CommandResponse<BottleneckReport>, String> {
+    let det_cpu = detected_cpu_name.or(cpu_name);
+    let det_gpu = detected_gpu_name.or(gpu_name);
+    let det_cores = detected_cores.or(physical_cores);
+    let det_ghz = detected_ghz.or(base_ghz);
+
     let cpus = get_cpu_catalog();
     let gpus = get_gpu_catalog();
 
@@ -228,13 +287,13 @@ pub async fn analyze_bottleneck(
         if let Some(c) = cpus.iter().find(|x| x.id == cid) {
             (c.name.clone(), c.perf_index)
         } else {
-            let name = detected_cpu_name.unwrap_or_else(|| "Processador Detectado".to_string());
-            let idx = lookup_cpu_index(&name, detected_cores.unwrap_or(6), detected_ghz.unwrap_or(3.6));
+            let name = det_cpu.unwrap_or_else(|| "Processador Detectado".to_string());
+            let idx = lookup_cpu_index(&name, det_cores.unwrap_or(6), det_ghz.unwrap_or(3.6));
             (name, idx)
         }
     } else {
-        let name = detected_cpu_name.unwrap_or_else(|| "AMD Ryzen 7 7700X".to_string());
-        let idx = lookup_cpu_index(&name, detected_cores.unwrap_or(6), detected_ghz.unwrap_or(3.6));
+        let name = det_cpu.unwrap_or_else(|| "AMD Ryzen 7 7700X".to_string());
+        let idx = lookup_cpu_index(&name, det_cores.unwrap_or(6), det_ghz.unwrap_or(3.6));
         (name, idx)
     };
 
@@ -242,12 +301,12 @@ pub async fn analyze_bottleneck(
         if let Some(g) = gpus.iter().find(|x| x.id == gid) {
             (g.name.clone(), g.perf_index, Some(g.clone()))
         } else {
-            let name = detected_gpu_name.unwrap_or_else(|| "GPU Detectada".to_string());
+            let name = det_gpu.unwrap_or_else(|| "GPU Detectada".to_string());
             let (idx, spec) = lookup_gpu_index(&name);
             (name, idx, spec)
         }
     } else {
-        let name = detected_gpu_name.unwrap_or_else(|| "NVIDIA GeForce RTX 4070".to_string());
+        let name = det_gpu.unwrap_or_else(|| "NVIDIA GeForce RTX 4070".to_string());
         let (idx, spec) = lookup_gpu_index(&name);
         (name, idx, spec)
     };

@@ -141,9 +141,9 @@ export default function TopNavbar({
       data-tauri-drag-region
       className={`h-12 w-full ${
         theme === "light"
-          ? "bg-white/95 border-b border-slate-200 text-slate-800 shadow-sm"
-          : "bg-zinc-950/90 border-b border-zinc-800/80 text-zinc-100"
-      } backdrop-blur-xl flex items-center justify-between px-3 select-none z-50 shrink-0`}
+          ? "bg-white/80 border-b border-slate-200/80 text-slate-800 shadow-sm"
+          : "bg-zinc-950/60 border-b border-zinc-800/60 text-zinc-100"
+      } backdrop-blur-md flex items-center justify-between px-3 select-none z-50 shrink-0`}
     >
       {/* Left: Brand Logo + Horizontal SYS Tabs */}
       <div
