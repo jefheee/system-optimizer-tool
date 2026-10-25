@@ -60,3 +60,60 @@ System-Optimizer-Tool/
 │   └── utils/                # Auxiliary Win32 utilities and downloaders
 ├── cli/                      # Historical terminal launcher (legacy compatibility)
 └── public/                   # Visual assets and logos
+```
+
+---
+
+## Build and Run
+
+### Prerequisites
+
+1. **[Node.js](https://nodejs.org/)** (v18 or higher)
+2. **[Rust & Cargo](https://www.rust-lang.org/tools/install)** (current stable version)
+3. **[Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)** (with C++ desktop development support)
+
+### Development Environment
+
+Clone the repository and install the dependencies inside the `gui` directory:
+
+```bash
+git clone [https://github.com/jefheee/system-optimizer-tool.git](https://github.com/jefheee/system-optimizer-tool.git)
+cd system-optimizer-tool/gui
+npm install
+```
+
+Start the integrated development server with the native Tauri binary:
+
+```bash
+npm run tauri dev
+```
+
+### Generating the Production Installer
+
+To generate the final optimized executable (`.exe` with NSIS/MSI installer and no debug console):
+
+```bash
+cd gui
+npm run tauri build
+```
+
+The final binary and installers will be generated in:
+```text
+gui/src-tauri/target/release/
+```
+
+---
+
+## Security Philosophy
+
+All operations performed by the utility respect the operating system's integrity guidelines:
+
+1. **No Obfuscation:** The source code of the scripts and Rust modules is open and auditable.
+2. **Reversibility:** Registry and service modifications have reversion routines documented in the internal documentation tab.
+3. **Restore Point:** The application allows creating Windows restore points with one click before applying extensive changes.
+
+---
+
+## License
+
+Distributed under the **MIT** license. See the [LICENSE](LICENSE) file for more details.
