@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::net::{SocketAddr, TcpStream};
 use std::os::windows::process::CommandExt;
@@ -561,14 +561,120 @@ pub async fn set_power_plan(plan_id: String) -> Result<CommandResponse<String>, 
 }
 
 // -------------------------------------------------------------
-// 3. Ghost USB & COM Port Cleaner (UsbCleaner.cs port)
+// 3. Ghost USB & COM Port Cleaner (Definitive 3-Layer Scanner)
 // -------------------------------------------------------------
-#[tauri::command]
-pub async fn get_usb_devices() -> Result<CommandResponse<UsbScanResult>, String> {
-    let res = tokio::task::spawn_blocking(|| {
-        let mut devices: Vec<UsbDeviceEntry> = Vec::new();
+fn clean_reg_device_desc(raw: &str) -> String {
+    if let Some((_, after_semi)) = raw.rsplit_once(';') {
+        after_semi.trim().to_string()
+    } else {
+        raw.trim().to_string()
+    }
+}
 
-        // Parse pnputil /enum-devices for USB, Ports, HIDClass, Bluetooth
+fn scan_usb_from_registry(devices: &mut Vec<UsbDeviceEntry>, seen_ids: &mut HashSet<String>) {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let enum_roots = [
+        (r"SYSTEM\CurrentControlSet\Enum\USB", "USB"),
+        (r"SYSTEM\CurrentControlSet\Enum\FTDIBUS", "Ports"),
+        (r"SYSTEM\CurrentControlSet\Enum\BTHENUM", "Bluetooth"),
+    ];
+
+    for (root_path, default_class) in enum_roots {
+        let Ok(root_key) = hklm.open_subkey_with_flags(root_path, KEY_READ) else {
+            continue;
+        };
+        for dev_name in root_key.enum_keys().flatten() {
+            let Ok(dev_key) = root_key.open_subkey_with_flags(&dev_name, KEY_READ) else {
+                continue;
+            };
+            for inst_name in dev_key.enum_keys().flatten() {
+                let Ok(inst_key) = dev_key.open_subkey_with_flags(&inst_name, KEY_READ) else {
+                    continue;
+                };
+                let bus = root_path.rsplit('\\').next().unwrap_or("USB");
+                let instance_id = format!(r"{}\{}\{}", bus, dev_name, inst_name);
+                let id_upper = instance_id.to_uppercase();
+                if seen_ids.contains(&id_upper) {
+                    continue;
+                }
+
+                let friendly: String = inst_key
+                    .get_value::<String, _>("FriendlyName")
+                    .ok()
+                    .or_else(|| inst_key.get_value::<String, _>("DeviceDesc").ok())
+                    .map(|s| clean_reg_device_desc(&s))
+                    .unwrap_or_default();
+
+                if friendly.contains("Root Hub") || friendly.contains("Host Controller") {
+                    continue;
+                }
+
+                let class_name: String = inst_key
+                    .get_value::<String, _>("Class")
+                    .unwrap_or_else(|_| default_class.to_string());
+
+                // Em Enum\<Bus>\<Dev>\<Inst>, subchave "Control" em memória indica dispositivo ativo conectado
+                let connected = inst_key.open_subkey_with_flags("Control", KEY_READ).is_ok();
+                let is_com_port = class_name.eq_ignore_ascii_case("Ports") || friendly.contains("(COM");
+
+                seen_ids.insert(id_upper);
+                devices.push(UsbDeviceEntry {
+                    instance_id: instance_id.clone(),
+                    name: if friendly.is_empty() { instance_id } else { friendly },
+                    class_name,
+                    connected,
+                    is_com_port,
+                    status_text: if connected {
+                        "Conectado".to_string()
+                    } else {
+                        "Fantasma (Desconectado)".to_string()
+                    },
+                });
+            }
+        }
+    }
+}
+
+pub fn scan_usb_devices_sync() -> UsbScanResult {
+    let mut devices: Vec<UsbDeviceEntry> = Vec::new();
+    let mut seen_ids: HashSet<String> = HashSet::new();
+
+    // Camada 1: PowerShell Get-PnpDevice JSON (Win 8.1/10/11 — independente de idioma e sem exigir Admin)
+    let ps_cmd = r#"
+        @(Get-PnpDevice -PresentOnly:$false -ErrorAction SilentlyContinue | Where-Object {
+            $_.Class -in @('USB','Ports','HIDClass','Bluetooth','Media','Mouse','Keyboard','XboxComposite','XnaComposite') -or
+            $_.InstanceId -match '^(USB|FTDIBUS|BTHENUM|HID)\\'
+        } | Select-Object InstanceId, FriendlyName, Class, Status) | ConvertTo-Json -Compress
+    "#;
+
+    if let Ok(out) = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", ps_cmd])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+    {
+        if out.status.success() {
+            let raw = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                let items: Vec<&serde_json::Value> = match &val {
+                    serde_json::Value::Array(arr) => arr.iter().collect(),
+                    serde_json::Value::Object(_) => vec![&val],
+                    _ => Vec::new(),
+                };
+                for item in items {
+                    let id = item.get("InstanceId").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    let desc = item.get("FriendlyName").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    let class = item.get("Class").and_then(|v| v.as_str()).unwrap_or("USB").trim();
+                    let status = item.get("Status").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    if !id.is_empty() && !seen_ids.contains(&id.to_uppercase()) {
+                        push_usb_entry(id, desc, class, status, &mut devices, &mut seen_ids);
+                    }
+                }
+            }
+        }
+    }
+
+    // Camada 2: Fallback via pnputil /enum-devices (caso PowerShell PnpDevice nao exista, ex: Win 7 / Server Core)
+    if devices.is_empty() {
         if let Ok(out) = Command::new("pnputil")
             .args(["/enum-devices"])
             .creation_flags(CREATE_NO_WINDOW)
@@ -583,25 +689,19 @@ pub async fn get_usb_devices() -> Result<CommandResponse<UsbScanResult>, String>
             for line in text.lines() {
                 let t = line.trim();
                 if t.is_empty() {
-                    if !cur_id.is_empty() {
-                        push_usb_entry(
-                            &cur_id,
-                            &cur_desc,
-                            &cur_class,
-                            &cur_status,
-                            &mut devices,
-                        );
-                        cur_id.clear();
-                        cur_desc.clear();
-                        cur_class.clear();
-                        cur_status.clear();
+                    if !cur_id.is_empty() && !seen_ids.contains(&cur_id.to_uppercase()) {
+                        push_usb_entry(&cur_id, &cur_desc, &cur_class, &cur_status, &mut devices, &mut seen_ids);
                     }
+                    cur_id.clear();
+                    cur_desc.clear();
+                    cur_class.clear();
+                    cur_status.clear();
                     continue;
                 }
                 if let Some((k, v)) = t.split_once(':') {
                     let key = k.trim().to_lowercase();
                     let val = v.trim().to_string();
-                    if key.contains("instance id") || key.contains("id da instância") {
+                    if key.contains("instance id") || key.contains("id da instância") || val.starts_with("USB\\") || val.starts_with("FTDIBUS\\") || val.starts_with("HID\\") {
                         cur_id = val;
                     } else if key.contains("device description") || key.contains("descrição") {
                         cur_desc = val;
@@ -612,42 +712,65 @@ pub async fn get_usb_devices() -> Result<CommandResponse<UsbScanResult>, String>
                     }
                 }
             }
-            if !cur_id.is_empty() {
-                push_usb_entry(&cur_id, &cur_desc, &cur_class, &cur_status, &mut devices);
+            if !cur_id.is_empty() && !seen_ids.contains(&cur_id.to_uppercase()) {
+                push_usb_entry(&cur_id, &cur_desc, &cur_class, &cur_status, &mut devices, &mut seen_ids);
             }
         }
+    }
 
-        // Count reserved COM ports in ComDB bitmask
-        let mut reserved_com_ports = 0usize;
-        if let Ok(com_arb) = RegKey::predef(HKEY_LOCAL_MACHINE)
-            .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\COM Name Arbiter", KEY_READ)
-        {
-            if let Ok(raw) = com_arb.get_raw_value("ComDB") {
-                reserved_com_ports = raw.bytes.iter().map(|b| b.count_ones() as usize).sum();
-            }
+    // Camada 3: Fallback direto de Registro (HKLM\SYSTEM\CurrentControlSet\Enum\USB & FTDIBUS & BTHENUM)
+    if devices.is_empty() {
+        scan_usb_from_registry(&mut devices, &mut seen_ids);
+    }
+
+    // Count reserved COM ports in ComDB bitmask
+    let mut reserved_com_ports = 0usize;
+    if let Ok(com_arb) = RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\COM Name Arbiter", KEY_READ)
+    {
+        if let Ok(raw) = com_arb.get_raw_value("ComDB") {
+            reserved_com_ports = raw.bytes.iter().map(|b| b.count_ones() as usize).sum();
         }
+    }
 
-        let connected_count = devices.iter().filter(|d| d.connected).count();
-        let ghost_count = devices.iter().filter(|d| !d.connected).count();
+    // Sort: Ghost (desconectado) ou porta COM primeiro, depois conectados em ordem alfabética
+    devices.sort_by(|a, b| {
+        a.connected
+            .cmp(&b.connected)
+            .then(b.is_com_port.cmp(&a.is_com_port))
+            .then(a.name.cmp(&b.name))
+    });
 
-        UsbScanResult {
-            total_devices: devices.len(),
-            connected_count,
-            ghost_count,
-            reserved_com_ports,
-            devices,
-        }
-    })
-    .await
-    .map_err(|e| e.to_string())?;
+    let connected_count = devices.iter().filter(|d| d.connected).count();
+    let ghost_count = devices.iter().filter(|d| !d.connected).count();
+
+    UsbScanResult {
+        total_devices: devices.len(),
+        connected_count,
+        ghost_count,
+        reserved_com_ports,
+        devices,
+    }
+}
+
+#[tauri::command]
+pub async fn get_usb_devices() -> Result<CommandResponse<UsbScanResult>, String> {
+    let res = tokio::task::spawn_blocking(scan_usb_devices_sync)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(CommandResponse::ok(
         format!(
-            "{} dispositivos USB/Seriais analisados ({} fantasmas desconectados).",
-            res.total_devices, res.ghost_count
+            "{} dispositivos USB/Seriais analisados ({} conectados • {} fantasmas desconectados).",
+            res.total_devices, res.connected_count, res.ghost_count
         ),
         Some(res),
     ))
+}
+
+#[tauri::command]
+pub async fn scan_usb_devices() -> Result<CommandResponse<UsbScanResult>, String> {
+    get_usb_devices().await
 }
 
 fn push_usb_entry(
@@ -656,18 +779,22 @@ fn push_usb_entry(
     class: &str,
     status: &str,
     out: &mut Vec<UsbDeviceEntry>,
+    seen_ids: &mut HashSet<String>,
 ) {
     let upper_id = id.to_uppercase();
     let upper_class = class.to_uppercase();
     let is_usb_or_port = upper_id.starts_with("USB\\")
         || upper_id.starts_with("FTDIBUS\\")
-        || upper_class == "PORTS"
-        || upper_class == "USB"
-        || upper_class == "BLUETOOTH";
+        || upper_id.starts_with("BTHENUM\\")
+        || upper_id.starts_with("HID\\")
+        || matches!(
+            upper_class.as_str(),
+            "PORTS" | "USB" | "BLUETOOTH" | "HIDCLASS" | "MOUSE" | "KEYBOARD" | "MEDIA" | "XBOXCOMPOSITE" | "XNACOMPOSITE"
+        );
     if !is_usb_or_port {
         return;
     }
-    if desc.contains("Root Hub") || desc.contains("Host Controller") || desc.contains("Composite Device") {
+    if desc.contains("Root Hub") || desc.contains("Host Controller") {
         return;
     }
 
@@ -675,8 +802,9 @@ fn push_usb_entry(
     let connected = status_lower.contains("started")
         || status_lower.contains("iniciado")
         || status_lower == "ok";
-    let is_com_port = upper_class == "PORTS" || desc.contains("(COM");
+    let is_com_port = upper_class == "PORTS" || desc.contains("(COM") || upper_id.starts_with("FTDIBUS\\");
 
+    seen_ids.insert(upper_id);
     out.push(UsbDeviceEntry {
         instance_id: id.to_string(),
         name: if desc.is_empty() {

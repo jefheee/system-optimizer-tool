@@ -1,0 +1,6 @@
+# Changelog
+
+## [2026-11-13] — ETAPA 1 DE 3: Foundation, 6-Tab Consolidation, RestorePointGuard, Auto-Tier & Module 1
+- **Files:** `.gitignore`, `AGENTS.md`, `docs/PROJECT_STATE.md`, `docs/CHANGELOG.md`, `gui/src-tauri/src/{diagnostics.rs,system.rs,drivers.rs,lib.rs}`, `gui/lib/{api.ts,HardwareContext.tsx,SettingsContext.tsx}`, `gui/app/{layout.tsx,page.tsx}`, `gui/components/{TopNavbar.tsx,LeftSidebar.tsx,RestorePointModal.tsx,SysCoreSystemView.tsx,SensorsAndStressModule.tsx,HomeModule.tsx,BenchmarksModule.tsx,TuningModule.tsx,SyncAndUsbModule.tsx,SystemModule.tsx,PresetsModule.tsx,CleanModule.tsx,DriversAndAppsModule.tsx,DocsAndAboutModule.tsx}`.
+- **Goal:** Organize private master spec under gitignored `docs/internal/`, standardize UI to 6 fixed English `SYS` tabs (4 items in `SYS CORE`), move Full PC Report export outside cards, implement `RestorePointGuard` (24h unlock + modal gate), auto hardware tier animation control, Win7–Win11 26H2 compatibility + live Apply/Revert Registry tweaks, 3-layer Admin-free USB scan, and full Module 1 BIOS/RAM/GPU/Storage/WHEA/Stress implementation.
+- **Verification:** `cargo check --all-targets`, `cargo test --no-fail-fast` (`4/4` pass), `npx tsc --noEmit`, `npm run lint`, and `npm run build` all exited `0`.

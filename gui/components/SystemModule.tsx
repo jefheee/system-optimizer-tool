@@ -64,10 +64,10 @@ import {
 
 type SubView = 'general' | 'startup' | 'checklist' | 'maintenance';
 
-export default function SystemModule() {
+export default function SystemModule({ initialSubView }: { initialSubView?: SubView }) {
   const { language, t } = useLanguage();
-  const { diagnostics, audit, refreshAudit } = useHardware();
-  const [subView, setSubView] = useState<SubView>('general');
+  const { diagnostics, audit, refreshAudit, requireRestorePoint } = useHardware();
+  const [subView, setSubView] = useState<SubView>(initialSubView ?? 'general');
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [activeActions, setActiveActions] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<Record<string, { success: boolean; message: string }>>({});
@@ -80,6 +80,12 @@ export default function SystemModule() {
   const [techModalData, setTechModalData] = useState<TechDetailsData | null>(null);
 
   const isLaptop = diagnostics?.deviceType === 'Laptop';
+
+  useEffect(() => {
+    if (initialSubView) {
+      setSubView(initialSubView);
+    }
+  }, [initialSubView]);
 
   const loadStartupList = async () => {
     setLoadingStartup(true);
@@ -100,7 +106,7 @@ export default function SystemModule() {
     loadStartupList();
   }, []);
 
-  const handleAction = async (id: string, fn: () => Promise<any>) => {
+  const executeActionRaw = async (id: string, fn: () => Promise<any>) => {
     setActiveActions((prev) => ({ ...prev, [id]: true }));
     try {
       const res = await fn();
@@ -117,6 +123,19 @@ export default function SystemModule() {
     } finally {
       setActiveActions((prev) => ({ ...prev, [id]: false }));
     }
+  };
+
+  const handleAction = async (id: string, fn: () => Promise<any>) => {
+    const protectedIds = new Set(['bloatware', 'clean_orphan', 'remove_onedrive', 'win_update', 'take_ownership']);
+    if (protectedIds.has(id)) {
+      requireRestorePoint(
+        `System Maintenance (${id})`,
+        id === 'bloatware' || id === 'remove_onedrive' ? 'high' : 'medium',
+        () => executeActionRaw(id, fn)
+      );
+      return;
+    }
+    await executeActionRaw(id, fn);
   };
 
   const handleToggleStartup = async (item: StartupAppItem) => {
@@ -297,56 +316,6 @@ export default function SystemModule() {
                   : 'Fast startup manager, system restore points, network calibration, and Windows file integrity.'}
               </p>
             </div>
-          </div>
-
-          {/* Sub-View Navigation Tabs */}
-          <div className="flex items-center gap-1.5 bg-neutral-950 p-1 rounded-xl border border-neutral-800 shrink-0">
-            <button
-              onClick={() => setSubView('general')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                subView === 'general'
-                  ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700'
-                  : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              {language === 'PT' ? 'Geral & Rede' : 'General & Network'}
-            </button>
-            <button
-              onClick={() => setSubView('startup')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                subView === 'startup'
-                  ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700'
-                  : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              <span>{language === 'PT' ? 'Inicialização' : 'Startup Apps'}</span>
-              <span className="text-[10px] font-mono tabular-nums px-1.5 py-0.2 rounded-full bg-neutral-900 text-cyan-400">
-                {activeStartupCount}
-              </span>
-            </button>
-            <button
-              onClick={() => setSubView('checklist')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                subView === 'checklist'
-                  ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700'
-                  : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              <span>Checklist</span>
-              <span className="text-[10px] font-mono tabular-nums px-1.5 py-0.2 rounded-full bg-neutral-900 text-emerald-400">
-                {activeChecklistCount}/11
-              </span>
-            </button>
-            <button
-              onClick={() => setSubView('maintenance')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                subView === 'maintenance'
-                  ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700'
-                  : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              {language === 'PT' ? 'Manutenção Avançada' : 'Advanced Maintenance'}
-            </button>
           </div>
         </div>
       </div>
@@ -691,7 +660,14 @@ export default function SystemModule() {
                   </div>
 
                   <button
-                    onClick={() => handleToggleChecklist(item.id, item.active)}
+                    onClick={() => {
+                      const action = () => handleToggleChecklist(item.id, item.active);
+                      if (!item.active && (item.requiresAdmin || item.id === 'telemetry' || item.id === 'fast_startup')) {
+                        requireRestorePoint(item.title, 'medium', action);
+                      } else {
+                        action();
+                      }
+                    }}
                     disabled={busy}
                     className={`w-10 h-5 rounded-full transition-colors relative shrink-0 ${
                       item.active ? 'bg-cyan-500' : 'bg-neutral-800'

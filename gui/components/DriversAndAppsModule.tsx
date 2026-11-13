@@ -124,63 +124,41 @@ export default function DriversAndAppsModule({
       : drivers.filter((d) => d.category === drvCategory);
 
   return (
-    <div className="space-y-6">
-      {/* Header & Pills */}
+    <div className="space-y-5">
+      {/* Header (Sidebar controls category navigation directly — no duplicate pills) */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
             <Wrench className="w-5 h-5 text-sky-400" />
             <span>
-              {lang === "en"
-                ? "SYS DRIVERS — Driver Auditor, Maker Serial & Winget Installer"
-                : "SYS DRIVERS — Auditor de Drivers, Maker Serial & Instalador Winget"}
+              {subTab === "drv-maker"
+                ? lang === "en"
+                  ? "Serial Maker Drivers (CH340, CP210x, FTDI, Arduino)"
+                  : "Drivers Maker Serial (CH340, CP210x, FTDI, Arduino)"
+                : subTab === "drv-winget"
+                ? lang === "en"
+                  ? "Smart App Installer (Microsoft Winget)"
+                  : "Smart App Installer (Microsoft Winget)"
+                : lang === "en"
+                ? "Signed Driver & DDU Integrity Auditor"
+                : "Auditor de Drivers Assinados & Guia DDU"}
             </span>
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
             {lang === "en"
               ? "Audit WHQL drivers, install CH340/CP210x/FTDI/Arduino drivers offline, and batch-install essential post-format apps."
-              : "Audite versões e assinaturas WHQL, instale drivers seriais CH340/CP210x/FTDI/Arduino offline e instale pacotes essenciais via Winget."}
+              : "Audite versões e assinaturas WHQL, instale drivers seriais CH340/CP210x/FTDI/Arduino offline e pacotes essenciais via Winget."}
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => onChangeSubTab?.("drv-auditor")}
-            className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              subTab === "drv-auditor"
-                ? "bg-white text-zinc-950"
-                : "bg-zinc-900/80 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
-            }`}
-          >
-            Auditor de Drivers
-          </button>
-          <button
-            onClick={() => onChangeSubTab?.("drv-maker")}
-            className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              subTab === "drv-maker"
-                ? "bg-white text-zinc-950"
-                : "bg-zinc-900/80 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
-            }`}
-          >
-            Drivers Maker (ESP32/Arduino)
-          </button>
-          <button
-            onClick={() => onChangeSubTab?.("drv-winget")}
-            className={`px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              subTab === "drv-winget"
-                ? "bg-white text-zinc-950"
-                : "bg-zinc-900/80 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
-            }`}
-          >
-            Instalador Winget
-          </button>
-          <button
-            onClick={() => onChangeSubTab?.("drv-hub")}
-            className="px-3.5 py-2 rounded-full text-xs font-bold bg-zinc-900/80 text-zinc-400 hover:text-zinc-100 border border-zinc-800 transition-all cursor-pointer"
-          >
-            Hub da Comunidade
-          </button>
-        </div>
+        <button
+          onClick={loadAll}
+          disabled={drvLoading}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 cursor-pointer"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${drvLoading ? "animate-spin" : ""}`} />
+          <span>{lang === "en" ? "Refresh" : "Atualizar"}</span>
+        </button>
       </div>
 
       {/* 1. DRIVER AUDITOR */}

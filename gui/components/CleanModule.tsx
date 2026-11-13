@@ -22,7 +22,7 @@ import {
 
 export default function CleanModule() {
   const { language, t } = useLanguage();
-  const { audit, diagnostics, refreshAudit } = useHardware();
+  const { audit, diagnostics, refreshAudit, requireRestorePoint } = useHardware();
   const [running, setRunning] = useState<string | null>(null);
   const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -35,24 +35,30 @@ export default function CleanModule() {
     { model: 'Disco E: (Backup)', type: 'HDD 7200RPM · Baixo Uso', health: 'Saúde 94%', usedGb: 3400, totalGb: 4000, speed: '180 MB/s', latency: '4.2ms', barColor: 'bg-amber-400' },
   ];
 
-  const handleDeepClean = async () => {
-    setRunning('deep');
-    setCleanResult(null);
-    setActionMessage(null);
-    setErrorMessage(null);
-    try {
-      const res = await runDeepClean();
-      if (res.success && res.data) {
-        setCleanResult(res.data);
-        await refreshAudit();
-      } else {
-        setErrorMessage(res.message);
+  const handleDeepClean = () => {
+    requireRestorePoint(
+      language === 'PT' ? 'Limpeza Profunda (Deep Clean + DISM/Caches)' : 'Deep Clean (SSD/NVMe + Caches)',
+      'medium',
+      async () => {
+        setRunning('deep');
+        setCleanResult(null);
+        setActionMessage(null);
+        setErrorMessage(null);
+        try {
+          const res = await runDeepClean();
+          if (res.success && res.data) {
+            setCleanResult(res.data);
+            await refreshAudit();
+          } else {
+            setErrorMessage(res.message);
+          }
+        } catch (err: any) {
+          setErrorMessage(err?.message || 'Error');
+        } finally {
+          setRunning(null);
+        }
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Error');
-    } finally {
-      setRunning(null);
-    }
+    );
   };
 
   const handleLiteClean = async () => {
@@ -75,43 +81,57 @@ export default function CleanModule() {
     }
   };
 
-  const handleToggleHibernation = async (disable: boolean) => {
-    setRunning('hibernation');
-    setActionMessage(null);
-    setErrorMessage(null);
-    try {
-      const res = await toggleHibernation(disable);
-      if (res.success) {
-        setActionMessage(res.message);
-        await refreshAudit();
-      } else {
-        setErrorMessage(res.message);
+  const handleToggleHibernation = (disable: boolean) => {
+    requireRestorePoint(
+      disable
+        ? (language === 'PT' ? 'Desativar Hibernação (hiberfil.sys)' : 'Disable Hibernation (hiberfil.sys)')
+        : (language === 'PT' ? 'Ativar Hibernação (hiberfil.sys)' : 'Enable Hibernation (hiberfil.sys)'),
+      'medium',
+      async () => {
+        setRunning('hibernation');
+        setActionMessage(null);
+        setErrorMessage(null);
+        try {
+          const res = await toggleHibernation(disable);
+          if (res.success) {
+            setActionMessage(res.message);
+            await refreshAudit();
+          } else {
+            setErrorMessage(res.message);
+          }
+        } catch (err: any) {
+          setErrorMessage(err?.message || 'Error');
+        } finally {
+          setRunning(null);
+        }
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Error');
-    } finally {
-      setRunning(null);
-    }
+    );
   };
 
-  const handleCleanOldWindows = async () => {
-    setRunning('old_win');
-    setCleanResult(null);
-    setActionMessage(null);
-    setErrorMessage(null);
-    try {
-      const res = await cleanOldWindowsInstallations();
-      if (res.success && res.data) {
-        setCleanResult(res.data);
-        await refreshAudit();
-      } else {
-        setErrorMessage(res.message);
+  const handleCleanOldWindows = () => {
+    requireRestorePoint(
+      language === 'PT' ? 'Remover Windows.old & Comprimir WinSxS' : 'Clean Windows.old & Compress WinSxS',
+      'medium',
+      async () => {
+        setRunning('old_win');
+        setCleanResult(null);
+        setActionMessage(null);
+        setErrorMessage(null);
+        try {
+          const res = await cleanOldWindowsInstallations();
+          if (res.success && res.data) {
+            setCleanResult(res.data);
+            await refreshAudit();
+          } else {
+            setErrorMessage(res.message);
+          }
+        } catch (err: any) {
+          setErrorMessage(err?.message || 'Error');
+        } finally {
+          setRunning(null);
+        }
       }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Error');
-    } finally {
-      setRunning(null);
-    }
+    );
   };
 
   return (

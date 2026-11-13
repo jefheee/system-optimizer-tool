@@ -10,6 +10,8 @@ interface SettingsContextType {
   toggleTheme: () => void;
   performanceMode: boolean;
   setPerformanceMode: (enabled: boolean) => void;
+  setAutoPerformanceMode: (enabled: boolean) => void;
+  hasManualPerformanceOverride: boolean;
   clearLocalCache: () => void;
 }
 
@@ -19,12 +21,15 @@ const SettingsContext = createContext<SettingsContextType>({
   toggleTheme: () => {},
   performanceMode: false,
   setPerformanceMode: () => {},
+  setAutoPerformanceMode: () => {},
+  hasManualPerformanceOverride: false,
   clearLocalCache: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>('dark');
   const [performanceMode, setPerformanceModeState] = useState<boolean>(false);
+  const [hasManualPerformanceOverride, setHasManualPerformanceOverride] = useState<boolean>(false);
 
   useEffect(() => {
     try {
@@ -32,8 +37,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (savedTheme === 'light' || savedTheme === 'dark') {
         setThemeState(savedTheme);
       }
+      const manualOverride = localStorage.getItem('system_optimizer_perf_manual_override') === 'true';
+      setHasManualPerformanceOverride(manualOverride);
       const savedPerf = localStorage.getItem('system_optimizer_perf_mode');
-      if (savedPerf === 'true') {
+      if (savedPerf === 'true' && manualOverride) {
         setPerformanceModeState(true);
       }
     } catch {}
@@ -75,10 +82,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const setPerformanceMode = (enabled: boolean) => {
     setPerformanceModeState(enabled);
+    setHasManualPerformanceOverride(true);
     try {
       localStorage.setItem('system_optimizer_perf_mode', String(enabled));
+      localStorage.setItem('system_optimizer_perf_manual_override', 'true');
     } catch {}
   };
+
+  const setAutoPerformanceMode = React.useCallback((enabled: boolean) => {
+    try {
+      const manual = localStorage.getItem('system_optimizer_perf_manual_override') === 'true';
+      if (manual) return;
+    } catch {}
+    setPerformanceModeState(enabled);
+  }, []);
 
   const clearLocalCache = () => {
     try {
@@ -95,6 +112,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         toggleTheme,
         performanceMode,
         setPerformanceMode,
+        setAutoPerformanceMode,
+        hasManualPerformanceOverride,
         clearLocalCache,
       }}
     >

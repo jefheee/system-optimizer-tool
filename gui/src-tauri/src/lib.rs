@@ -25,6 +25,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // 1. Diagnóstico de Hardware & Profiler em Tempo Real
             diagnostics::get_system_diagnostics,
+            diagnostics::enable_trim,
+            diagnostics::reboot_to_bios,
             sensors::get_live_sensors,
             bottleneck::analyze_bottleneck,
 
@@ -46,6 +48,7 @@ pub fn run() {
             drivers::scan_oc_and_errors,
             drivers::set_power_plan,
             drivers::get_usb_devices,
+            drivers::scan_usb_devices,
             drivers::remove_ghost_usb_devices,
             drivers::get_rgb_status,
             drivers::apply_rgb_effect,
@@ -85,6 +88,9 @@ pub fn run() {
             system::check_admin,
             system::restart_as_admin,
             system::create_restore_point,
+            system::get_restore_points_status,
+            system::get_live_tweaks_status,
+            system::apply_or_revert_tweak,
             system::reset_network_stack,
             system::toggle_classic_context_menu,
             system::benchmark_dns,
@@ -130,4 +136,47 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_classify_os_tier_universal() {
+        assert_eq!(diagnostics::classify_os_tier(7601), ("Win7", false, true));
+        assert_eq!(diagnostics::classify_os_tier(9600), ("Win8_81", false, true));
+        assert_eq!(diagnostics::classify_os_tier(19045), ("Win10", false, false));
+        assert_eq!(diagnostics::classify_os_tier(22631), ("Win11_21H2_23H2", false, false));
+        assert_eq!(diagnostics::classify_os_tier(26100), ("Win11_24H2_26H2", true, false));
+        assert_eq!(diagnostics::classify_os_tier(26200), ("Win11_24H2_26H2", true, false));
+    }
+
+    #[test]
+    fn test_classify_hardware_tier() {
+        assert_eq!(diagnostics::classify_hardware_tier(2, 4.0, true, false), "low");
+        assert_eq!(diagnostics::classify_hardware_tier(6, 16.0, false, false), "low");
+        assert_eq!(diagnostics::classify_hardware_tier(6, 32.0, true, true), "low");
+        assert_eq!(diagnostics::classify_hardware_tier(4, 8.0, true, false), "mid");
+        assert_eq!(diagnostics::classify_hardware_tier(6, 32.0, true, false), "high");
+    }
+
+    #[test]
+    fn test_protected_packages_guard() {
+        assert!(system::is_protected_package("Microsoft.EdgeWebView2"));
+        assert!(system::is_protected_package("WebView2Runtime"));
+        assert!(system::is_protected_package("VBSCRIPT"));
+        assert!(system::is_protected_package("*Microsoft.WindowsStore*"));
+        assert!(!system::is_protected_package("*Cortana*"));
+        assert!(!system::is_protected_package("*BingWeather*"));
+    }
+
+    #[test]
+    fn test_usb_scanner_returns_devices() {
+        let scan = drivers::scan_usb_devices_sync();
+        assert!(
+            scan.total_devices > 0 && !scan.devices.is_empty(),
+            "USB scanner should detect at least one PnP USB/HID/BT/COM device on Windows"
+        );
+    }
 }

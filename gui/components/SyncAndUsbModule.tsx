@@ -11,13 +11,14 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import {
-  getUsbDevices,
+  scanUsbDevices,
   removeGhostUsbDevices,
   getRgbStatus,
   applyRgbEffect,
   UsbScanResult,
   RgbStatusReport,
 } from "../lib/api";
+import { useHardware } from "../lib/HardwareContext";
 import { useLanguage } from "../lib/LanguageContext";
 
 interface SyncAndUsbModuleProps {
@@ -27,9 +28,18 @@ interface SyncAndUsbModuleProps {
 
 export default function SyncAndUsbModule({
   subTab,
-  onChangeSubTab,
 }: SyncAndUsbModuleProps) {
   const { lang } = useLanguage();
+  const { requireRestorePoint } = useHardware();
+  const [activeTool, setActiveTool] = useState<"sync-usb" | "sync-rgb">(
+    subTab === "sync-rgb" ? "sync-rgb" : "sync-usb"
+  );
+
+  useEffect(() => {
+    if (subTab === "sync-rgb" || subTab === "sync-usb") {
+      setActiveTool(subTab);
+    }
+  }, [subTab]);
 
   // USB Cleaner state
   const [usbData, setUsbData] = useState<UsbScanResult | null>(null);
@@ -47,7 +57,7 @@ export default function SyncAndUsbModule({
 
   const loadUsb = async () => {
     setUsbLoading(true);
-    const res = await getUsbDevices();
+    const res = await scanUsbDevices();
     if (res.data) {
       setUsbData(res.data);
       const ghosts = res.data.devices
@@ -78,14 +88,20 @@ export default function SyncAndUsbModule({
     );
   };
 
-  const handleCleanGhosts = async () => {
+  const handleCleanGhosts = () => {
     if (selectedGhosts.length === 0) return;
-    setRemovingUsb(true);
-    setUsbFeedback(null);
-    const res = await removeGhostUsbDevices(selectedGhosts);
-    setUsbFeedback(res.message);
-    await loadUsb();
-    setRemovingUsb(false);
+    requireRestorePoint(
+      lang === "en" ? "Remove Ghost USB Devices" : "Remover Dispositivos USB Fantasmas",
+      "medium",
+      async () => {
+        setRemovingUsb(true);
+        setUsbFeedback(null);
+        const res = await removeGhostUsbDevices(selectedGhosts);
+        setUsbFeedback(res.message);
+        await loadUsb();
+        setRemovingUsb(false);
+      }
+    );
   };
 
   const handleApplyRgb = async () => {
@@ -123,9 +139,9 @@ export default function SyncAndUsbModule({
 
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => onChangeSubTab?.("sync-usb")}
+            onClick={() => setActiveTool("sync-usb")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              subTab === "sync-usb"
+              activeTool === "sync-usb"
                 ? "bg-white text-zinc-950"
                 : "bg-zinc-900/80 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
             }`}
@@ -136,9 +152,9 @@ export default function SyncAndUsbModule({
             </span>
           </button>
           <button
-            onClick={() => onChangeSubTab?.("sync-rgb")}
+            onClick={() => setActiveTool("sync-rgb")}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              subTab === "sync-rgb"
+              activeTool === "sync-rgb"
                 ? "bg-white text-zinc-950"
                 : "bg-zinc-900/80 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
             }`}
@@ -150,7 +166,7 @@ export default function SyncAndUsbModule({
       </div>
 
       {/* 1. GHOST USB CLEANER */}
-      {subTab === "sync-usb" && (
+      {activeTool === "sync-usb" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800/90">
@@ -295,7 +311,7 @@ export default function SyncAndUsbModule({
       )}
 
       {/* 2. RGB SYNC */}
-      {subTab === "sync-rgb" && (
+      {activeTool === "sync-rgb" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/90 p-6 space-y-5">
             <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-300">

@@ -84,11 +84,11 @@ const WIKI_ITEMS_DEF: WikiItemDef[] = [
 export default function DocsAndAboutModule({
   initialSubTab = 'wiki',
 }: {
-  initialSubTab?: 'wiki' | 'about';
+  initialSubTab?: 'wiki' | 'bios' | 'about';
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { theme } = useSettings();
-  const [subTab, setSubTab] = useState<'wiki' | 'about'>(initialSubTab);
+  const [subTab, setSubTab] = useState<'wiki' | 'bios' | 'about'>(initialSubTab);
 
   React.useEffect(() => {
     setSubTab(initialSubTab);
@@ -134,7 +134,7 @@ export default function DocsAndAboutModule({
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col space-y-3 max-w-7xl w-full mx-auto overflow-hidden">
-      {/* Top Header & Sub-Tab Switcher (Neutral Gray) */}
+      {/* Top Header (Controlled by LeftSidebar — redundant top-right subtab pills removed) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-neutral-200 shrink-0">
@@ -142,36 +142,24 @@ export default function DocsAndAboutModule({
           </div>
           <div>
             <h2 className="text-base font-bold text-neutral-100 leading-tight">
-              {subTab === 'wiki' ? t('wiki_title') : t('about_title')}
+              {subTab === 'wiki'
+                ? t('wiki_title')
+                : subTab === 'bios'
+                  ? language === 'PT'
+                    ? 'Guia Técnico de BIOS & Recuperação de Hardware'
+                    : 'Technical BIOS Guide & Hardware Troubleshooting'
+                  : t('about_title')}
             </h2>
             <p className="text-xs text-neutral-400">
-              {subTab === 'wiki' ? t('wiki_subtitle') : t('about_desc')}
+              {subTab === 'wiki'
+                ? t('wiki_subtitle')
+                : subTab === 'bios'
+                  ? language === 'PT'
+                    ? 'Checklists específicos para AMD Ryzen/X3D vs Intel, DDR5 >55°C, montagem de cooler, DisplayPort UEFI e recuperação WHEA/TDR.'
+                    : 'Platform checklists for AMD Ryzen/X3D vs Intel, DDR5 >55°C thermal errors, cooler mounting pressure, DisplayPort UEFI and WHEA/TDR recovery.'
+                  : t('about_desc')}
             </p>
           </div>
-        </div>
-
-        {/* SubTab Toggle - Neutral de-saturated buttons */}
-        <div className="flex items-center gap-1.5 bg-neutral-950 p-1 rounded-xl border border-neutral-800 self-start sm:self-center shrink-0">
-          <button
-            onClick={() => setSubTab('wiki')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              subTab === 'wiki'
-                ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700'
-                : 'text-neutral-400 hover:text-neutral-200'
-            }`}
-          >
-            {t('docs_tab_wiki')}
-          </button>
-          <button
-            onClick={() => setSubTab('about')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              subTab === 'about'
-                ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700'
-                : 'text-neutral-400 hover:text-neutral-200'
-            }`}
-          >
-            {t('docs_tab_about')}
-          </button>
         </div>
       </div>
 
@@ -348,8 +336,87 @@ export default function DocsAndAboutModule({
             </div>
           </div>
         </div>
+      ) : subTab === 'bios' ? (
+        /* SubTab 2: Hardware BIOS Setup & Troubleshooting Knowledge Base */
+        <div className="flex-1 flex flex-col min-h-0 space-y-3 overflow-y-auto no-scrollbar pr-1">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* AMD Ryzen / X3D Checklist */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-400 uppercase tracking-wider font-mono">
+                  AMD Ryzen / X3D AM4 & AM5
+                </span>
+                <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-[10px] font-mono text-rose-300">
+                  BIOS Checklist
+                </span>
+              </div>
+              <ul className="space-y-1.5 text-xs text-neutral-300">
+                <li>• <strong>EXPO / D.O.C.P / XMP:</strong> {language === 'PT' ? 'Obrigatório para tirar a RAM de 2133/4800 MT/s padrão (JEDEC).' : 'Mandatory to run RAM at advertised frequency instead of JEDEC fallback.'}</li>
+                <li>• <strong>Above 4G Decoding + Resizable BAR:</strong> {language === 'PT' ? 'Ative ambos para ganhos de até 10% em jogos DX12/Vulkan.' : 'Enable both for full PCIe BAR mapping and up to +10% DX12/Vulkan gains.'}</li>
+                <li>• <strong>X3D / PBO / Curve Optimizer:</strong> {language === 'PT' ? 'CPUs X3D possuem V-Cache empilhado sensível a voltagem fixa; use apenas PBO / CO negativo leve (-15 a -25).' : 'X3D stacked V-Cache cannot tolerate unsafe fixed Vcore; prefer PBO + mild negative Curve Optimizer (-15 to -25).'}</li>
+                <li>• <strong>Memory Context Restore (AM5):</strong> {language === 'PT' ? 'Reduz boot lento de DDR5 para menos de 15s (mantenha Power Down Enable em Auto/Enabled em conjunto).' : 'Cuts AM5 DDR5 POST times under 15s (keep Power Down Enable paired to avoid BSOD).'}</li>
+              </ul>
+            </div>
+
+            {/* Intel Core 12th-14th / Core Ultra Checklist */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-sky-400 uppercase tracking-wider font-mono">
+                  Intel Core LGA 1700 / 1851
+                </span>
+                <span className="px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-[10px] font-mono text-sky-300">
+                  BIOS Checklist
+                </span>
+              </div>
+              <ul className="space-y-1.5 text-xs text-neutral-300">
+                <li>• <strong>Intel Default Settings / Microcode 0x12B+:</strong> {language === 'PT' ? 'Essencial em 13ª/14ª Geração para evitar degradação por picos de VID (Vmin Shift).' : 'Critical on 13th/14th Gen K-CPUs to clamp transient voltage spikes (Vmin Shift).'}</li>
+                <li>• <strong>XMP II / XMP I:</strong> {language === 'PT' ? 'Prefira XMP I (subtimings da placa-mãe) ou XMP II (timings completos do kit).' : 'Enable XMP I or XMP II to achieve rated DRAM throughput and lower latency.'}</li>
+                <li>• <strong>Above 4G + Resizable BAR + CSM Off:</strong> {language === 'PT' ? 'Desative o CSM (Legacy) para boot UEFI puro, Fast Boot e ReBAR ativo.' : 'Disable CSM legacy mode to enforce UEFI GOP boot, Fast Boot and ReBAR.'}</li>
+                <li>• <strong>VT-x / VT-d vs Core Isolation (VBS):</strong> {language === 'PT' ? 'Desative Integridade de Memória (HVCI) no Windows se buscar menor latência sem VMs.' : 'Disable Memory Integrity (HVCI) inside Windows Security for lowest frametime overhead.'}</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* DDR5 Thermal & 4-DIMM IMC */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-amber-500/25 space-y-2">
+              <span className="text-[11px] font-bold font-mono text-amber-400 uppercase">
+                {language === 'PT' ? 'DDR5 > 55°C & Regra dos 4 Pentes' : 'DDR5 > 55°C & 4-DIMM IMC Limits'}
+              </span>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                {language === 'PT'
+                  ? 'Módulos DDR5 aquecem com o controlador de energia (PMIC) integrado. Acima de 55°C durante jogos pesados com tREFI elevado surgem erros silenciosos de memória e fechamento de jogos. Além disso, usar 4 pentes em AM5/LGA1700 força o IMC a cair para ~3600–4800 MT/s — prefira sempre 2 pentes nos slots A2 e B2.'
+                  : 'DDR5 PMICs run hot; exceeding 55°C with aggressive tREFI triggers random crashes. Populating 4 DDR5 DIMMs also overloads the dual-channel IMC, dropping clocks to 3600–4800 MT/s — always prefer 2 sticks in A2/B2.'}
+              </p>
+            </div>
+
+            {/* Cooler Mounting & RAM Detection */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-cyan-500/25 space-y-2">
+              <span className="text-[11px] font-bold font-mono text-cyan-400 uppercase">
+                {language === 'PT' ? 'Pressão do Cooler & Slots A2/B2' : 'Cooler Pressure & A2/B2 Topology'}
+              </span>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                {language === 'PT'
+                  ? 'Aperto excessivo ou desigual do Water Cooler/Air Cooler no soquete entorta levemente o PCB/pinos do IMC e faz um canal inteiro de memória (ou o XMP) parar de reconhecer. Reinstale os parafusos em X com aperto firme sem força extrema.'
+                  : 'Uneven or over-torqued CPU cooler brackets flex socket pins connected to memory channels, causing single-channel drops or XMP boot failures. Re-seat in an X pattern with even torque.'}
+              </p>
+            </div>
+
+            {/* DisplayPort Black Screen & WHEA/TDR */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-rose-500/25 space-y-2">
+              <span className="text-[11px] font-bold font-mono text-rose-400 uppercase">
+                {language === 'PT' ? 'DisplayPort Preta na BIOS & WHEA vs TDR' : 'DisplayPort BIOS Blackout & WHEA/TDR'}
+              </span>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                {language === 'PT'
+                  ? 'Se a tela ficar preta ao reiniciar para a UEFI via DisplayPort (GPUs antigas DP 1.3/1.4 sem update GOP), conecte via HDMI temporariamente. Erros WHEA ID 18/19 apontam CPU/RAM instável (remova undervolt); Event ID 4101 aponta TDR de driver/GPU.'
+                  : 'If DisplayPort shows no video inside UEFI pre-OS screens, switch to HDMI or update GPU DisplayID/GOP firmware. WHEA 18/19 indicates unstable CPU/RAM Vcore or FCLK; Event ID 4101 indicates GPU driver TDR reset.'}
+              </p>
+            </div>
+          </div>
+        </div>
       ) : (
-        /* SubTab 2: About Project, Evolution Timeline & Architecture Bento */
+        /* SubTab 3: About Project, Evolution Timeline & Architecture Bento */
         <div className="flex-1 flex flex-col min-h-0 space-y-3 overflow-y-auto no-scrollbar">
           {/* Top Row: Hero Branding + Open-Source Credentials */}
           <div className="p-5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shrink-0">

@@ -7,7 +7,7 @@ import { SettingsProvider } from "../lib/SettingsContext";
 import { HardwareProvider } from "../lib/HardwareContext";
 
 export const metadata: Metadata = {
-  title: "System Optimizer Tool V5.0",
+  title: "System Optimizer Tool V6.0",
   description: "Native Windows System Optimization, Hardware Profiler & Latency Control Center",
 };
 

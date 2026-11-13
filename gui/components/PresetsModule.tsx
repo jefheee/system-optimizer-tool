@@ -21,7 +21,7 @@ import {
 
 export default function PresetsModule() {
   const { language, t } = useLanguage();
-  const { diagnostics, refreshAudit } = useHardware();
+  const { diagnostics, refreshAudit, requireRestorePoint } = useHardware();
   const [runningPreset, setRunningPreset] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([
     `[00:00:01] [SYSTEM] System Optimizer v5.0 Kernel Engine ${language === 'PT' ? 'inicializado.' : 'initialized.'}`,
@@ -38,30 +38,36 @@ export default function PresetsModule() {
   };
 
   const handleRunPreset = async (presetId: string, name: string) => {
-    setRunningPreset(presetId);
-    setStatusMsg(null);
-    addLog('START', language === 'PT' ? `Iniciando aplicação do perfil: ${name}...` : `Starting execution of profile: ${name}...`);
-    try {
-      const res = await runPreset(presetId);
-      setStatusMsg({
-        id: presetId,
-        success: res.success,
-        text: res.message,
-      });
-      addLog(res.success ? 'SUCCESS' : 'ERROR', res.message);
-      await refreshAudit();
-    } catch (e: any) {
-      const errMsg = e?.message || 'Error';
-      setStatusMsg({
-        id: presetId,
-        success: false,
-        text: errMsg,
-      });
-      addLog('EXCEPTION', errMsg);
-    } finally {
-      setRunningPreset(null);
-      addLog('READY', language === 'PT' ? 'Operação concluída. Registro de 64-bits sincronizado.' : 'Operation completed. 64-bit Registry synchronized.');
-    }
+    requireRestorePoint(
+      name,
+      presetId === 'essential' ? 'medium' : 'high',
+      async () => {
+        setRunningPreset(presetId);
+        setStatusMsg(null);
+        addLog('START', language === 'PT' ? `Iniciando aplicação do perfil: ${name}...` : `Starting execution of profile: ${name}...`);
+        try {
+          const res = await runPreset(presetId);
+          setStatusMsg({
+            id: presetId,
+            success: res.success,
+            text: res.message,
+          });
+          addLog(res.success ? 'SUCCESS' : 'ERROR', res.message);
+          await refreshAudit();
+        } catch (e: any) {
+          const errMsg = e?.message || 'Error';
+          setStatusMsg({
+            id: presetId,
+            success: false,
+            text: errMsg,
+          });
+          addLog('EXCEPTION', errMsg);
+        } finally {
+          setRunningPreset(null);
+          addLog('READY', language === 'PT' ? 'Operação concluída. Registro de 64-bits sincronizado.' : 'Operation completed. 64-bit Registry synchronized.');
+        }
+      }
+    );
   };
 
   const handleCreateRestore = async () => {

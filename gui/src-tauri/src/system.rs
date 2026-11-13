@@ -67,26 +67,219 @@ pub async fn restart_as_admin(window: tauri::Window) -> Result<CommandResponse<b
 
 
 
-/// Cria um Ponto de Restauração do Sistema
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePointEntry {
+    pub sequence_number: u32,
+    pub description: String,
+    pub creation_time: String,
+    pub restore_point_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePointsStatus {
+    pub protection_enabled: bool,
+    pub frequency_unlocked: bool,
+    pub has_recent_restore_point: bool,
+    pub points: Vec<RestorePointEntry>,
+}
+
+fn parse_restore_point_type(code: u64) -> String {
+    match code {
+        0 => "APPLICATION_INSTALL".to_string(),
+        1 => "APPLICATION_UNINSTALL".to_string(),
+        10 => "DEVICE_DRIVER_INSTALL".to_string(),
+        12 => "MODIFY_SETTINGS".to_string(),
+        13 => "CANCELLED_OPERATION".to_string(),
+        _ => format!("TYPE_{}", code),
+    }
+}
+
+fn is_restore_point_recent(creation_time: &str) -> bool {
+    if let Ok(parsed) = chrono::NaiveDateTime::parse_from_str(creation_time.trim(), "%Y-%m-%d %H:%M:%S") {
+        let now = chrono::Local::now().naive_local();
+        let hours = now.signed_duration_since(parsed).num_hours();
+        return (-1..=24).contains(&hours);
+    }
+    false
+}
+
+/// Consulta status da Proteção do Sistema, destravamento de 24h e pontos existentes
+#[tauri::command]
+pub async fn get_restore_points_status() -> Result<CommandResponse<RestorePointsStatus>, String> {
+    let status = tokio::task::spawn_blocking(|| {
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        let key_read = winreg::enums::KEY_READ;
+
+        let mut protection_enabled = false;
+        let mut frequency_unlocked = false;
+
+        if let Ok(sr_key) = hklm.open_subkey_with_flags(
+            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore",
+            key_read,
+        ) {
+            if let Ok(interval) = sr_key.get_value::<u32, _>("RPSessionInterval") {
+                if interval > 0 {
+                    protection_enabled = true;
+                }
+            }
+            if let Ok(freq) = sr_key.get_value::<u32, _>("SystemRestorePointCreationFrequency") {
+                frequency_unlocked = freq == 0;
+            }
+        }
+
+        if let Ok(spp_key) = hklm.open_subkey_with_flags(
+            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SPP\Clients",
+            key_read,
+        ) {
+            for (_, val) in spp_key.enum_values().flatten() {
+                if !val.to_string().trim().is_empty() {
+                    protection_enabled = true;
+                    break;
+                }
+            }
+        }
+
+        let ps_cmd = r#"
+            $pts = @()
+            try {
+                $pts = @(Get-ComputerRestorePoint -ErrorAction Stop | Select-Object SequenceNumber, Description, @{N='CreationTime';E={$_.ConvertToDateTime($_.CreationTime).ToString('yyyy-MM-dd HH:mm:ss')}}, RestorePointType)
+            } catch {
+                try {
+                    $pts = @(Get-WmiObject -Namespace 'root\default' -Class SystemRestore -ErrorAction SilentlyContinue | Select-Object SequenceNumber, Description, @{N='CreationTime';E={[System.Management.ManagementDateTimeConverter]::ToDateTime($_.CreationTime).ToString('yyyy-MM-dd HH:mm:ss')}}, RestorePointType)
+                } catch {}
+            }
+            @($pts) | ConvertTo-Json -Compress
+        "#;
+
+        let mut points: Vec<RestorePointEntry> = Vec::new();
+        if let Ok(out) = new_hidden_command("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", ps_cmd])
+            .output()
+        {
+            if out.status.success() {
+                let raw = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    let arr: Vec<&serde_json::Value> = match &val {
+                        serde_json::Value::Array(a) => a.iter().collect(),
+                        serde_json::Value::Object(_) => vec![&val],
+                        _ => Vec::new(),
+                    };
+                    for item in arr {
+                        let seq = item.get("SequenceNumber").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                        let desc = item
+                            .get("Description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Restore Point")
+                            .to_string();
+                        let creation = item
+                            .get("CreationTime")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let rtype_num = item.get("RestorePointType").and_then(|v| v.as_u64()).unwrap_or(12);
+                        if seq > 0 || !desc.is_empty() {
+                            points.push(RestorePointEntry {
+                                sequence_number: seq,
+                                description: desc,
+                                creation_time: creation,
+                                restore_point_type: parse_restore_point_type(rtype_num),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        points.sort_by(|a, b| b.sequence_number.cmp(&a.sequence_number));
+        if !points.is_empty() {
+            protection_enabled = true;
+        }
+        let has_recent_restore_point = points.iter().any(|p| is_restore_point_recent(&p.creation_time));
+
+        RestorePointsStatus {
+            protection_enabled,
+            frequency_unlocked,
+            has_recent_restore_point,
+            points,
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(CommandResponse::ok(
+        if status.has_recent_restore_point {
+            "Ponto de restauração recente (< 24h) detectado."
+        } else {
+            "Nenhum ponto de restauração recente encontrado."
+        },
+        Some(status),
+    ))
+}
+
+/// Cria um Ponto de Restauração do Sistema (destravando limite de 24h via Registry)
 #[tauri::command]
 pub async fn create_restore_point(description: String, app: tauri::AppHandle) -> Result<CommandResponse<String>, String> {
     tokio::task::spawn_blocking(move || {
+        if !is_process_elevated() {
+            return Err("Privilégios de Administrador são obrigatórios para criar um Ponto de Restauração e destravar políticas de sistema.".to_string());
+        }
+
         let desc = if description.trim().is_empty() {
             "System Optimizer Restore Point".to_string()
         } else {
             description.trim().to_string()
         };
 
-        emit_step(&app, "restore_point", "Criando ponto de restauração do sistema...", "running", &format!("Checkpoint-Computer: '{}'", desc), 1, 1);
+        emit_step(
+            &app,
+            "restore_unlock",
+            "Destravando limite de 24h e ativando Proteção do Sistema...",
+            "running",
+            "SystemRestorePointCreationFrequency = 0 & Enable-ComputerRestore",
+            1,
+            3,
+        );
 
-        // Habilitar proteção do sistema caso esteja desligada na unidade C:
+        // a) Destrava limite de 24h (SystemRestorePointCreationFrequency = 0)
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        if let Ok((sr_key, _)) = hklm.create_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore") {
+            let _ = sr_key.set_value("SystemRestorePointCreationFrequency", &0u32);
+        }
+
+        // b) Inicia servicos VSS/swprv e habilita protecao no drive C:\
+        let _ = new_hidden_command("sc.exe").args(["start", "vss"]).output();
+        let _ = new_hidden_command("sc.exe").args(["start", "swprv"]).output();
         let _ = new_hidden_command("powershell.exe")
-            .args(["-NoProfile", "-Command", "Enable-ComputerRestore -Drive 'C:\\'"])
+            .args(["-NoProfile", "-NonInteractive", "-Command", "Enable-ComputerRestore -Drive 'C:\\' -ErrorAction SilentlyContinue"])
             .output();
 
+        emit_step(
+            &app,
+            "restore_point",
+            "Gravando Ponto de Restauração do Windows...",
+            "running",
+            &format!("Checkpoint-Computer: '{}'", desc),
+            2,
+            3,
+        );
+
+        let escaped = desc.replace('\'', "''");
         let ps_cmd = format!(
-            "Checkpoint-Computer -Description '{}' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop",
-            desc.replace('\'', "''")
+            r#"
+            $ErrorActionPreference = 'Stop'
+            try {{
+                Checkpoint-Computer -Description '{}' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop
+            }} catch {{
+                $sr = [wmiclass]'\\.\root\default:SystemRestore'
+                $res = $sr.CreateRestorePoint('{}', 12, 100)
+                if ($res.ReturnValue -ne 0) {{
+                    throw "WMI SystemRestore retornou codigo $($res.ReturnValue)"
+                }}
+            }}
+            "#,
+            escaped, escaped
         );
 
         let output = new_hidden_command("powershell.exe")
@@ -95,14 +288,22 @@ pub async fn create_restore_point(description: String, app: tauri::AppHandle) ->
             .map_err(|e| e.to_string())?;
 
         if output.status.success() {
-            emit_step(&app, "restore_point", "Ponto de restauração criado!", "success", "Seus arquivos e registro estão protegidos.", 1, 1);
+            emit_step(
+                &app,
+                "restore_point",
+                "Ponto de restauração criado com sucesso!",
+                "success",
+                "Sistema protegido antes das otimizações.",
+                3,
+                3,
+            );
             Ok(CommandResponse::ok(
                 format!("Ponto de restauração '{}' criado com sucesso!", desc),
                 Some(desc),
             ))
         } else {
             let err = String::from_utf8_lossy(&output.stderr).to_string();
-            emit_step(&app, "restore_point", "Falha ao criar ponto de restauração", "error", &err, 1, 1);
+            emit_step(&app, "restore_point", "Falha ao criar ponto de restauração", "error", &err, 3, 3);
             Err(format!("Falha ao criar ponto de restauração: {}", err))
         }
     })
@@ -433,7 +634,32 @@ pub async fn clean_orphan_tasks() -> Result<CommandResponse<u32>, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Remove pacotes AppX pré-definidos como bloatware seguro
+/// Pacotes e componentes críticos do sistema que JAMAIS devem ser removidos pelo debloat
+/// (EdgeWebView2 quebra apps Tauri v2; VBScript quebra instaladores MSI e scripts corporativos)
+pub const PROTECTED_SYSTEM_PACKAGES: &[&str] = &[
+    "Microsoft.EdgeWebView2",
+    "MicrosoftEdgeWebView2",
+    "WebView2Runtime",
+    "VBScript",
+    "VBSCRIPT",
+    "WindowsStore",
+    "XboxIdentityProvider",
+    "DesktopAppInstaller",
+    "VCLibs",
+    "UI.Xaml",
+];
+
+pub fn is_protected_package(pkg_name: &str) -> bool {
+    let clean = pkg_name.replace('*', "").trim().to_lowercase();
+    if clean.is_empty() {
+        return true;
+    }
+    PROTECTED_SYSTEM_PACKAGES
+        .iter()
+        .any(|p| clean.contains(&p.to_lowercase()) || p.to_lowercase().contains(&clean))
+}
+
+/// Remove pacotes AppX pré-definidos como bloatware seguro (protegendo WebView2 e VBScript)
 #[tauri::command]
 pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<BloatwareResult>, String> {
     tokio::task::spawn_blocking(move || {
@@ -456,10 +682,13 @@ pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<B
         let mut removed = Vec::new();
 
         for (i, app_name) in targets.iter().enumerate() {
-            emit_step(&app, "bloatware", &format!("Removendo bloatware: {}", app_name.replace('*', "")), "running", "Desinstalando pacote de usuário e provisionado...", i + 1, total);
+            if is_protected_package(app_name) {
+                continue;
+            }
+            emit_step(&app, "bloatware", &format!("Removendo bloatware: {}", app_name.replace('*', "")), "running", "Desinstalando pacote de usuário e provisionado (WebView2/VBScript protegidos)...", i + 1, total);
 
             let ps_cmd = format!(
-                "Get-AppxPackage -Name '{}' | Remove-AppxPackage -ErrorAction SilentlyContinue",
+                "Get-AppxPackage -Name '{}' | Where-Object {{ $_.Name -notmatch 'EdgeWebView2|WebView2|WindowsStore|VCLibs|DesktopAppInstaller' }} | Remove-AppxPackage -ErrorAction SilentlyContinue",
                 app_name
             );
             let out = new_hidden_command("powershell.exe")
@@ -474,7 +703,7 @@ pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<B
         }
 
         let count = removed.len();
-        emit_step(&app, "bloatware", &format!("Bloatwares removidos: {} pacotes", count), "success", "Aplicativos desnecessários desinstalados.", total, total);
+        emit_step(&app, "bloatware", &format!("Bloatwares removidos: {} pacotes", count), "success", "Aplicativos desnecessários desinstalados com WebView2/VBScript intactos.", total, total);
 
         let res = BloatwareResult {
             removed_count: count,
@@ -482,7 +711,7 @@ pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<B
         };
 
         Ok(CommandResponse::ok(
-            format!("Processamento de bloatware concluído ({} pacotes verificados/removidos).", count),
+            format!("Processamento de bloatware concluído ({} pacotes verificados/removidos; EdgeWebView2 e VBScript protegidos).", count),
             Some(res),
         ))
     })
@@ -1357,5 +1586,585 @@ pub async fn open_external_url(url: String) -> Result<CommandResponse<bool>, Str
     }
     crate::utils::shell_open(&url)?;
     Ok(CommandResponse::ok("Link aberto no navegador.", Some(true)))
+}
+
+// =================================================================
+// MOTOR LIVE REGISTRY TWEAKS (APPLY / REVERT + COMPATIBILIDADE OS)
+// =================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveTweakStatus {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub description: String,
+    pub risk_level: String, // "low" | "medium" | "high"
+    pub applied: bool,
+    pub current_value: String,
+    pub recommended_value: String,
+    pub default_value: String,
+    pub registry_path: String,
+    pub min_os_tier: String,
+}
+
+fn check_pci_display_msi_status() -> (bool, String) {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let key_read = winreg::enums::KEY_READ;
+    let Ok(pci_root) = hklm.open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Enum\PCI", key_read) else {
+        return (false, "N/A".to_string());
+    };
+
+    let mut found_any = false;
+    let mut all_enabled = true;
+    for dev_key_name in pci_root.enum_keys().flatten() {
+        let Ok(dev_key) = pci_root.open_subkey_with_flags(&dev_key_name, key_read) else {
+            continue;
+        };
+        for inst_name in dev_key.enum_keys().flatten() {
+            let Ok(inst_key) = dev_key.open_subkey_with_flags(&inst_name, key_read) else {
+                continue;
+            };
+            let class_guid: String = inst_key.get_value("ClassGUID").unwrap_or_default();
+            if class_guid.eq_ignore_ascii_case("{4d36e968-e325-11ce-bfc1-08002be10318}") {
+                // Ignora placas desplugadas/fantasmas sem Interrupt Management
+                if let Ok(msi_key) = inst_key.open_subkey_with_flags(
+                    r"Device Parameters\Interrupt Management\MessageSignaledInterruptProperties",
+                    key_read,
+                ) {
+                    found_any = true;
+                    let val: u32 = msi_key.get_value("MSISupported").unwrap_or(0);
+                    if val != 1 {
+                        all_enabled = false;
+                    }
+                }
+            }
+        }
+    }
+
+    if !found_any {
+        (false, "Padrão (Line-Based IRQ)".to_string())
+    } else if all_enabled {
+        (true, "MSISupported = 1 (Ativo)".to_string())
+    } else {
+        (false, "MSISupported = 0 (IRQ Legado)".to_string())
+    }
+}
+
+fn set_pci_display_msi_mode(enable: bool) -> Result<u32, String> {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let pci_root = hklm
+        .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Enum\PCI", winreg::enums::KEY_READ)
+        .map_err(|e| format!("Falha ao acessar Enum\\PCI: {}", e))?;
+
+    let mut updated = 0u32;
+    let target_val: u32 = if enable { 1 } else { 0 };
+
+    for dev_key_name in pci_root.enum_keys().flatten() {
+        let Ok(dev_key) = pci_root.open_subkey_with_flags(&dev_key_name, winreg::enums::KEY_READ) else {
+            continue;
+        };
+        for inst_name in dev_key.enum_keys().flatten() {
+            let Ok(inst_key) = dev_key.open_subkey_with_flags(&inst_name, winreg::enums::KEY_READ) else {
+                continue;
+            };
+            let class_guid: String = inst_key.get_value("ClassGUID").unwrap_or_default();
+            if class_guid.eq_ignore_ascii_case("{4d36e968-e325-11ce-bfc1-08002be10318}") {
+                let msi_subpath = format!(
+                    r"SYSTEM\CurrentControlSet\Enum\PCI\{}\{}\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties",
+                    dev_key_name, inst_name
+                );
+                if hklm.open_subkey_with_flags(
+                    format!(r"SYSTEM\CurrentControlSet\Enum\PCI\{}\{}\Device Parameters\Interrupt Management", dev_key_name, inst_name),
+                    winreg::enums::KEY_READ,
+                ).is_ok() {
+                    let (msi_key, _) = hklm
+                        .create_subkey(&msi_subpath)
+                        .map_err(|e| format!("Falha ao alterar MSI Mode (requer Administrador): {}", e))?;
+                    msi_key
+                        .set_value("MSISupported", &target_val)
+                        .map_err(|e| format!("Erro ao gravar MSISupported: {}", e))?;
+                    updated += 1;
+                }
+            }
+        }
+    }
+
+    if updated == 0 {
+        return Err("Nenhum controlador de vídeo PCI com Interrupt Management foi encontrado.".to_string());
+    }
+    Ok(updated)
+}
+
+fn check_tcp_nodelay_active() -> (bool, String) {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let key_read = winreg::enums::KEY_READ;
+    let base = r"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
+    if let Ok(ifaces) = hklm.open_subkey_with_flags(base, key_read) {
+        for sub in ifaces.enum_keys().flatten() {
+            if let Ok(k) = ifaces.open_subkey_with_flags(&sub, key_read) {
+                let has_ip = k.get_value::<String, _>("DhcpIPAddress").map(|s| !s.is_empty() && s != "0.0.0.0").unwrap_or(false)
+                    || k.get_value::<Vec<String>, _>("IPAddress").is_ok();
+                if has_ip {
+                    let nodelay: u32 = k.get_value("TCPNoDelay").unwrap_or(0);
+                    let ack: u32 = k.get_value("TcpAckFrequency").unwrap_or(0);
+                    if nodelay == 1 && ack == 1 {
+                        return (true, "TCPNoDelay=1, AckFreq=1".to_string());
+                    }
+                }
+            }
+        }
+    }
+    (false, "Nagle Padrão do Windows".to_string())
+}
+
+fn read_live_tweaks_sync(timer_active_in_state: bool) -> Vec<LiveTweakStatus> {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let key_read = winreg::enums::KEY_READ;
+
+    // 1. Timer 0.5ms + GlobalTimerResolutionRequests
+    let global_timer_reg = hklm
+        .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\Session Manager\kernel", key_read)
+        .and_then(|k| k.get_value::<u32, _>("GlobalTimerResolutionRequests"))
+        .map(|v| v == 1)
+        .unwrap_or(false);
+    let timer_applied = global_timer_reg || timer_active_in_state;
+
+    // 2. Win32PrioritySeparation
+    let win32_prio = hklm
+        .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\PriorityControl", key_read)
+        .and_then(|k| k.get_value::<u32, _>("Win32PrioritySeparation"))
+        .unwrap_or(2);
+    let win32_applied = win32_prio == 0x26 || win32_prio == 0x28;
+
+    // 3. Multimedia SystemResponsiveness & NetworkThrottlingIndex
+    let mm_key = hklm.open_subkey_with_flags(
+        r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+        key_read,
+    );
+    let sys_resp = mm_key
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("SystemResponsiveness").ok())
+        .unwrap_or(20);
+    let net_throt = mm_key
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("NetworkThrottlingIndex").ok())
+        .unwrap_or(10);
+    let mm_applied = sys_resp <= 10 && net_throt == 0xFFFFFFFF;
+
+    // 4. GameDVR & FSO
+    let gcs = hkcu.open_subkey_with_flags(r"System\GameConfigStore", key_read);
+    let dvr_enabled = gcs
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("GameDVR_Enabled").ok())
+        .unwrap_or(1);
+    let fse_mode = gcs
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("GameDVR_FSEBehaviorMode").ok())
+        .unwrap_or(0);
+    let gamedvr_applied = dvr_enabled == 0 && fse_mode == 2;
+
+    // 5. MSI Mode GPU
+    let (msi_applied, msi_cur) = check_pci_display_msi_status();
+
+    // 6. Mouse Raw 1:1
+    let mouse_key = hkcu.open_subkey_with_flags(r"Control Panel\Mouse", key_read);
+    let mouse_speed = mouse_key
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<String, _>("MouseSpeed").ok())
+        .unwrap_or_else(|| "1".to_string());
+    let mouse_applied = mouse_speed.trim() == "0";
+
+    // 7. Bing Search Disabled
+    let bing_applied = hkcu
+        .open_subkey_with_flags(r"Software\Policies\Microsoft\Windows\Explorer", key_read)
+        .and_then(|k| k.get_value::<u32, _>("DisableSearchBoxSuggestions"))
+        .map(|v| v == 1)
+        .unwrap_or(false);
+
+    // 8. Hibernation Disabled
+    let hib_enabled = hklm
+        .open_subkey_with_flags(r"SYSTEM\CurrentControlSet\Control\Power", key_read)
+        .and_then(|k| k.get_value::<u32, _>("HibernateEnabled"))
+        .unwrap_or(1);
+    let hib_applied = hib_enabled == 0 || !Path::new("C:\\hiberfil.sys").exists();
+
+    // 9. Telemetry Disabled
+    let allow_tel = hklm
+        .open_subkey_with_flags(r"SOFTWARE\Policies\Microsoft\Windows\DataCollection", key_read)
+        .and_then(|k| k.get_value::<u32, _>("AllowTelemetry"))
+        .unwrap_or(1);
+    let tel_applied = allow_tel == 0;
+
+    // 10. NTFS TRIM
+    let trim_enabled = crate::diagnostics::detect_os_compatibility().build_number > 0 && {
+        if let Ok(out) = new_hidden_command("fsutil.exe")
+            .args(["behavior", "query", "DisableDeleteNotify"])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&out.stdout).to_lowercase();
+            text.lines().any(|l| l.contains("disabledeletenotify") && l.contains("= 0"))
+        } else {
+            true
+        }
+    };
+
+    // 11. TCP NoDelay
+    let (tcp_applied, tcp_cur) = check_tcp_nodelay_active();
+
+    // 12. VBS / HVCI
+    let vbs_enabled = hklm
+        .open_subkey_with_flags(
+            r"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity",
+            key_read,
+        )
+        .and_then(|k| k.get_value::<u32, _>("Enabled"))
+        .unwrap_or(0);
+    let vbs_disabled = vbs_enabled == 0;
+
+    vec![
+        LiveTweakStatus {
+            id: "timer_05ms".to_string(),
+            name: "Kernel Timer Resolution 0.5ms".to_string(),
+            category: "Latência & CPU".to_string(),
+            description: "Ativa GlobalTimerResolutionRequests = 1 e ajusta precisão do tick para 0.5ms (5000ns) evitando frametimes irregulares no Windows 11.".to_string(),
+            risk_level: "low".to_string(),
+            applied: timer_applied,
+            current_value: if global_timer_reg { "Global=1 (0.5ms)".to_string() } else if timer_active_in_state { "Runtime Ativo".to_string() } else { "Padrão (15.6ms)".to_string() },
+            recommended_value: "1 (0.5ms)".to_string(),
+            default_value: "0 (15.6ms)".to_string(),
+            registry_path: r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel\GlobalTimerResolutionRequests".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "win32_priority".to_string(),
+            name: "Win32PrioritySeparation (0x26 / 38)".to_string(),
+            category: "Latência & CPU".to_string(),
+            description: "Prioriza a janela ativa em primeiro plano (Short Variable Quantum) reduzindo micro-engasgos com Discord/OBS abertos.".to_string(),
+            risk_level: "low".to_string(),
+            applied: win32_applied,
+            current_value: format!("0x{:X} ({})", win32_prio, win32_prio),
+            recommended_value: "0x26 (38)".to_string(),
+            default_value: "0x2 (2)".to_string(),
+            registry_path: r"HKLM\SYSTEM\CurrentControlSet\Control\PriorityControl\Win32PrioritySeparation".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "system_responsiveness".to_string(),
+            name: "MMCSS Responsiveness (10%) & Sem Throttling de Rede".to_string(),
+            category: "Rede & Multimídia".to_string(),
+            description: "Define SystemResponsiveness = 10 e remove limitação de pacotes de rede (NetworkThrottlingIndex = FFFFFFFF).".to_string(),
+            risk_level: "low".to_string(),
+            applied: mm_applied,
+            current_value: format!("Resp={}%, Net={:#X}", sys_resp, net_throt),
+            recommended_value: "Resp=10%, Net=0xFFFFFFFF".to_string(),
+            default_value: "Resp=20%, Net=10".to_string(),
+            registry_path: r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "gamedvr_fso".to_string(),
+            name: "Desativar GameDVR & Otimizações de Tela Cheia (FSO)".to_string(),
+            category: "GPU & Gaming".to_string(),
+            description: "Desliga gravação oculta da Game Bar e força Modo Exclusivo Direto para menor input lag.".to_string(),
+            risk_level: "low".to_string(),
+            applied: gamedvr_applied,
+            current_value: format!("DVR={}, FSE={}", dvr_enabled, fse_mode),
+            recommended_value: "DVR=0, FSE=2".to_string(),
+            default_value: "DVR=1, FSE=0".to_string(),
+            registry_path: r"HKCU\System\GameConfigStore".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "msi_mode_gpu".to_string(),
+            name: "MSI Mode na GPU (Message Signaled Interrupts)".to_string(),
+            category: "GPU & PCIe".to_string(),
+            description: "Converte interrupções antigas IRQ compartilhadas da placa de vídeo em sinalização PCIe direta de baixíssima latência.".to_string(),
+            risk_level: "medium".to_string(),
+            applied: msi_applied,
+            current_value: msi_cur,
+            recommended_value: "MSISupported = 1".to_string(),
+            default_value: "MSISupported = 0".to_string(),
+            registry_path: r"HKLM\SYSTEM\CurrentControlSet\Enum\PCI\<GPU>\MessageSignaledInterruptProperties".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "mouse_raw".to_string(),
+            name: "Precisão 1:1 do Mouse (Sem Aceleração do Windows)".to_string(),
+            category: "Periféricos".to_string(),
+            description: "Zera MouseSpeed e Thresholds eliminando a curva não-linear de aceleração de ponteiro.".to_string(),
+            risk_level: "low".to_string(),
+            applied: mouse_applied,
+            current_value: format!("MouseSpeed={}", mouse_speed),
+            recommended_value: "0 (Curva Plana 1:1)".to_string(),
+            default_value: "1 (Acelerado)".to_string(),
+            registry_path: r"HKCU\Control Panel\Mouse".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "tcp_nodelay".to_string(),
+            name: "TCPNoDelay & Nagle Desativado".to_string(),
+            category: "Rede & Latência".to_string(),
+            description: "Envia pacotes de jogos e apps em tempo real imediatamente sem agrupamento (Nagle Algorithm OFF).".to_string(),
+            risk_level: "low".to_string(),
+            applied: tcp_applied,
+            current_value: tcp_cur,
+            recommended_value: "TCPNoDelay=1, AckFreq=1".to_string(),
+            default_value: "Omitido (Nagle Ativo)".to_string(),
+            registry_path: r"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "bing_search".to_string(),
+            name: "Remover Bing Search do Menu Iniciar".to_string(),
+            category: "Privacidade & UI".to_string(),
+            description: "Impede que cada tecla digitada no Menu Iniciar envie consultas web ao Bing, acelerando buscas locais.".to_string(),
+            risk_level: "low".to_string(),
+            applied: bing_applied,
+            current_value: if bing_applied { "Desativado (1)".to_string() } else { "Ativo (0)".to_string() },
+            recommended_value: "DisableSearchBoxSuggestions = 1".to_string(),
+            default_value: "0 (Ativo)".to_string(),
+            registry_path: r"HKCU\Software\Policies\Microsoft\Windows\Explorer".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "ntfs_trim".to_string(),
+            name: "TRIM Ativo em SSDs/NVMe (DisableDeleteNotify = 0)".to_string(),
+            category: "Armazenamento".to_string(),
+            description: "Garante coleta automática de blocos apagados em SSDs evitando queda de velocidade de gravação.".to_string(),
+            risk_level: "low".to_string(),
+            applied: trim_enabled,
+            current_value: if trim_enabled { "0 (TRIM Ativo)".to_string() } else { "1 (Desativado!)".to_string() },
+            recommended_value: "0 (Ativo)".to_string(),
+            default_value: "0 (Ativo)".to_string(),
+            registry_path: "fsutil behavior DisableDeleteNotify".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "hibernation".to_string(),
+            name: "Desativar Hibernação (Economia de SSD)".to_string(),
+            category: "Armazenamento".to_string(),
+            description: "Remove hiberfil.sys liberando vários GB do SSD e evita desgastes desnecessários em desktops.".to_string(),
+            risk_level: "medium".to_string(),
+            applied: hib_applied,
+            current_value: if hib_applied { "Desativada (0)".to_string() } else { "Ativa (1)".to_string() },
+            recommended_value: "0 (Desativada para Desktop)".to_string(),
+            default_value: "1 (Ativa)".to_string(),
+            registry_path: r"HKLM\SYSTEM\CurrentControlSet\Control\Power\HibernateEnabled".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "telemetry".to_string(),
+            name: "Telemetria e Coleta de Diagnóstico = 0".to_string(),
+            category: "Privacidade".to_string(),
+            description: "Aplica AllowTelemetry = 0 na política do Windows para reduzir tráfego em segundo plano.".to_string(),
+            risk_level: "medium".to_string(),
+            applied: tel_applied,
+            current_value: format!("AllowTelemetry={}", allow_tel),
+            recommended_value: "0 (Mínimo/Segurança)".to_string(),
+            default_value: "1 (Diagnóstico Básico)".to_string(),
+            registry_path: r"HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "vbs_hvci".to_string(),
+            name: "Desativar VBS / Isolamento de Núcleo (HVCI) para FPS".to_string(),
+            category: "Segurança vs FPS".to_string(),
+            description: "Desativa virtualização HVCI de integridade de memória (pode recuperar 5% a 12% de FPS em jogos competitivos; exige reinício).".to_string(),
+            risk_level: "high".to_string(),
+            applied: vbs_disabled,
+            current_value: if vbs_disabled { "0 (Desativado - Max FPS)".to_string() } else { "1 (HVCI Ativo)".to_string() },
+            recommended_value: "0 (Performance) ou 1 (Segurança)".to_string(),
+            default_value: "1 (Ativo no Win11)".to_string(),
+            registry_path: r"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+    ]
+}
+
+/// Retorna o catálogo de tweaks com status LIDO EM TEMPO REAL do Registro do Windows
+#[tauri::command]
+pub async fn get_live_tweaks_status(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<CommandResponse<Vec<LiveTweakStatus>>, String> {
+    let timer_active = state.gamer.lock().map(|g| g.timer_resolution_active).unwrap_or(false);
+    let list = tokio::task::spawn_blocking(move || read_live_tweaks_sync(timer_active))
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(CommandResponse::ok("Estado real do Registro carregado.", Some(list)))
+}
+
+/// Aplica ou Reverte uma política real no Registro do Windows e retorna seu novo estado
+#[tauri::command]
+pub async fn apply_or_revert_tweak(
+    tweak_id: String,
+    apply: bool,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<CommandResponse<LiveTweakStatus>, String> {
+    let id_clone = tweak_id.clone();
+
+    if id_clone == "timer_05ms" {
+        let _ = crate::gamer::apply_kernel_timer(apply, &state);
+    }
+
+    let timer_active = state.gamer.lock().map(|g| g.timer_resolution_active).unwrap_or(false);
+
+    let updated_item = tokio::task::spawn_blocking(move || -> Result<LiveTweakStatus, String> {
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+        let needs_admin = matches!(
+            id_clone.as_str(),
+            "timer_05ms"
+                | "win32_priority"
+                | "system_responsiveness"
+                | "msi_mode_gpu"
+                | "tcp_nodelay"
+                | "ntfs_trim"
+                | "hibernation"
+                | "telemetry"
+                | "vbs_hvci"
+        );
+
+        if needs_admin && !is_process_elevated() {
+            return Err("Este ajuste altera chaves protegidas de sistema (HKLM). Execute como Administrador para aplicar ou reverter.".to_string());
+        }
+
+        match id_clone.as_str() {
+            "timer_05ms" => {
+                let (key, _) = hklm
+                    .create_subkey(r"SYSTEM\CurrentControlSet\Control\Session Manager\kernel")
+                    .map_err(|e| e.to_string())?;
+                key.set_value("GlobalTimerResolutionRequests", &(if apply { 1u32 } else { 0u32 }))
+                    .map_err(|e| e.to_string())?;
+            }
+            "win32_priority" => {
+                let (key, _) = hklm
+                    .create_subkey(r"SYSTEM\CurrentControlSet\Control\PriorityControl")
+                    .map_err(|e| e.to_string())?;
+                key.set_value("Win32PrioritySeparation", &(if apply { 0x26u32 } else { 2u32 }))
+                    .map_err(|e| e.to_string())?;
+            }
+            "system_responsiveness" => {
+                let (key, _) = hklm
+                    .create_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile")
+                    .map_err(|e| e.to_string())?;
+                key.set_value("SystemResponsiveness", &(if apply { 10u32 } else { 20u32 }))
+                    .map_err(|e| e.to_string())?;
+                key.set_value("NetworkThrottlingIndex", &(if apply { 0xFFFFFFFFu32 } else { 10u32 }))
+                    .map_err(|e| e.to_string())?;
+            }
+            "gamedvr_fso" => {
+                let (key, _) = hkcu
+                    .create_subkey(r"System\GameConfigStore")
+                    .map_err(|e| e.to_string())?;
+                key.set_value("GameDVR_Enabled", &(if apply { 0u32 } else { 1u32 }))
+                    .map_err(|e| e.to_string())?;
+                key.set_value("GameDVR_FSEBehaviorMode", &(if apply { 2u32 } else { 0u32 }))
+                    .map_err(|e| e.to_string())?;
+                key.set_value("GameDVR_HonorUserFSEBehaviorMode", &(if apply { 1u32 } else { 0u32 }))
+                    .map_err(|e| e.to_string())?;
+            }
+            "msi_mode_gpu" => {
+                set_pci_display_msi_mode(apply)?;
+            }
+            "mouse_raw" => {
+                let (key, _) = hkcu
+                    .create_subkey(r"Control Panel\Mouse")
+                    .map_err(|e| e.to_string())?;
+                if apply {
+                    key.set_value("MouseSpeed", &"0").map_err(|e| e.to_string())?;
+                    key.set_value("MouseThreshold1", &"0").map_err(|e| e.to_string())?;
+                    key.set_value("MouseThreshold2", &"0").map_err(|e| e.to_string())?;
+                } else {
+                    key.set_value("MouseSpeed", &"1").map_err(|e| e.to_string())?;
+                    key.set_value("MouseThreshold1", &"6").map_err(|e| e.to_string())?;
+                    key.set_value("MouseThreshold2", &"10").map_err(|e| e.to_string())?;
+                }
+            }
+            "tcp_nodelay" => {
+                let base_path = r"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
+                let base_key = hklm.open_subkey(base_path).map_err(|e| e.to_string())?;
+                for sub in base_key.enum_keys().flatten() {
+                    let iface_path = format!(r"{}\{}", base_path, sub);
+                    if let Ok(k) = hklm.open_subkey_with_flags(&iface_path, winreg::enums::KEY_ALL_ACCESS) {
+                        let has_ip = k.get_value::<String, _>("DhcpIPAddress").is_ok()
+                            || k.get_value::<Vec<String>, _>("IPAddress").is_ok();
+                        if has_ip {
+                            if apply {
+                                let _ = k.set_value("TCPNoDelay", &1u32);
+                                let _ = k.set_value("TcpAckFrequency", &1u32);
+                            } else {
+                                let _ = k.delete_value("TCPNoDelay");
+                                let _ = k.delete_value("TcpAckFrequency");
+                            }
+                        }
+                    }
+                }
+            }
+            "bing_search" => {
+                let (pol, _) = hkcu
+                    .create_subkey(r"Software\Policies\Microsoft\Windows\Explorer")
+                    .map_err(|e| e.to_string())?;
+                pol.set_value("DisableSearchBoxSuggestions", &(if apply { 1u32 } else { 0u32 }))
+                    .map_err(|e| e.to_string())?;
+            }
+            "ntfs_trim" => {
+                let target = if apply { "0" } else { "1" };
+                let out = new_hidden_command("fsutil.exe")
+                    .args(["behavior", "set", "DisableDeleteNotify", "NTFS", target])
+                    .output()
+                    .map_err(|e| e.to_string())?;
+                if !out.status.success() {
+                    return Err(String::from_utf8_lossy(&out.stderr).to_string());
+                }
+            }
+            "hibernation" => {
+                let arg = if apply { "off" } else { "on" };
+                let out = new_hidden_command("powercfg.exe")
+                    .args(["/h", arg])
+                    .output()
+                    .map_err(|e| e.to_string())?;
+                if !out.status.success() {
+                    return Err(String::from_utf8_lossy(&out.stderr).to_string());
+                }
+            }
+            "telemetry" => {
+                let (key, _) = hklm
+                    .create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\DataCollection")
+                    .map_err(|e| e.to_string())?;
+                key.set_value("AllowTelemetry", &(if apply { 0u32 } else { 1u32 }))
+                    .map_err(|e| e.to_string())?;
+            }
+            "vbs_hvci" => {
+                let (key, _) = hklm
+                    .create_subkey(r"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity")
+                    .map_err(|e| e.to_string())?;
+                key.set_value("Enabled", &(if apply { 0u32 } else { 1u32 }))
+                    .map_err(|e| e.to_string())?;
+            }
+            _ => return Err(format!("Tweak desconhecido: {}", id_clone)),
+        }
+
+        let refreshed = read_live_tweaks_sync(timer_active);
+        refreshed
+            .into_iter()
+            .find(|t| t.id == id_clone)
+            .ok_or_else(|| "Falha ao recarregar status do tweak.".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let action_word = if apply { "aplicado" } else { "revertido ao padrão" };
+    Ok(CommandResponse::ok(
+        format!("'{}' foi {} com sucesso!", updated_item.name, action_word),
+        Some(updated_item),
+    ))
 }
 

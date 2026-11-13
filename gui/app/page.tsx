@@ -2,7 +2,17 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Cpu, Monitor, MemoryStick } from 'lucide-react';
+import {
+  X,
+  Cpu,
+  Monitor,
+  MemoryStick,
+  ShieldCheck,
+  ShieldAlert,
+  Sparkles,
+  Zap,
+  MonitorCog,
+} from 'lucide-react';
 
 import {
   getLiveSensors,
@@ -11,16 +21,17 @@ import {
 } from '../lib/api';
 import { useLanguage } from '../lib/LanguageContext';
 import { useSettings } from '../lib/SettingsContext';
+import { useHardware } from '../lib/HardwareContext';
 
 // Level 1 & Level 2 Navigation
 import TopNavbar, { SysTopTabId } from '../components/TopNavbar';
 import LeftSidebar, { SIDEBAR_ITEMS_BY_TOP_TAB } from '../components/LeftSidebar';
 import LightRays from '../components/ui/LightRays';
+import RestorePointModal from '../components/RestorePointModal';
 
 // Level 3 & Content Modules
 import HomeModule from '../components/HomeModule';
 import SysCoreSystemView from '../components/SysCoreSystemView';
-import BottleneckModule from '../components/BottleneckModule';
 import SensorsAndStressModule from '../components/SensorsAndStressModule';
 import PresetsModule from '../components/PresetsModule';
 import CleanModule from '../components/CleanModule';
@@ -47,56 +58,118 @@ export type Tab =
   | 'docs'
   | 'settings';
 
-const PAGE_TITLES: Record<SysTopTabId, { name: string; descPt: string; descEn: string }> = {
-  'sys-core': {
-    name: 'CORE',
-    descPt: 'Diagnóstico profundo de hardware, sensores térmicos e análise de gargalo',
-    descEn: 'Deep hardware diagnostics, thermal telemetry, and bottleneck analysis',
+const SUBPAGE_DESCRIPTIONS: Record<string, { pt: string; en: string }> = {
+  'core-overview': {
+    pt: 'Visão geral de status, score de otimização e painel rápido de ajustes ao vivo no Registro',
+    en: 'System status overview, optimization score, and live Windows Registry tweak switches',
   },
-  'sys-otimiza': {
-    name: 'OTIMIZA',
-    descPt: 'Presets 1-clique, limpeza de armazenamento SSD/NVMe, gamer 0.5ms e debloat',
-    descEn: '1-click presets, NVMe/SSD storage cleanup, gamer 0.5ms timer, and debloat',
+  'core-system': {
+    pt: 'Auditoria profunda de BIOS, UEFI/TPM, RAM Dual-Channel, GPU PCIe/ReBAR/MSI e Saúde S.M.A.R.T.',
+    en: 'Deep BIOS, UEFI/TPM, Dual-Channel RAM, GPU PCIe/ReBAR/MSI, and S.M.A.R.T. storage audit',
   },
-  'sys-bench': {
-    name: 'BENCH',
-    descPt: 'Benchmarks reais sequenciais e aleatórios de disco, RAM e simulador de FPS',
-    descEn: 'Real sequential/random storage benchmarks, memory bandwidth, and FPS sim',
+  'core-sensors': {
+    pt: 'Sensores térmicos em tempo real, stress test CPU/RAM, monitor WHEA/Kernel-Power e protocolos OCCT/FurMark',
+    en: 'Live thermal sensors, CPU/RAM stress test, WHEA/Kernel-Power monitor, and OCCT/FurMark protocols',
   },
-  'sys-tuning': {
-    name: 'TUNING',
-    descPt: 'Overclock, perfil XMP/EXPO, esquemas de energia e erros de estabilidade WHEA',
-    descEn: 'Overclock, XMP/EXPO verification, power schemes, and WHEA stability logs',
+  'core-benchmarks': {
+    pt: 'Benchmarks de disco NVMe/SSD, largura de banda RAM, simulador FPS e calculadora de gargalo GPU/CPU',
+    en: 'NVMe/SSD disk benchmarks, RAM bandwidth, FPS simulator, and 1080p/1440p/4K bottleneck calculator',
   },
-  'sys-sync': {
-    name: 'SYNC',
-    descPt: 'Limpador de dispositivos USB fantasmas, árbitro de portas COM e iluminação RGB',
-    descEn: 'Ghost USB peripheral cleaner, COM port arbiter, and universal RGB sync',
+  'opt-presets': {
+    pt: 'Perfis 1-Clique completos (Gamer, Produtividade, Notebook Bateria) protegidos por Ponto de Restauração',
+    en: 'Complete 1-Click presets (Gaming, Productivity, Laptop Battery) guarded by System Restore Points',
   },
-  'sys-jogos': {
-    name: 'JOGOS',
-    descPt: 'Biblioteca unificada Steam/Epic/Riot/Xbox e Game Booster com timer 0.5ms',
-    descEn: 'Unified Steam/Epic/Riot/Xbox game library and low-latency Game Booster',
+  'opt-system': {
+    pt: 'Checklist pós-formatação, menu de contexto clássico, telemetria e políticas essenciais do Windows',
+    en: 'Post-format checklist, classic context menu, telemetry controls, and essential Windows policies',
   },
-  'sys-drivers': {
-    name: 'DRIVERS',
-    descPt: 'Auditoria de drivers, instalador Maker CH340/FTDI/Arduino e pacotes Winget',
-    descEn: 'Driver inventory audit, Maker CH340/FTDI/Arduino drivers, and Winget hub',
+  'opt-debloat': {
+    pt: 'Remoção segura de AppX/Bloatware e recursos de IA preservando WebView2, Loja e VBScript',
+    en: 'Safe UWP/Bloatware and AI cleanup while preserving EdgeWebView2, Store, and VBScript runtime',
   },
-  'sys-docs': {
-    name: 'DOCS',
-    descPt: 'Enciclopédia técnica de otimizações, transparência de kernel e sobre o projeto',
-    descEn: 'Technical encyclopedia, kernel optimization transparency, and about suite',
+  'opt-clean': {
+    pt: 'Limpeza de caches temporários, shaders DirectX/NVIDIA/AMD, WinSxS e otimização segura de disco',
+    en: 'Temporary files, DirectX/GPU shader caches, WinSxS cleanup, and safe SSD/NVMe space recovery',
+  },
+  'opt-network': {
+    pt: 'Calibração de DNS ICMP, reset Winsock/TCP-IP, buffers de rede e ajustes de estabilidade de áudio',
+    en: 'ICMP DNS calibration, Winsock/TCP-IP stack reset, network tuning, and audio stability tweaks',
+  },
+  'opt-startup': {
+    pt: 'Gerenciador completo de aplicativos na inicialização (HKCU/HKLM/Startup) e serviços pesados',
+    en: 'Startup applications manager (HKCU/HKLM/Startup) and background service controller',
+  },
+  'gaming-library': {
+    pt: 'Biblioteca unificada Steam, Epic, Riot, GOG e Xbox com inicialização priorizada',
+    en: 'Unified Steam, Epic, Riot, GOG, and Xbox game library with boosted launch pipeline',
+  },
+  'gaming-gpu': {
+    pt: 'Inspeção de Flip Models DX12, Resizable BAR, MSI Mode por GPU e checagem do cabo de vídeo (iGPU vs dGPU)',
+    en: 'DX12 Flip Models, Resizable BAR, per-GPU MSI Mode toggle, and display cable (iGPU vs dGPU) audit',
+  },
+  'gaming-latency': {
+    pt: 'Timer de Kernel 0.5ms, standby RAM auto-clean, congelador de processos e prioridade de CPU para jogos',
+    en: '0.5ms Kernel Timer resolution, standby RAM auto-clean, process freezer, and game CPU priority',
+  },
+  'gaming-overlay': {
+    pt: 'HUD Overlay flutuante Always-on-Top com telemetria ao vivo, FPS e monitoramento estilo RTSS',
+    en: 'Always-on-Top floating HUD Overlay with live temperatures, load, and RTSS-style frame telemetry',
+  },
+  'tuning-power': {
+    pt: 'Planos de energia (Alto/Desempenho Máximo), scanner de clocks Boost/OC e saúde da bateria ACPI',
+    en: 'Power plans (High/Ultimate Performance), Boost/OC clock scanner, and ACPI battery health',
+  },
+  'tuning-peripherals': {
+    pt: 'Calibração de fila Mouse/Teclado, perfis XMP/DOCP/EXPO e ajustes de resposta para periféricos',
+    en: 'Mouse/Keyboard interrupt queue tuning, XMP/DOCP/EXPO verification, and peripheral responsiveness',
+  },
+  'tuning-sync': {
+    pt: 'Scanner USB de 3 camadas sem Admin, removedor de USB fantasmas, portas COM e controle RGB universal',
+    en: 'Admin-free 3-layer USB scanner, ghost device cleaner, COM port arbiter, and universal RGB sync',
+  },
+  'tuning-whea': {
+    pt: 'Auditoria de erros críticos WHEA-Logger, Kernel-Power 41, Sandbox de diagnóstico e Modo de Segurança',
+    en: 'WHEA-Logger & Kernel-Power 41 audit, diagnostic sandbox, and safe troubleshooting recovery',
+  },
+  'drv-auditor': {
+    pt: 'Inventário completo de drivers assinados, backup preventivo em pasta segura e orientações DDU',
+    en: 'Signed driver inventory, automated driver backup, and DDU clean-reinstall workflows',
+  },
+  'drv-winget': {
+    pt: 'Instalador inteligente via Winget para runtimes (VCRedist, DirectX, .NET) e utilitários essenciais',
+    en: 'Smart Winget installer for essential runtimes (VCRedist, DirectX, .NET) and core utilities',
+  },
+  'drv-hub': {
+    pt: 'Preparação para formatação limpa, criação de USB bootável, WinUtil, OOShutUp10 e ferramentas externas',
+    en: 'Clean OS install prep, bootable USB tools, WinUtil, OOShutUp10, and external maintenance utilities',
+  },
+  'drv-maker': {
+    pt: 'Drivers Maker Serial (CH340, FTDI, CP210x, Arduino) e limpeza de caches de compilação IDE',
+    en: 'Serial Maker Drivers (CH340, FTDI, CP210x, Arduino) and IDE build cache cleanup',
+  },
+  'docs-encyclopedia': {
+    pt: 'Enciclopédia técnica detalhando cada chave de Registro, risco, ganho real e forma de reversão',
+    en: 'Technical encyclopedia explaining every Registry key, risk level, real impact, and revert method',
+  },
+  'docs-bios': {
+    pt: 'Guia prático de BIOS AMD X3D/Intel, DDR5 >55°C, pressão de cooler, IMC e fluxo pós-crash WHEA',
+    en: 'Practical BIOS guide for AMD X3D/Intel, DDR5 >55°C, cooler mount pressure, IMC, and WHEA recovery',
+  },
+  'docs-about': {
+    pt: 'Arquitetura Rust + Tauri v2, política Zero-Telemetry e auditoria de integridade da suíte V6.0',
+    en: 'Rust + Tauri v2 architecture, Zero-Telemetry policy, and V6.0 suite integrity verification',
   },
 };
 
 export default function Page() {
   const { lang } = useLanguage();
-  const { theme, performanceMode } = useSettings();
+  const { theme, performanceMode, hasManualPerformanceOverride } = useSettings();
+  const { diagnostics, hardwareTier, restoreStatus } = useHardware();
 
   const [activeTopTab, setActiveTopTab] = useState<SysTopTabId>('sys-core');
   const [activeSubTab, setActiveSubTab] = useState<string>('core-overview');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showRestoreModal, setShowRestoreModal] = useState<boolean>(false);
   const [liveSensors, setLiveSensors] = useState<LiveSensorSnapshot | null>(null);
   const [isOverlayWindow, setIsOverlayWindow] = useState<boolean>(false);
 
@@ -144,19 +217,19 @@ export default function Page() {
         setActiveSubTab('core-system');
         break;
       case 'presets':
-        setActiveTopTab('sys-otimiza');
+        setActiveTopTab('sys-optimize');
         setActiveSubTab('opt-presets');
         break;
       case 'clean':
-        setActiveTopTab('sys-otimiza');
+        setActiveTopTab('sys-optimize');
         setActiveSubTab('opt-clean');
         break;
       case 'gamer':
-        setActiveTopTab('sys-otimiza');
-        setActiveSubTab('opt-gamer');
+        setActiveTopTab('sys-gaming');
+        setActiveSubTab('gaming-latency');
         break;
       case 'system':
-        setActiveTopTab('sys-otimiza');
+        setActiveTopTab('sys-optimize');
         setActiveSubTab('opt-system');
         break;
       case 'external':
@@ -282,17 +355,41 @@ export default function Page() {
                 onRefreshSensors={pollSensors}
               />
             );
-          case 'core-gpu':
+          case 'core-benchmarks':
+            return <BenchmarksModule subTab="bench-disk" onChangeSubTab={setActiveSubTab} />;
+          default:
+            return <HomeModule onNavigate={handleLegacyNavigate} />;
+        }
+      }
+
+      case 'sys-optimize': {
+        switch (activeSubTab) {
+          case 'opt-presets':
+            return <PresetsModule />;
+          case 'opt-system':
+            return <SystemModule initialSubView="checklist" />;
+          case 'opt-debloat':
+            return <SystemModule initialSubView="maintenance" />;
+          case 'opt-clean':
+            return <CleanModule />;
+          case 'opt-network':
+            return <SystemModule initialSubView="general" />;
+          case 'opt-startup':
+            return <SystemModule initialSubView="startup" />;
+          default:
+            return <PresetsModule />;
+        }
+      }
+
+      case 'sys-gaming': {
+        switch (activeSubTab) {
+          case 'gaming-library':
+            return <GamesLibraryModule />;
+          case 'gaming-gpu':
             return <SysCoreSystemView directMode="gpu" />;
-          case 'core-disks':
-            return <SysCoreSystemView directMode="disks" />;
-          case 'core-power':
-            return <SysCoreSystemView directMode="power" />;
-          case 'core-network':
-            return <SysCoreSystemView directMode="network" />;
-          case 'core-bottleneck':
-            return <BottleneckModule />;
-          case 'core-overlay':
+          case 'gaming-latency':
+            return <GamerModule />;
+          case 'gaming-overlay':
             return (
               <SensorsAndStressModule
                 mode="overlay"
@@ -300,50 +397,25 @@ export default function Page() {
                 onRefreshSensors={pollSensors}
               />
             );
-          case 'core-stress':
-            return (
-              <SensorsAndStressModule
-                mode="stress"
-                liveSensors={liveSensors}
-                onRefreshSensors={pollSensors}
-              />
-            );
           default:
-            return <SysCoreSystemView directMode="system" initialPill="storage" />;
+            return <GamesLibraryModule />;
         }
       }
 
-      case 'sys-otimiza': {
+      case 'sys-tuning': {
         switch (activeSubTab) {
-          case 'opt-presets':
-            return <PresetsModule />;
-          case 'opt-clean':
-            return <CleanModule />;
-          case 'opt-gamer':
-            return <GamerModule />;
-          case 'opt-postformat':
-          case 'opt-system':
-          case 'opt-startup':
-            return <SystemModule />;
+          case 'tuning-power':
+            return <TuningModule subTab="tuning-power" onChangeSubTab={setActiveSubTab} />;
+          case 'tuning-peripherals':
+            return <TuningModule subTab="tuning-peripherals" onChangeSubTab={setActiveSubTab} />;
+          case 'tuning-sync':
+            return <SyncAndUsbModule subTab="sync-usb" onChangeSubTab={setActiveSubTab} />;
+          case 'tuning-whea':
+            return <TuningModule subTab="tuning-whea" onChangeSubTab={setActiveSubTab} />;
           default:
-            return <PresetsModule />;
+            return <TuningModule subTab="tuning-power" onChangeSubTab={setActiveSubTab} />;
         }
       }
-
-      case 'sys-bench':
-        return <BenchmarksModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
-
-      case 'sys-tuning':
-        return <TuningModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
-
-      case 'sys-sync':
-        return <SyncAndUsbModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
-
-      case 'sys-jogos':
-        if (activeSubTab === 'games-booster') {
-          return <GamerModule />;
-        }
-        return <GamesLibraryModule />;
 
       case 'sys-drivers':
         if (activeSubTab === 'drv-hub') {
@@ -354,7 +426,13 @@ export default function Page() {
       case 'sys-docs':
         return (
           <DocsAndAboutModule
-            initialSubTab={activeSubTab === 'docs-about' ? 'about' : 'wiki'}
+            initialSubTab={
+              activeSubTab === 'docs-about'
+                ? 'about'
+                : activeSubTab === 'docs-bios'
+                ? 'bios'
+                : 'wiki'
+            }
           />
         );
 
@@ -363,13 +441,29 @@ export default function Page() {
     }
   };
 
+  const currentSidebarItem = (SIDEBAR_ITEMS_BY_TOP_TAB[activeTopTab] || []).find(
+    (item) => item.id === activeSubTab
+  );
+  const activeSubTitle = currentSidebarItem
+    ? lang === 'pt'
+      ? currentSidebarItem.labelPt
+      : currentSidebarItem.labelEn
+    : 'Overview';
+  const activeSubDesc = SUBPAGE_DESCRIPTIONS[activeSubTab]
+    ? lang === 'pt'
+      ? SUBPAGE_DESCRIPTIONS[activeSubTab].pt
+      : SUBPAGE_DESCRIPTIONS[activeSubTab].en
+    : '';
+  const hasRecentRestore = Boolean(restoreStatus?.hasRecentRestorePoint);
+  const osTierLabel = diagnostics?.osCompat?.osTier || diagnostics?.operatingSystem?.caption || 'Windows';
+
   return (
     <div
       className={`h-screen w-screen flex flex-col font-sans overflow-hidden relative transition-colors ${
         theme === 'light' ? 'bg-[#eef2f6] text-[#0f172a]' : 'bg-[#050608] text-[#f1f5f9]'
       }`}
     >
-      {/* Global React Bits "Light Rays" WebGL2 Background (Spotlight Top Origin) */}
+      {/* Global React Bits "Light Rays" WebGL2 Background (auto-disabled on low hardware tier) */}
       {!performanceMode && (
         <LightRays
           raysOrigin="top-center"
@@ -411,33 +505,119 @@ export default function Page() {
         {/* Level 3: Main Content Viewport */}
         <main className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 md:p-6">
           <div className="w-full min-h-0 max-w-[1600px] mx-auto flex flex-col">
-            {/* Prominent Page Header with Stylized "SYS" Written Logo */}
+            {/* Single Clean Subpage Header + Restore Point Guard + Auto Hardware Tier + OS Compat */}
             {!showSettingsModal && (
               <div
                 className={`mb-4 pb-3 border-b ${
                   theme === 'light' ? 'border-slate-200' : 'border-zinc-800/70'
-                } flex flex-wrap items-center justify-between gap-2`}
+                } flex flex-wrap items-center justify-between gap-3`}
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-sky-500 font-black text-2xl tracking-widest select-none drop-shadow-[0_0_12px_rgba(56,189,248,0.4)]">
-                      SYS
-                    </span>
-                    <span
-                      className={`font-black text-2xl tracking-tight ${
-                        theme === 'light' ? 'text-slate-900' : 'text-zinc-100'
+                <div className="min-w-0">
+                  <h1
+                    className={`font-black text-xl tracking-tight ${
+                      theme === 'light' ? 'text-slate-900' : 'text-zinc-100'
+                    }`}
+                  >
+                    {activeSubTitle}
+                  </h1>
+                  {activeSubDesc && (
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        theme === 'light' ? 'text-slate-500 font-medium' : 'text-zinc-400'
                       }`}
                     >
-                      {PAGE_TITLES[activeTopTab].name}
+                      {activeSubDesc}
+                    </p>
+                  )}
+                </div>
+
+                {/* Status Badges Bar */}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {/* Restore Point Guard Pill */}
+                  <button
+                    onClick={() => setShowRestoreModal(true)}
+                    title={
+                      lang === 'pt'
+                        ? 'Clique para gerenciar ou criar Ponto de Restauração'
+                        : 'Click to manage or create a System Restore Point'
+                    }
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${
+                      hasRecentRestore
+                        ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-400 hover:bg-emerald-500/20'
+                        : 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                    }`}
+                  >
+                    {hasRecentRestore ? (
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    ) : (
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {hasRecentRestore
+                        ? lang === 'pt'
+                          ? 'Restore Point OK (<24h)'
+                          : 'Restore Point Ready (<24h)'
+                        : lang === 'pt'
+                        ? 'Criar Ponto de Restauração'
+                        : 'Create Restore Point'}
                     </span>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-500 border border-sky-500/25">
-                    V6.0
+                  </button>
+
+                  {/* Auto Hardware Tier Badge */}
+                  <span
+                    title={
+                      lang === 'pt'
+                        ? 'Detecção automática de tier para animações WebGL/CSS'
+                        : 'Automatic hardware tier detection for WebGL/CSS animations'
+                    }
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                      hardwareTier === 'low' || performanceMode
+                        ? theme === 'light'
+                          ? 'bg-slate-100 border-slate-300 text-slate-700'
+                          : 'bg-zinc-800/80 border-zinc-700 text-zinc-300'
+                        : 'bg-sky-500/10 border-sky-500/30 text-sky-400'
+                    }`}
+                  >
+                    {hardwareTier === 'low' || performanceMode ? (
+                      <Zap className="w-3 h-3 text-amber-400" />
+                    ) : (
+                      <Sparkles className="w-3 h-3 text-sky-400" />
+                    )}
+                    <span>
+                      {lang === 'pt'
+                        ? `Hardware Tier: ${
+                            hardwareTier === 'low'
+                              ? 'Eco (Modo Leve)'
+                              : hardwareTier === 'high'
+                              ? 'High (Animações Ativas)'
+                              : 'Mid (Animações Ativas)'
+                          }${performanceMode && hardwareTier !== 'low' ? ' • Eco' : ''}${
+                            hasManualPerformanceOverride ? ' (Manual)' : ''
+                          }`
+                        : `Hardware Tier: ${
+                            hardwareTier === 'low'
+                              ? 'Eco (Light Mode)'
+                              : hardwareTier === 'high'
+                              ? 'High (Animations On)'
+                              : 'Mid (Animations On)'
+                          }${performanceMode && hardwareTier !== 'low' ? ' • Eco' : ''}${
+                            hasManualPerformanceOverride ? ' (Manual)' : ''
+                          }`}
+                    </span>
+                  </span>
+
+                  {/* OS Compatibility Tier Badge */}
+                  <span
+                    className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold border ${
+                      theme === 'light'
+                        ? 'bg-slate-100 border-slate-200 text-slate-700'
+                        : 'bg-zinc-900/90 border-zinc-800 text-zinc-300'
+                    }`}
+                  >
+                    <MonitorCog className="w-3 h-3 text-sky-400" />
+                    <span>{osTierLabel}</span>
                   </span>
                 </div>
-                <p className={`text-xs ${theme === 'light' ? 'text-slate-500 font-medium' : 'text-zinc-400'}`}>
-                  {lang === 'pt' ? PAGE_TITLES[activeTopTab].descPt : PAGE_TITLES[activeTopTab].descEn}
-                </p>
               </div>
             )}
 
@@ -456,6 +636,12 @@ export default function Page() {
           </div>
         </main>
       </div>
+
+      {/* Mandatory & Manual Restore Point Interceptor Modal */}
+      <RestorePointModal
+        manualOpen={showRestoreModal}
+        onCloseManual={() => setShowRestoreModal(false)}
+      />
 
       {/* Step-by-Step Real-Time Execution Console Drawer */}
       <LiveProgressDrawer />

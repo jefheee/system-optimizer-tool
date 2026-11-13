@@ -9,7 +9,6 @@ import {
   HardDrive,
   BatteryCharging,
   Wifi,
-  Scale,
   Layers,
   Flame,
   Zap,
@@ -19,7 +18,6 @@ import {
   ShieldCheck,
   Rocket,
   Gauge,
-  MemoryStick,
   AlertTriangle,
   Usb,
   Palette,
@@ -44,52 +42,41 @@ export interface SidebarSubItem {
 
 export const SIDEBAR_ITEMS_BY_TOP_TAB: Record<SysTopTabId, SidebarSubItem[]> = {
   "sys-core": [
-    { id: "core-overview", labelPt: "Início / Checkup", labelEn: "Home / Checkup", icon: Activity },
-    { id: "core-system", labelPt: "Sistema", labelEn: "System", icon: Cpu },
-    { id: "core-sensors", labelPt: "Sensores", labelEn: "Sensors", icon: Thermometer },
-    { id: "core-gpu", labelPt: "Placa de vídeo", labelEn: "Graphics Card", icon: Monitor },
-    { id: "core-disks", labelPt: "Discos", labelEn: "Storage Disks", icon: HardDrive },
-    { id: "core-power", labelPt: "Energia", labelEn: "Power & Battery", icon: BatteryCharging },
-    { id: "core-network", labelPt: "Rede", labelEn: "Network & DNS", icon: Wifi },
-    { id: "core-bottleneck", labelPt: "Gargalo", labelEn: "Bottleneck", icon: Scale },
-    { id: "core-overlay", labelPt: "Overlay", labelEn: "HUD Overlay", icon: Layers },
-    { id: "core-stress", labelPt: "Stress test", labelEn: "Stress Test", icon: Flame },
+    { id: "core-overview", labelPt: "Visão Geral & Checkup", labelEn: "Overview & Checkup", icon: Activity },
+    { id: "core-system", labelPt: "Sistema & BIOS", labelEn: "System & BIOS", icon: Cpu },
+    { id: "core-sensors", labelPt: "Sensores & Stress", labelEn: "Sensors & Stress", icon: Thermometer },
+    { id: "core-benchmarks", labelPt: "Benchmarks & Gargalo", labelEn: "Benchmarks & Bottleneck", icon: Gauge },
   ],
-  "sys-otimiza": [
+  "sys-optimize": [
     { id: "opt-presets", labelPt: "Presets 1-Clique", labelEn: "1-Click Presets", icon: Zap },
-    { id: "opt-clean", labelPt: "Limpeza SSD/HDD", labelEn: "SSD/HDD Clean", icon: Sparkles },
-    { id: "opt-gamer", labelPt: "Gamer 0.5ms", labelEn: "Gamer 0.5ms", icon: Gamepad2 },
-    { id: "opt-postformat", labelPt: "Pós-Formatação", labelEn: "Post-Format", icon: Wand2 },
-    { id: "opt-system", labelPt: "Sistema & Privacidade", labelEn: "System & Privacy", icon: ShieldCheck },
-    { id: "opt-startup", labelPt: "Inicialização", labelEn: "Startup Apps", icon: Rocket },
+    { id: "opt-system", labelPt: "Setup & Sistema", labelEn: "Setup & System", icon: Wand2 },
+    { id: "opt-debloat", labelPt: "Debloat & Remoção de IA", labelEn: "Debloat & AI Removal", icon: ShieldCheck },
+    { id: "opt-clean", labelPt: "Limpeza & Disco", labelEn: "Cleanup & Disk", icon: Sparkles },
+    { id: "opt-network", labelPt: "Rede & Áudio", labelEn: "Network & Audio", icon: Wifi },
+    { id: "opt-startup", labelPt: "Inicialização & Serviços", labelEn: "Startup & Services", icon: Rocket },
   ],
-  "sys-bench": [
-    { id: "bench-disk", labelPt: "Benchmark de Disco", labelEn: "Disk Benchmark", icon: HardDrive },
-    { id: "bench-ram", labelPt: "Benchmark de RAM", labelEn: "RAM Benchmark", icon: MemoryStick },
-    { id: "bench-cpu", labelPt: "CPU & Simulador FPS", labelEn: "CPU & FPS Simulator", icon: Gauge },
+  "sys-gaming": [
+    { id: "gaming-library", labelPt: "Biblioteca & Game Booster", labelEn: "Library & Game Booster", icon: FolderSearch },
+    { id: "gaming-gpu", labelPt: "GPU & Flip Models", labelEn: "GPU & Flip Models", icon: Monitor },
+    { id: "gaming-latency", labelPt: "CPU & Latência 0.5ms", labelEn: "CPU & 0.5ms Latency", icon: Gamepad2 },
+    { id: "gaming-overlay", labelPt: "HUD Overlay & RTSS", labelEn: "HUD Overlay & RTSS", icon: Layers },
   ],
   "sys-tuning": [
-    { id: "tuning-oc", labelPt: "Overclock & XMP", labelEn: "Overclock & XMP", icon: Cpu },
-    { id: "tuning-power", labelPt: "Planos de Energia", labelEn: "Power Plans", icon: BatteryCharging },
-    { id: "tuning-whea", labelPt: "Erros WHEA & Kernel", labelEn: "WHEA & Kernel Errors", icon: AlertTriangle },
-  ],
-  "sys-sync": [
-    { id: "sync-usb", labelPt: "Limpador USB Fantasmas", labelEn: "Ghost USB Cleaner", icon: Usb },
-    { id: "sync-rgb", labelPt: "Sincronização RGB", labelEn: "RGB Sync", icon: Palette },
-  ],
-  "sys-jogos": [
-    { id: "games-library", labelPt: "Biblioteca de Jogos", labelEn: "Game Library", icon: FolderSearch },
-    { id: "games-booster", labelPt: "Game Booster & Timer", labelEn: "Game Booster & Timer", icon: Gamepad2 },
+    { id: "tuning-power", labelPt: "Energia & Overclock Scan", labelEn: "Power & Overclock Scan", icon: BatteryCharging },
+    { id: "tuning-peripherals", labelPt: "Mouse, Controle & Monitor", labelEn: "Mouse, Controller & Display", icon: Flame },
+    { id: "tuning-sync", labelPt: "USB & RGB Sync", labelEn: "USB & RGB Sync", icon: Palette },
+    { id: "tuning-whea", labelPt: "Sandbox & Modo Seguro", labelEn: "Sandbox & Safe Mode", icon: AlertTriangle },
   ],
   "sys-drivers": [
-    { id: "drv-auditor", labelPt: "Auditor de Drivers", labelEn: "Driver Auditor", icon: Wrench },
-    { id: "drv-maker", labelPt: "Drivers Maker Serial", labelEn: "Maker Serial Drivers", icon: Usb },
-    { id: "drv-winget", labelPt: "Instalador Winget", labelEn: "Winget App Installer", icon: PackagePlus },
-    { id: "drv-hub", labelPt: "Hub da Comunidade", labelEn: "Community Hub", icon: Users },
+    { id: "drv-auditor", labelPt: "Auditor Drivers & DDU", labelEn: "Drivers & DDU Auditor", icon: Wrench },
+    { id: "drv-winget", labelPt: "Smart App Installer", labelEn: "Smart App Installer", icon: PackagePlus },
+    { id: "drv-hub", labelPt: "Formatação & USB Bootável", labelEn: "Clean Install & Boot USB", icon: HardDrive },
+    { id: "drv-maker", labelPt: "Drivers Maker Serial", labelEn: "Serial Maker Drivers", icon: Usb },
   ],
   "sys-docs": [
     { id: "docs-encyclopedia", labelPt: "Enciclopédia Técnica", labelEn: "Technical Encyclopedia", icon: BookOpen },
-    { id: "docs-about", labelPt: "Sobre o Projeto", labelEn: "About Project", icon: Info },
+    { id: "docs-bios", labelPt: "Guia de BIOS & Soluções", labelEn: "BIOS & Troubleshooting", icon: Users },
+    { id: "docs-about", labelPt: "Sobre & Integridade", labelEn: "About & Integrity", icon: Info },
   ],
 };
 
@@ -132,20 +119,6 @@ export default function LeftSidebar({
     >
       {/* Contextual Navigation Items */}
       <div className="p-2.5 space-y-1 overflow-y-auto flex-1 no-scrollbar">
-        <div className="px-2.5 py-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider">
-          <span className="text-sky-500 font-black text-sm tracking-widest drop-shadow-[0_0_8px_rgba(56,189,248,0.3)]">
-            SYS
-          </span>
-          <span
-            className={
-              theme === "light"
-                ? "text-slate-800 font-black text-sm"
-                : "text-zinc-200 font-black text-sm"
-            }
-          >
-            {activeTopTab.replace("sys-", "").toUpperCase()}
-          </span>
-        </div>
         {items.map((item) => {
           const Icon = item.icon;
           const active = activeSubTab === item.id;

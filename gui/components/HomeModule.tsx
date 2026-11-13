@@ -11,6 +11,9 @@ import {
   checkAdmin,
   toggleTimerResolution,
   enableUltimatePerformancePlan,
+  getLiveTweaksStatus,
+  applyOrRevertTweak,
+  LiveTweakStatus,
 } from '@/lib/api';
 import {
   ShieldCheck,
@@ -34,6 +37,7 @@ import {
   Shield,
   Gauge,
   Power,
+  RotateCcw,
 } from 'lucide-react';
 import { Tab } from '@/app/page';
 
@@ -44,7 +48,16 @@ interface HomeModuleProps {
 export default function HomeModule({ onNavigate }: HomeModuleProps) {
   const { language, t } = useLanguage();
   const { theme } = useSettings();
-  const { diagnostics, audit, loadingAudit, refreshAudit } = useHardware();
+  const {
+    diagnostics,
+    audit,
+    loadingAudit,
+    refreshAudit,
+    restoreStatus,
+    refreshRestoreStatus,
+    requireRestorePoint,
+    hardwareTier,
+  } = useHardware();
 
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [restorePointName, setRestorePointName] = useState<string>('RestorePoint_SystemOptimizer_Safe');
@@ -53,9 +66,27 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
   const [applyingPreset, setApplyingPreset] = useState(false);
   const [applyingGamer, setApplyingGamer] = useState(false);
   const [actionToast, setActionToast] = useState<{ success: boolean; message: string } | null>(null);
+  const [liveTweaks, setLiveTweaks] = useState<LiveTweakStatus[]>([]);
+  const [loadingTweaks, setLoadingTweaks] = useState(false);
+  const [togglingTweakId, setTogglingTweakId] = useState<string | null>(null);
+
+  const loadLiveTweaks = async () => {
+    setLoadingTweaks(true);
+    try {
+      const res = await getLiveTweaksStatus();
+      if (res.success && Array.isArray(res.data)) {
+        setLiveTweaks(res.data);
+      }
+    } catch {
+      // ignore fallback
+    } finally {
+      setLoadingTweaks(false);
+    }
+  };
 
   useEffect(() => {
     checkAdmin().then(setIsAdmin);
+    loadLiveTweaks();
   }, []);
 
   const isLaptop = diagnostics?.deviceType === 'Laptop';
@@ -81,7 +112,7 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
       const name = restorePointName.trim() || 'RestorePoint_SystemOptimizer_Safe';
       const res = await createRestorePoint(name);
       setActionToast({ success: res.success, message: res.message });
-      refreshAudit();
+      await Promise.all([refreshAudit(), refreshRestoreStatus()]);
     } catch (e: any) {
       setActionToast({ success: false, message: e?.message || (language === 'PT' ? 'Falha ao criar ponto de restauração.' : 'Failed to create restore point.') });
     } finally {
@@ -103,37 +134,77 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
     }
   };
 
-  const handleRecommendedPreset = async () => {
-    setApplyingPreset(true);
+  const handleRecommendedPreset = () => {
+    const targetPreset = isLaptop ? 'notebook' : 'essential';
+    requireRestorePoint(
+      language === 'PT' ? `Perfil Recomendado (${targetPreset})` : `Recommended Profile (${targetPreset})`,
+      'medium',
+      async () => {
+        setApplyingPreset(true);
+        setActionToast(null);
+        try {
+          const res = await runPreset(targetPreset);
+          setActionToast({ success: res.success, message: res.message });
+          await Promise.all([refreshAudit(), loadLiveTweaks()]);
+        } catch (err: any) {
+          setActionToast({ success: false, message: err?.message || (language === 'PT' ? 'Erro ao aplicar perfil.' : 'Error applying preset.') });
+        } finally {
+          setApplyingPreset(false);
+        }
+      }
+    );
+  };
+
+  const handleQuickGamer = () => {
+    requireRestorePoint(
+      language === 'PT' ? 'Otimização Gamer 1-Clique (0.5ms + Ultimate)' : '1-Click Gamer Tuning (0.5ms + Ultimate)',
+      'high',
+      async () => {
+        setApplyingGamer(true);
+        setActionToast(null);
+        try {
+          await toggleTimerResolution(true);
+          await enableUltimatePerformancePlan();
+          setActionToast({
+            success: true,
+            message: language === 'PT' ? 'Modo Gamer ativado com sucesso: Timer 0.5ms e Energia Ultimate.' : 'Gamer Mode activated: 0.5ms Timer and Ultimate Plan.',
+          });
+          await Promise.all([refreshAudit(), loadLiveTweaks()]);
+        } catch (err: any) {
+          setActionToast({ success: false, message: err?.message || (language === 'PT' ? 'Erro ao ativar ajustes gamer.' : 'Error activating gamer tweaks.') });
+        } finally {
+          setApplyingGamer(false);
+        }
+      }
+    );
+  };
+
+  const executeToggleTweak = async (tweak: LiveTweakStatus, enable: boolean) => {
+    setTogglingTweakId(tweak.id);
     setActionToast(null);
     try {
-      const targetPreset = isLaptop ? 'notebook' : 'essential';
-      const res = await runPreset(targetPreset);
+      const res = await applyOrRevertTweak(tweak.id, enable);
       setActionToast({ success: res.success, message: res.message });
-      await refreshAudit();
+      await Promise.all([loadLiveTweaks(), refreshAudit()]);
     } catch (err: any) {
-      setActionToast({ success: false, message: err?.message || (language === 'PT' ? 'Erro ao aplicar perfil.' : 'Error applying preset.') });
+      setActionToast({ success: false, message: err?.message || 'Error' });
     } finally {
-      setApplyingPreset(false);
+      setTogglingTweakId(null);
     }
   };
 
-  const handleQuickGamer = async () => {
-    setApplyingGamer(true);
-    setActionToast(null);
-    try {
-      await toggleTimerResolution(true);
-      await enableUltimatePerformancePlan();
-      setActionToast({
-        success: true,
-        message: language === 'PT' ? 'Modo Gamer ativado com sucesso: Timer 0.5ms e Energia Ultimate.' : 'Gamer Mode activated: 0.5ms Timer and Ultimate Plan.',
-      });
-      await refreshAudit();
-    } catch (err: any) {
-      setActionToast({ success: false, message: err?.message || (language === 'PT' ? 'Erro ao ativar ajustes gamer.' : 'Error activating gamer tweaks.') });
-    } finally {
-      setApplyingGamer(false);
+  const handleLiveTweakClick = (tweak: LiveTweakStatus) => {
+    const nextEnable = !tweak.applied;
+    const isMediumOrHigh = tweak.riskLevel === 'medium' || tweak.riskLevel === 'high';
+    if (nextEnable && isMediumOrHigh) {
+      requireRestorePoint(
+        tweak.name,
+        tweak.riskLevel === 'high' ? 'high' : 'medium',
+        () => executeToggleTweak(tweak, true)
+      );
+      return;
     }
+    executeToggleTweak(tweak, nextEnable);
   };
 
   const auditPills = [
@@ -270,17 +341,17 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
               {gpu?.name || 'AMD Radeon RX 7600'}
             </h3>
             <p className="text-[10px] text-neutral-400 font-mono mt-0.5 truncate">
-              {gpu?.vramGb ? `${gpu.vramGb} GB GDDR6` : '8 GB GDDR6'} • PCIe 4.0 x8
+              {gpu?.vramGb ? `${gpu.vramGb.toFixed(1)} GB VRAM` : '-- GB VRAM'} • {gpu?.pcieGeneration || 'PCIe'} {gpu?.pcieLanes || ''}
             </p>
           </div>
 
           <div className="mt-3 pt-2.5 border-t border-neutral-800/70 flex items-center justify-between text-[11px] font-mono">
-            <div>
+            <div className="min-w-0 truncate">
               <span className="text-[10px] text-neutral-400">Driver:</span>
-              <span className="ml-1 text-cyan-400 font-bold text-[10px]">32.0.32015 WHQL</span>
+              <span className="ml-1 text-cyan-400 font-bold text-[10px]">{gpu?.driverVersion || '--'}</span>
             </div>
-            <div className="text-right text-[10px] text-emerald-400 tabular-nums">
-              <span>38°C Fan 0 RPM</span>
+            <div className="text-right text-[10px] text-emerald-400 tabular-nums shrink-0">
+              <span>{gpu?.resizableBar ? 'ReBAR ON' : 'PCIe Ready'}</span>
             </div>
           </div>
         </div>
@@ -296,10 +367,10 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
               <Layers className="w-3.5 h-3.5 text-amber-400" />
             </div>
             <h3 className="text-xs font-bold text-neutral-100 truncate">
-              {roundedRam} GB DDR4
+              {roundedRam} GB {mem?.modules?.[0]?.memoryType || mem?.memoryType || 'RAM'}
             </h3>
             <p className="text-[10px] text-neutral-400 font-mono mt-0.5 truncate">
-              2x{Math.round(roundedRam / 2)}GB @ 3200MHz (XMP {language === 'PT' ? 'Ativo' : 'Active'})
+              {mem?.modules?.length || mem?.moduleCount || 1}x {mem?.channelMode || (mem?.dualChannel ? 'Dual Channel' : 'Single Channel')} @ {mem?.modules?.[0]?.speedMhz || '--'} MHz
             </p>
           </div>
 
@@ -312,7 +383,7 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
               <div className="h-full bg-amber-400 rounded-full" style={{ width: `${ramPercent}%` }} />
             </div>
             <div className="flex items-center justify-between text-[9px] font-mono text-neutral-400 pt-0.5">
-              <span>Standby: 8.2 GB</span>
+              <span>{mem?.dualChannel ? 'Dual Channel OK' : (language === 'PT' ? 'Alerta: Canal Único' : 'Single Channel Alert')}</span>
               <span className="text-emerald-400">{language === 'PT' ? 'Livre' : 'Free'}: {freeRamGb} GB</span>
             </div>
           </div>
@@ -328,11 +399,11 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
               <span>{language === 'PT' ? 'ARMAZENAMENTO C:' : 'STORAGE C:'}</span>
               <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
             </div>
-            <h3 className="text-xs font-bold text-neutral-100 truncate" title={primaryDisk?.model || 'NVMe SSD'}>
-              {primaryDisk?.model || 'KINGSTON SNV2S1000G'}
+            <h3 className="text-xs font-bold text-neutral-100 truncate" title={primaryDisk?.model || 'System Drive'}>
+              {primaryDisk?.model || 'System Drive'}
             </h3>
             <p className="text-[10px] text-neutral-400 font-mono mt-0.5 truncate">
-              NVMe PCIe 4.0 M.2 SSD ({diskTotalGb} GB)
+              {primaryDisk?.mediaType || 'Storage'} {primaryDisk?.busType ? `• ${primaryDisk.busType}` : ''} ({diskTotalGb} GB)
             </p>
           </div>
 
@@ -345,8 +416,8 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
               <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${diskUsedPercent}%` }} />
             </div>
             <div className="flex items-center justify-between text-[9px] font-mono text-neutral-400 pt-0.5">
-              <span>{language === 'PT' ? 'Leitura' : 'Read'}: 3500 MB/s</span>
-              <span className="text-emerald-400">{language === 'PT' ? 'Saúde: 100% OK' : 'Health: 100% OK'}</span>
+              <span>{diagnostics?.trimEnabled ? 'TRIM: Ativo' : 'TRIM: Verificar'}</span>
+              <span className="text-emerald-400">{primaryDisk?.healthStatus || 'OK'}</span>
             </div>
           </div>
         </div>
@@ -359,7 +430,7 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
             <Shield className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-xs sm:text-sm font-bold text-neutral-100 truncate">
                 {language === 'PT' ? 'Ponto de Restauração do Sistema' : 'System Restore Point'}
               </h3>
@@ -367,6 +438,17 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
                 <ShieldAlert className="w-2.5 h-2.5" />
                 <span>{language === 'PT' ? 'Requer Admin' : 'Requires Admin'}</span>
               </span>
+              {restoreStatus && (
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border shrink-0 ${
+                  restoreStatus.hasRecentRestorePoint
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                }`}>
+                  {restoreStatus.hasRecentRestorePoint
+                    ? (language === 'PT' ? 'Protegido (<24h)' : 'Protected (<24h)')
+                    : (language === 'PT' ? 'Sem Snapshot Recente' : 'No Recent Snapshot')}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-neutral-400 truncate mt-0.5 max-w-xl">
               {language === 'PT'
@@ -513,64 +595,138 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
         </div>
       </div>
 
-      {/* 5. Live Tweaks Audit Strip (Screenshot 1 Bottom) */}
+      {/* 5. Interactive Live Windows Tweaks Status (Apply / Revert Individual Registry Keys) */}
       <div className="p-3.5 sm:p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 shrink-0 space-y-3">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-bold text-neutral-200">
-              {language === 'PT' ? 'Status das Otimizações em Tempo Real' : 'Real-Time Optimizations Status'}
+              {language === 'PT' ? 'Status de Otimizações Reais no Registro (Apply / Revert)' : 'Live Windows Registry Tweaks Status (Apply / Revert)'}
             </span>
             <span className="text-neutral-500">|</span>
             <span className="text-neutral-400 font-mono text-[11px]">
-              {auditPills.filter(p => p.active).length}/10 {language === 'PT' ? 'Políticas Ativas' : 'Active Policies'}
+              {liveTweaks.filter((tw) => tw.applied).length}/{liveTweaks.length || 12}{' '}
+              {language === 'PT' ? 'Aplicadas' : 'Applied'}
             </span>
           </div>
 
-          <button
-            onClick={() => onNavigate?.('docs')}
-            className="text-cyan-400 hover:text-cyan-300 text-[11px] font-semibold flex items-center gap-1 transition-colors group"
-          >
-            <span>{language === 'PT' ? 'Ver Todos os 42 Tweaks Disponíveis' : 'View All 42 Available Tweaks'}</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-        </div>
-
-        {/* 10-Tweak Live Audit Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-          {auditPills.map((pill, idx) => (
-            <div
-              key={idx}
-              className="p-2 rounded-xl bg-neutral-950/70 border border-neutral-800/80 flex items-center justify-between gap-1.5"
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadLiveTweaks}
+              disabled={loadingTweaks}
+              className="text-neutral-400 hover:text-neutral-200 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${pill.active ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
-                <span className="text-[10px] text-neutral-300 truncate font-mono" title={pill.label}>
-                  {pill.label}
-                </span>
-              </div>
-              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded shrink-0 ${
-                pill.status === 'ATIVO' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-neutral-800 text-neutral-400'
-              }`}>
-                {pill.status}
-              </span>
-            </div>
-          ))}
+              <RefreshCw className={`w-3 h-3 ${loadingTweaks ? 'animate-spin' : ''}`} />
+              <span>{language === 'PT' ? 'Ler Registro' : 'Read Registry'}</span>
+            </button>
+            <button
+              onClick={() => onNavigate?.('docs')}
+              className="text-cyan-400 hover:text-cyan-300 text-[11px] font-semibold flex items-center gap-1 transition-colors group cursor-pointer"
+            >
+              <span>{language === 'PT' ? 'Ver Enciclopédia Técnica' : 'Open Technical Wiki'}</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
         </div>
 
-        {/* Footer Checkpoint Line */}
+        {/* Live Registry Tweaks Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+          {liveTweaks.map((tw) => {
+            const busy = togglingTweakId === tw.id;
+            return (
+              <div
+                key={tw.id}
+                className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-colors ${
+                  tw.applied
+                    ? 'bg-emerald-500/5 border-emerald-500/25'
+                    : 'bg-neutral-950/70 border-neutral-800/80'
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        tw.applied ? 'bg-emerald-400' : 'bg-neutral-600'
+                      }`}
+                    />
+                    <span className="text-[11px] font-bold text-neutral-200 truncate" title={tw.description}>
+                      {tw.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 pl-3 text-[9px] font-mono">
+                    <span className="text-neutral-500 uppercase">{tw.category}</span>
+                    <span className="text-neutral-700">•</span>
+                    <span
+                      className={
+                        tw.riskLevel === 'high'
+                          ? 'text-rose-400'
+                          : tw.riskLevel === 'medium'
+                            ? 'text-amber-400'
+                            : 'text-emerald-400'
+                      }
+                    >
+                      {tw.riskLevel.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleLiveTweakClick(tw)}
+                  disabled={busy}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono flex items-center gap-1 shrink-0 transition-all cursor-pointer border ${
+                    tw.applied
+                      ? 'bg-neutral-900 hover:bg-rose-500/15 text-neutral-300 hover:text-rose-300 border-neutral-700 hover:border-rose-500/30'
+                      : 'bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border-cyan-500/30'
+                  }`}
+                >
+                  {busy ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : tw.applied ? (
+                    <>
+                      <RotateCcw className="w-3 h-3" />
+                      <span>{language === 'PT' ? 'Reverter' : 'Revert'}</span>
+                    </>
+                  ) : (
+                    <span>{language === 'PT' ? 'Aplicar' : 'Apply'}</span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+          {liveTweaks.length === 0 && !loadingTweaks && (
+            <div className="col-span-full py-4 text-center text-xs text-neutral-500 font-mono">
+              {language === 'PT'
+                ? 'Conectando ao leitor direto do Registro Windows (HKLM / HKCU)...'
+                : 'Connecting to direct Windows Registry reader (HKLM / HKCU)...'}
+            </div>
+          )}
+        </div>
+
+        {/* Footer Live Hardware & Safety Line */}
         <div className="pt-2 border-t border-neutral-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] font-mono text-neutral-400">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             <CheckSquare className="w-3 h-3 text-cyan-400" />
             <span>
-              {language === 'PT'
-                ? 'Último checkpoint de integridade: Hoje às 14:32:09 BRT • SHA256 verificado'
-                : 'Last integrity checkpoint: Today at 14:32:09 • SHA256 verified'}
+              {diagnostics?.osCompat
+                ? `${diagnostics.osCompat.productName} ${diagnostics.osCompat.displayVersion} (${diagnostics.osCompat.osTier}) • Build ${diagnostics.osCompat.buildNumber}`
+                : os
+                  ? `${os.caption} • Build ${os.buildNumber}`
+                  : 'Windows Kernel Universal Compatibility'}
+            </span>
+            <span>•</span>
+            <span>
+              Tier: <strong className="text-neutral-200 uppercase">{hardwareTier}</strong>
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-emerald-400 font-semibold">● {language === 'PT' ? 'Registro Íntegro' : 'Registry Intact'}</span>
-            <span className="text-neutral-400">{language === 'PT' ? 'UAC: Nível Elevado' : 'UAC: Elevated Level'}</span>
+            <span className={restoreStatus?.hasRecentRestorePoint ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+              ● {restoreStatus?.hasRecentRestorePoint
+                ? (language === 'PT' ? 'Ponto de Restauração OK (<24h)' : 'Restore Point OK (<24h)')
+                : (language === 'PT' ? 'Sem Snapshot Recente' : 'No Recent Snapshot')}
+            </span>
+            <span className="text-neutral-400">
+              {isAdmin ? (language === 'PT' ? 'UAC: Administrador' : 'UAC: Administrator') : 'UAC: Standard'}
+            </span>
           </div>
         </div>
       </div>

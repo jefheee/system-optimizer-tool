@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
@@ -6,6 +6,18 @@ use winreg::RegKey;
 use wmi::{COMLibrary, Variant, WMIConnection};
 
 use crate::state::CommandResponse;
+use crate::utils::{is_process_elevated, new_hidden_command};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OsCompatibility {
+    pub os_tier: String, // "Win7" | "Win8_81" | "Win10" | "Win11_21H2_23H2" | "Win11_24H2_26H2"
+    pub build_number: u32,
+    pub product_name: String,
+    pub display_version: String,
+    pub is_win11_24h2_or_newer: bool,
+    pub is_legacy_win7_8: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +59,9 @@ pub struct MotherboardInfo {
     pub product: String,
     pub bios_version: String,
     pub bios_release_date: String,
+    pub support_search_url: String,
+    pub cpu_vendor: String,
+    pub is_x3d: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +76,13 @@ pub struct GpuInfo {
     pub is_primary: bool,
     pub resizable_bar: bool,
     pub whql_signed: bool,
+    pub pcie_device_id: String,
+    pub msi_supported: bool,
+    pub msi_priority: String,
+    pub pcie_generation: String,
+    pub pcie_lanes: String,
+    pub lane_sharing_warning: bool,
+    pub connected_to_igpu_warning: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +111,12 @@ pub struct MemoryInfo {
     pub xmp_alert: bool,
     pub xmp_message: String,
     pub memory_type: String,
+    pub dual_channel: bool,
+    pub channel_mode: String,
+    pub mismatched_modules: bool,
+    pub slot_placement_ok: bool,
+    pub ddr5_four_dimm_warning: bool,
+    pub ram_warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +128,9 @@ pub struct StorageDisk {
     pub free_gb: u64,
     pub used_gb: u64,
     pub usage_percent: f32,
+    pub free_percent: f32,
+    pub low_space_critical: bool,
+    pub is_hdd_or_usb_warning: bool,
     pub drive_letters: Vec<String>,
     pub media_type: String,
     pub bus_type: String,
@@ -119,6 +150,8 @@ pub struct LogicalVolume {
     pub free_gb: u64,
     pub used_gb: u64,
     pub usage_percent: f32,
+    pub free_percent: f32,
+    pub low_space_critical: bool,
     pub physical_disk_model: String,
     pub physical_disk_type: String,
 }
@@ -176,6 +209,10 @@ pub struct SystemDiagnostics {
     pub status: String,
     pub timestamp: String,
     pub device_type: String, // "Desktop" or "Laptop"
+    pub hardware_tier: String, // "low" | "mid" | "high"
+    pub is_on_battery: bool,
+    pub os_compat: OsCompatibility,
+    pub trim_enabled: bool,
     pub battery: Option<BatteryInfo>,
     pub operating_system: Option<OperatingSystemInfo>,
     pub cpu: Option<CpuInfo>,
@@ -191,6 +228,102 @@ pub struct SystemDiagnostics {
     pub license: WindowsLicenseInfo,
     pub setup_export: String,
     pub message: String,
+}
+
+/// Deterministic classifier for Windows OS tier (Win7 -> Win11 26H2)
+pub fn classify_os_tier(build_number: u32) -> (&'static str, bool, bool) {
+    if build_number < 9200 {
+        ("Win7", false, true)
+    } else if build_number <= 9600 {
+        ("Win8_81", false, true)
+    } else if build_number < 22000 {
+        ("Win10", false, false)
+    } else if build_number < 26100 {
+        ("Win11_21H2_23H2", false, false)
+    } else {
+        ("Win11_24H2_26H2", true, false)
+    }
+}
+
+/// Deterministic classifier for hardware performance tier ("low" | "mid" | "high")
+pub fn classify_hardware_tier(
+    physical_cores: usize,
+    total_ram_gb: f32,
+    has_capable_gpu: bool,
+    is_on_battery: bool,
+) -> String {
+    if total_ram_gb < 8.0 || physical_cores < 4 || !has_capable_gpu || is_on_battery {
+        "low".to_string()
+    } else if physical_cores >= 6 && total_ram_gb >= 16.0 && has_capable_gpu {
+        "high".to_string()
+    } else {
+        "mid".to_string()
+    }
+}
+
+pub fn detect_os_compatibility() -> OsCompatibility {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let mut build_number: u32 = 0;
+    let mut product_name = "Windows".to_string();
+    let mut display_version = String::new();
+
+    if let Ok(cv) = hklm.open_subkey_with_flags(
+        r"SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+        KEY_READ,
+    ) {
+        if let Ok(b) = cv.get_value::<String, _>("CurrentBuildNumber") {
+            build_number = b.trim().parse::<u32>().unwrap_or(0);
+        }
+        if build_number == 0 {
+            if let Ok(b) = cv.get_value::<String, _>("CurrentBuild") {
+                build_number = b.trim().parse::<u32>().unwrap_or(0);
+            }
+        }
+        if let Ok(pn) = cv.get_value::<String, _>("ProductName") {
+            product_name = pn.trim().to_string();
+        }
+        if let Ok(dv) = cv.get_value::<String, _>("DisplayVersion") {
+            display_version = dv.trim().to_string();
+        }
+        if display_version.is_empty() {
+            if let Ok(ri) = cv.get_value::<String, _>("ReleaseId") {
+                display_version = ri.trim().to_string();
+            } else if let Ok(csd) = cv.get_value::<String, _>("CSDVersion") {
+                display_version = csd.trim().to_string();
+            }
+        }
+    }
+
+    if build_number >= 22000 && product_name.contains("Windows 10") {
+        product_name = product_name.replace("Windows 10", "Windows 11");
+    }
+
+    let (os_tier, is_win11_24h2_or_newer, is_legacy_win7_8) = classify_os_tier(build_number);
+
+    OsCompatibility {
+        os_tier: os_tier.to_string(),
+        build_number,
+        product_name,
+        display_version,
+        is_win11_24h2_or_newer,
+        is_legacy_win7_8,
+    }
+}
+
+fn encode_url_query(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' => out.push(ch),
+            ' ' => out.push('+'),
+            _ => {
+                for b in ch.to_string().as_bytes() {
+                    out.push_str(&format!("%{:02X}", b));
+                }
+            }
+        }
+    }
+    out
 }
 
 // -------------------------------------------------------------
@@ -342,8 +475,129 @@ fn detect_chassis_and_battery(com_lib: COMLibrary) -> (String, Option<BatteryInf
 }
 
 // -------------------------------------------------------------
-// GPU 64-bit VRAM + Resizable BAR Detection
+// GPU 64-bit VRAM + Resizable BAR + MSI Mode + PCIe Link Width
 // -------------------------------------------------------------
+fn read_gpu_msi_state(pnp_id: &str) -> (bool, String) {
+    if pnp_id.is_empty() {
+        return (false, "Default".to_string());
+    }
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let msi_path = format!(
+        r"SYSTEM\CurrentControlSet\Enum\{}\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties",
+        pnp_id
+    );
+    let msi_supported = hklm
+        .open_subkey_with_flags(&msi_path, KEY_READ)
+        .and_then(|k| k.get_value::<u32, _>("MSISupported"))
+        .map(|v| v == 1)
+        .unwrap_or(false);
+
+    let aff_path = format!(
+        r"SYSTEM\CurrentControlSet\Enum\{}\Device Parameters\Interrupt Management\Affinity Policy",
+        pnp_id
+    );
+    let priority = hklm
+        .open_subkey_with_flags(&aff_path, KEY_READ)
+        .and_then(|k| k.get_value::<u32, _>("DevicePriority"))
+        .map(|v| match v {
+            1 => "Low".to_string(),
+            2 => "Normal".to_string(),
+            3 => "High".to_string(),
+            _ => "Undefined".to_string(),
+        })
+        .unwrap_or_else(|_| "Default".to_string());
+
+    (msi_supported, priority)
+}
+
+fn read_pcie_link_props(pnp_id: &str) -> (String, String, bool) {
+    if !pnp_id.to_uppercase().starts_with("PCI\\") {
+        return ("Integrado / Interno".to_string(), "N/A".to_string(), false);
+    }
+
+    let safe_id = pnp_id.replace('\'', "''");
+    let ps_cmd = format!(
+        "@(Get-PnpDeviceProperty -InstanceId '{}' -KeyName 'DEVPKEY_PciDevice_CurrentLinkSpeed','DEVPKEY_PciDevice_CurrentLinkWidth','DEVPKEY_PciDevice_MaxLinkWidth' -ErrorAction SilentlyContinue | Select-Object KeyName, Data) | ConvertTo-Json -Compress",
+        safe_id
+    );
+
+    let mut cur_speed: u32 = 0;
+    let mut cur_width: u32 = 0;
+    let mut max_width: u32 = 0;
+
+    if let Ok(out) = new_hidden_command("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd])
+        .output()
+    {
+        if out.status.success() {
+            let txt = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&txt) {
+                let items: Vec<&serde_json::Value> = match &val {
+                    serde_json::Value::Array(arr) => arr.iter().collect(),
+                    serde_json::Value::Object(_) => vec![&val],
+                    _ => Vec::new(),
+                };
+                for item in items {
+                    let key = item.get("KeyName").and_then(|v| v.as_str()).unwrap_or("");
+                    let data = item.get("Data").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+                    if key.ends_with("CurrentLinkSpeed") {
+                        cur_speed = data;
+                    } else if key.ends_with("CurrentLinkWidth") {
+                        cur_width = data;
+                    } else if key.ends_with("MaxLinkWidth") {
+                        max_width = data;
+                    }
+                }
+            }
+        }
+    }
+
+    let pcie_gen = match cur_speed {
+        1 => "PCIe 1.0".to_string(),
+        2 => "PCIe 2.0".to_string(),
+        3 => "PCIe 3.0".to_string(),
+        4 => "PCIe 4.0".to_string(),
+        5 => "PCIe 5.0".to_string(),
+        6 => "PCIe 6.0".to_string(),
+        _ => "PCIe x16 Bus".to_string(),
+    };
+
+    let lanes = if cur_width > 0 && max_width > 0 && cur_width != max_width {
+        format!("x{} (Máx GPU: x{})", cur_width, max_width)
+    } else if cur_width > 0 {
+        format!("x{}", cur_width)
+    } else {
+        "x16".to_string()
+    };
+
+    let lane_sharing_warning = (cur_width > 0 && max_width >= 16 && cur_width < max_width)
+        || (cur_width > 0 && cur_width <= 4);
+
+    (pcie_gen, lanes, lane_sharing_warning)
+}
+
+fn is_dedicated_gpu_name(name: &str, vram_mb: u64) -> bool {
+    let lower = name.to_lowercase();
+    if lower.contains("rtx")
+        || lower.contains("gtx")
+        || lower.contains("radeon rx")
+        || lower.contains("radeon pro")
+        || lower.contains("arc ")
+        || lower.contains("quadro")
+        || lower.contains("titan")
+    {
+        return true;
+    }
+    if lower.contains("radeon(tm) graphics")
+        || lower.contains("intel(r) uhd")
+        || lower.contains("intel(r) hd")
+        || lower.contains("vega")
+    {
+        return vram_mb >= 4096;
+    }
+    vram_mb >= 2048
+}
+
 fn detect_gpus(com_lib: COMLibrary) -> (Option<GpuInfo>, Vec<GpuInfo>) {
     let mut reg_vram_map: HashMap<String, (u64, String, bool)> = HashMap::new(); // desc -> (vram_mb, driver_ver, rebar)
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
@@ -371,10 +625,9 @@ fn detect_gpus(com_lib: COMLibrary) -> (Option<GpuInfo>, Vec<GpuInfo>) {
                         }
                     }
 
-                    // Check Resizable BAR / Smart Access Memory indicators in registry
                     let rebar = sub_key.get_value::<u32, _>("KMD_EnableReBar").map(|v| v == 1).unwrap_or(false)
                         || sub_key.get_value::<u32, _>("EnableResizableBar").map(|v| v == 1).unwrap_or(false)
-                        || (bytes_vram >= 8 * 1024 * 1024 * 1024);
+                        || sub_key.get_value::<u32, _>("KMD_IsLargeBarEnabled").map(|v| v == 1).unwrap_or(false);
 
                     if !desc.is_empty() && bytes_vram > 0 {
                         let mb = bytes_vram / (1024 * 1024);
@@ -388,16 +641,34 @@ fn detect_gpus(com_lib: COMLibrary) -> (Option<GpuInfo>, Vec<GpuInfo>) {
         }
     }
 
+    // Check Large Memory Address Space (> 512 MB BAR window) for true hardware ReBAR detection
+    let mut has_large_bar_range = false;
+    if let Ok(wmi_con) = WMIConnection::new(com_lib) {
+        if let Ok(mem_rows) = wmi_con.raw_query::<HashMap<String, Variant>>(
+            "SELECT StartingAddress, EndingAddress FROM Win32_DeviceMemoryAddress",
+        ) {
+            for r in mem_rows {
+                let start = r.get("StartingAddress").and_then(variant_to_u64).unwrap_or(0);
+                let end = r.get("EndingAddress").and_then(variant_to_u64).unwrap_or(0);
+                if end > start && (end - start) >= 512 * 1024 * 1024 {
+                    has_large_bar_range = true;
+                    break;
+                }
+            }
+        }
+    }
+
     let mut gpus: Vec<GpuInfo> = Vec::new();
     if let Ok(wmi_con) = WMIConnection::new(com_lib) {
-        let query = "SELECT Name, DriverVersion, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate, AdapterRAM FROM Win32_VideoController";
+        let query = "SELECT Name, PNPDeviceID, DriverVersion, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate, AdapterRAM FROM Win32_VideoController";
         if let Ok(rows) = wmi_con.raw_query::<HashMap<String, Variant>>(query) {
             for row in rows {
                 let name = row.get("Name").and_then(variant_to_string).unwrap_or_default();
-                if name.is_empty() || name.contains("Basic Render") {
+                if name.is_empty() || name.contains("Basic Render") || name.contains("Basic Display") {
                     continue;
                 }
 
+                let pnp_id = row.get("PNPDeviceID").and_then(variant_to_string).unwrap_or_default();
                 let driver_ver = row.get("DriverVersion").and_then(variant_to_string).unwrap_or_default();
                 let width = row.get("CurrentHorizontalResolution").and_then(variant_to_u32).unwrap_or(0);
                 let height = row.get("CurrentVerticalResolution").and_then(variant_to_u32).unwrap_or(0);
@@ -431,6 +702,14 @@ fn detect_gpus(com_lib: COMLibrary) -> (Option<GpuInfo>, Vec<GpuInfo>) {
                     vram_mb = fallback_ram_mb;
                 }
 
+                let is_dedicated = is_dedicated_gpu_name(&name, vram_mb);
+                if !rebar && is_dedicated && has_large_bar_range {
+                    rebar = true;
+                }
+
+                let (msi_supported, msi_priority) = read_gpu_msi_state(&pnp_id);
+                let (pcie_generation, pcie_lanes, lane_sharing_warning) = read_pcie_link_props(&pnp_id);
+
                 let res_str = if width > 0 && height > 0 {
                     format!("{}x{}", width, height)
                 } else {
@@ -449,12 +728,35 @@ fn detect_gpus(com_lib: COMLibrary) -> (Option<GpuInfo>, Vec<GpuInfo>) {
                     is_primary: false,
                     resizable_bar: rebar,
                     whql_signed: true,
+                    pcie_device_id: pnp_id,
+                    msi_supported,
+                    msi_priority,
+                    pcie_generation,
+                    pcie_lanes,
+                    lane_sharing_warning,
+                    connected_to_igpu_warning: false,
                 });
             }
         }
     }
 
+    // Check if monitor is accidentally plugged into motherboard iGPU when a dedicated GPU is present
+    let has_dedicated = gpus.iter().any(|g| is_dedicated_gpu_name(&g.name, g.vram_mb));
+    let any_dedicated_has_display = gpus
+        .iter()
+        .any(|g| is_dedicated_gpu_name(&g.name, g.vram_mb) && !g.resolution.is_empty());
+    let any_igpu_has_display = gpus
+        .iter()
+        .any(|g| !is_dedicated_gpu_name(&g.name, g.vram_mb) && !g.resolution.is_empty());
+
+    let cable_warning = has_dedicated && !any_dedicated_has_display && any_igpu_has_display;
+
     gpus.sort_by(|a, b| b.vram_mb.cmp(&a.vram_mb));
+    for g in &mut gpus {
+        if cable_warning && is_dedicated_gpu_name(&g.name, g.vram_mb) {
+            g.connected_to_igpu_warning = true;
+        }
+    }
     if let Some(first) = gpus.first_mut() {
         first.is_primary = true;
     }
@@ -466,7 +768,7 @@ fn detect_gpus(com_lib: COMLibrary) -> (Option<GpuInfo>, Vec<GpuInfo>) {
 // -------------------------------------------------------------
 // Motherboard & BIOS Detection
 // -------------------------------------------------------------
-fn detect_motherboard_and_bios(com_lib: COMLibrary) -> Option<MotherboardInfo> {
+fn detect_motherboard_and_bios(com_lib: COMLibrary, cpu: &Option<CpuInfo>) -> Option<MotherboardInfo> {
     let wmi_con = WMIConnection::new(com_lib).ok()?;
 
     let mut mb_manufacturer = String::new();
@@ -493,6 +795,23 @@ fn detect_motherboard_and_bios(com_lib: COMLibrary) -> Option<MotherboardInfo> {
         }
     }
 
+    let cpu_name_upper = cpu.as_ref().map(|c| c.name.to_uppercase()).unwrap_or_default();
+    let cpu_mfg_upper = cpu.as_ref().map(|c| c.manufacturer.to_uppercase()).unwrap_or_default();
+    let cpu_vendor = if cpu_name_upper.contains("AMD") || cpu_name_upper.contains("RYZEN") || cpu_mfg_upper.contains("AMD") {
+        "AMD".to_string()
+    } else if cpu_name_upper.contains("INTEL") || cpu_mfg_upper.contains("INTEL") {
+        "Intel".to_string()
+    } else {
+        "Unknown".to_string()
+    };
+    let is_x3d = cpu_name_upper.contains("X3D");
+
+    let query_board = format!("{} {} official BIOS support download", mb_manufacturer, mb_product);
+    let support_search_url = format!(
+        "https://www.google.com/search?q={}",
+        encode_url_query(query_board.trim())
+    );
+
     if mb_product.is_empty() && bios_ver.is_empty() {
         None
     } else {
@@ -501,6 +820,9 @@ fn detect_motherboard_and_bios(com_lib: COMLibrary) -> Option<MotherboardInfo> {
             product: mb_product,
             bios_version: bios_ver,
             bios_release_date: bios_date,
+            support_search_url,
+            cpu_vendor,
+            is_x3d,
         })
     }
 }
@@ -562,7 +884,7 @@ fn detect_cpu_details(com_lib: COMLibrary, sys: &System) -> Option<CpuInfo> {
 }
 
 // -------------------------------------------------------------
-// RAM Slots, BankLabel + DeviceLocator, DDR Type, Voltage & XMP
+// RAM Slots, Dual Channel, Slot Topology & Mismatched RAM Audit
 // -------------------------------------------------------------
 fn detect_ram_modules(com_lib: COMLibrary, sys: &System) -> MemoryInfo {
     let total_bytes = sys.total_memory();
@@ -593,7 +915,6 @@ fn detect_ram_modules(com_lib: COMLibrary, sys: &System) -> MemoryInfo {
                 let mfg = row.get("Manufacturer").and_then(variant_to_string).unwrap_or_else(|| "Generic".to_string());
                 let part = row.get("PartNumber").and_then(variant_to_string).unwrap_or_default();
 
-                // Concatenate BankLabel + DeviceLocator so slots never repeat identically
                 let mut combined_slot = if !bank.is_empty() && !raw_locator.eq_ignore_ascii_case(&bank) {
                     format!("{} • {}", bank, raw_locator)
                 } else {
@@ -633,7 +954,7 @@ fn detect_ram_modules(com_lib: COMLibrary, sys: &System) -> MemoryInfo {
                 global_mem_type = mem_type.clone();
 
                 let raw_mv = row.get("ConfiguredVoltage").and_then(variant_to_u32).unwrap_or(0);
-                let voltage = if raw_mv >= 800 && raw_mv <= 2000 {
+                let voltage = if (800..=2000).contains(&raw_mv) {
                     format!("{:.2}V", (raw_mv as f32) / 1000.0)
                 } else if mem_type.contains("DDR5") {
                     if speed >= 5200 { "1.25V".to_string() } else { "1.10V".to_string() }
@@ -643,7 +964,6 @@ fn detect_ram_modules(com_lib: COMLibrary, sys: &System) -> MemoryInfo {
                     "1.20V".to_string()
                 };
 
-                // Check XMP / DOCP / EXPO status
                 if mem_type.contains("DDR5") {
                     if speed >= 5200 {
                         xmp_active = true;
@@ -676,6 +996,96 @@ fn detect_ram_modules(com_lib: COMLibrary, sys: &System) -> MemoryInfo {
         }
     }
 
+    // Win7/Win8 fallback via wmic if WMI query yielded zero modules
+    if modules.is_empty() {
+        if let Ok(out) = new_hidden_command("wmic")
+            .args(["memorychip", "get", "BankLabel,Capacity,DeviceLocator,Manufacturer,PartNumber,Speed", "/format:csv"])
+            .output()
+        {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout);
+                for line in text.lines().skip(1) {
+                    let parts: Vec<&str> = line.trim().split(',').collect();
+                    if parts.len() >= 7 {
+                        let bank = parts[1].trim().to_string();
+                        let cap_gb = (parts[2].trim().parse::<u64>().unwrap_or(0) / (1024 * 1024 * 1024)) as u32;
+                        let loc = parts[3].trim().to_string();
+                        let mfg = parts[4].trim().to_string();
+                        let pn = parts[5].trim().to_string();
+                        let speed = parts[6].trim().parse::<u32>().unwrap_or(0);
+                        if cap_gb > 0 {
+                            let mem_type = if speed >= 4400 { "DDR5" } else if speed >= 1866 { "DDR4" } else { "DDR3" }.to_string();
+                            global_mem_type = mem_type.clone();
+                            modules.push(RamSlot {
+                                slot: if loc.is_empty() { format!("DIMM {}", modules.len() + 1) } else { loc },
+                                bank,
+                                manufacturer: if mfg.is_empty() { "Generic".to_string() } else { mfg },
+                                part_number: pn,
+                                capacity_gb: cap_gb,
+                                speed_mhz: speed,
+                                memory_type: mem_type,
+                                voltage: "Auto".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let module_count = modules.len();
+    let dual_channel = module_count >= 2;
+    let channel_mode = if module_count >= 4 {
+        "Quad / 4-DIMM".to_string()
+    } else if module_count >= 2 {
+        "Dual Channel".to_string()
+    } else if module_count == 1 {
+        "Single Channel".to_string()
+    } else {
+        "Desconhecido".to_string()
+    };
+
+    // Detect mismatched RAM modules (PartNumber, Capacity, or Speed divergence)
+    let unique_parts: HashSet<String> = modules
+        .iter()
+        .map(|m| m.part_number.trim().to_uppercase())
+        .filter(|p| !p.is_empty())
+        .collect();
+    let unique_caps: HashSet<u32> = modules.iter().map(|m| m.capacity_gb).filter(|&c| c > 0).collect();
+    let unique_speeds: HashSet<u32> = modules.iter().map(|m| m.speed_mhz).filter(|&s| s > 0).collect();
+    let mismatched_modules = unique_parts.len() > 1 || unique_caps.len() > 1 || unique_speeds.len() > 1;
+
+    // Validate A2/B2 slot placement when 2 sticks are installed
+    let slot_placement_ok = if module_count == 2 {
+        let s0 = modules[0].slot.to_uppercase();
+        let s1 = modules[1].slot.to_uppercase();
+        let both_a1_a2 = (s0.contains("A1") && s1.contains("A2")) || (s0.contains("A2") && s1.contains("A1"));
+        let both_b1_b2 = (s0.contains("B1") && s1.contains("B2")) || (s0.contains("B2") && s1.contains("B1"));
+        let both_1_slots = s0.contains("A1") && s1.contains("B1");
+        !(both_a1_a2 || both_b1_b2 || both_1_slots)
+    } else {
+        true
+    };
+
+    let ddr5_four_dimm_warning = module_count >= 4 && global_mem_type.contains("DDR5");
+
+    let mut ram_warnings = Vec::new();
+    if module_count == 1 {
+        ram_warnings.push("Single Channel detectado: operar com apenas 1 pente causa até 8% de perda de FPS médio e micro-stutters. Instale o 2º módulo idêntico.".to_string());
+    }
+    if !slot_placement_ok {
+        ram_warnings.push("Posicionamento subótimo de slots: para Dual Channel estável em placas de 4 slots, prefira os slots A2 e B2 (Slots 2 e 4 a partir da CPU).".to_string());
+    }
+    if mismatched_modules {
+        ram_warnings.push("Pentes de RAM diferentes (PartNumber/Capacidade/Frequência distintos): risco alto de falha no boot com XMP/EXPO ativado.".to_string());
+    }
+    if ddr5_four_dimm_warning {
+        ram_warnings.push("Topologia 4x DIMM DDR5 detectada: pode sobrecarregar o Controlador de Memória (IMC) e derrubar o clock para 3600–4800 MT/s.".to_string());
+    }
+    if xmp_alert && !xmp_message.is_empty() {
+        ram_warnings.push(format!("Perfil XMP/EXPO desativado na BIOS ({}). Ative na BIOS para liberar a banda real.", xmp_message));
+    }
+
     let top_speed = modules.first().map(|m| m.speed_mhz).unwrap_or(0);
     let xmp_status = if xmp_active {
         format!("XMP / DOCP / EXPO ({} MHz)", top_speed)
@@ -689,13 +1099,19 @@ fn detect_ram_modules(com_lib: COMLibrary, sys: &System) -> MemoryInfo {
         total_gb: (total_gb * 10.0).round() / 10.0,
         used_gb: (used_gb * 10.0).round() / 10.0,
         usage_percent: usage_pct,
-        module_count: modules.len(),
+        module_count,
         modules,
         xmp_active,
         xmp_status,
         xmp_alert,
         xmp_message,
         memory_type: global_mem_type,
+        dual_channel,
+        channel_mode,
+        mismatched_modules,
+        slot_placement_ok,
+        ddr5_four_dimm_warning,
+        ram_warnings,
     }
 }
 
@@ -757,12 +1173,20 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
             }
         }
 
-        // Read SerialNumber and FirmwareRevision from Win32_DiskDrive
+        // Read full disk metadata from Win32_DiskDrive (also acts as Win7/Win8 fallback when MSFT_PhysicalDisk is unavailable)
+        let mut wmi_disk_drives: Vec<(u32, String, u64, String, String, String, String)> = Vec::new();
         if let Ok(rows) = wmi_con.raw_query::<HashMap<String, Variant>>(
-            "SELECT Index, SerialNumber, FirmwareRevision FROM Win32_DiskDrive",
+            "SELECT Index, Model, Size, InterfaceType, MediaType, SerialNumber, FirmwareRevision FROM Win32_DiskDrive",
         ) {
             for row in rows {
                 if let Some(idx) = row.get("Index").and_then(variant_to_u32) {
+                    let model = row
+                        .get("Model")
+                        .and_then(variant_to_string)
+                        .unwrap_or_else(|| format!("Physical Disk #{}", idx));
+                    let sz_bytes = row.get("Size").and_then(variant_to_u64).unwrap_or(0);
+                    let iface = row.get("InterfaceType").and_then(variant_to_string).unwrap_or_default();
+                    let mtype = row.get("MediaType").and_then(variant_to_string).unwrap_or_default();
                     let sn = row
                         .get("SerialNumber")
                         .and_then(variant_to_string)
@@ -771,7 +1195,8 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
                         .get("FirmwareRevision")
                         .and_then(variant_to_string)
                         .unwrap_or_default();
-                    disk_serial_fw.insert(idx, (sn, fw));
+                    disk_serial_fw.insert(idx, (sn.clone(), fw.clone()));
+                    wmi_disk_drives.push((idx, model, sz_bytes, iface, mtype, sn, fw));
                 }
             }
         }
@@ -806,121 +1231,171 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
                 }
             }
         }
-    }
 
-    // 2. Query MSFT_Partition & MSFT_PhysicalDisk in root\Microsoft\Windows\Storage
-    if let Ok(wmi_storage) = WMIConnection::with_namespace_path(r"root\Microsoft\Windows\Storage", com_lib) {
-        if let Ok(part_rows) = wmi_storage.raw_query::<HashMap<String, Variant>>(
-            "SELECT DiskNumber, DriveLetter FROM MSFT_Partition",
-        ) {
-            for row in part_rows {
-                if let Some(d_num) = row.get("DiskNumber").and_then(variant_to_u32) {
-                    let letter_opt = match row.get("DriveLetter") {
-                        Some(Variant::UI2(c)) if (*c as u8).is_ascii_alphabetic() => {
-                            Some(format!("{}:", (*c as u8 as char).to_ascii_uppercase()))
-                        }
-                        Some(Variant::UI1(c)) if c.is_ascii_alphabetic() => {
-                            Some(format!("{}:", (*c as char).to_ascii_uppercase()))
-                        }
-                        Some(Variant::String(s)) if !s.trim().is_empty() => {
-                            let ch = s.trim().chars().next().unwrap_or(' ');
-                            if ch.is_ascii_alphabetic() {
-                                Some(format!("{}:", ch.to_ascii_uppercase()))
-                            } else {
-                                None
+        // 2. Query MSFT_Partition & MSFT_PhysicalDisk in root\Microsoft\Windows\Storage (Win 8/10/11)
+        if let Ok(wmi_storage) = WMIConnection::with_namespace_path(r"root\Microsoft\Windows\Storage", com_lib) {
+            if let Ok(part_rows) = wmi_storage.raw_query::<HashMap<String, Variant>>(
+                "SELECT DiskNumber, DriveLetter FROM MSFT_Partition",
+            ) {
+                for row in part_rows {
+                    if let Some(d_num) = row.get("DiskNumber").and_then(variant_to_u32) {
+                        let letter_opt = match row.get("DriveLetter") {
+                            Some(Variant::UI2(c)) if (*c as u8).is_ascii_alphabetic() => {
+                                Some(format!("{}:", (*c as u8 as char).to_ascii_uppercase()))
                             }
-                        }
-                        _ => None,
-                    };
+                            Some(Variant::UI1(c)) if c.is_ascii_alphabetic() => {
+                                Some(format!("{}:", (*c as char).to_ascii_uppercase()))
+                            }
+                            Some(Variant::String(s)) if !s.trim().is_empty() => {
+                                let ch = s.trim().chars().next().unwrap_or(' ');
+                                if ch.is_ascii_alphabetic() {
+                                    Some(format!("{}:", ch.to_ascii_uppercase()))
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        };
 
-                    if let Some(letter) = letter_opt {
-                        let entry = disk_to_letters.entry(d_num).or_default();
-                        if !entry.contains(&letter) {
-                            entry.push(letter);
+                        if let Some(letter) = letter_opt {
+                            let entry = disk_to_letters.entry(d_num).or_default();
+                            if !entry.contains(&letter) {
+                                entry.push(letter);
+                            }
                         }
                     }
                 }
             }
+
+            let query = "SELECT DeviceId, FriendlyName, MediaType, BusType, Size, HealthStatus, SerialNumber, FirmwareVersion FROM MSFT_PhysicalDisk";
+            if let Ok(rows) = wmi_storage.raw_query::<HashMap<String, Variant>>(query) {
+                for (idx, row) in rows.iter().enumerate() {
+                    let disk_number = row
+                        .get("DeviceId")
+                        .and_then(variant_to_string)
+                        .and_then(|s| s.trim().parse::<u32>().ok())
+                        .unwrap_or(idx as u32);
+
+                    let model = row
+                        .get("FriendlyName")
+                        .and_then(variant_to_string)
+                        .unwrap_or_else(|| format!("Physical Disk #{}", disk_number));
+
+                    let size_bytes = row.get("Size").and_then(variant_to_u64).unwrap_or(0);
+                    let mut size_gb = size_bytes / (1024 * 1024 * 1024);
+
+                    let media_num = row.get("MediaType").and_then(variant_to_u32).unwrap_or(0);
+                    let bus_num = row.get("BusType").and_then(variant_to_u32).unwrap_or(0);
+
+                    let bus_type = match bus_num {
+                        17 => "NVMe".to_string(),
+                        11 => "SATA".to_string(),
+                        7 => "USB".to_string(),
+                        8 => "RAID".to_string(),
+                        _ => "SATA".to_string(),
+                    };
+
+                    let media_type = match media_num {
+                        3 => "HDD".to_string(),
+                        4 => {
+                            if bus_type == "NVMe" {
+                                "NVMe".to_string()
+                            } else {
+                                "SSD".to_string()
+                            }
+                        }
+                        5 => "NVMe".to_string(),
+                        _ => {
+                            if model.to_lowercase().contains("nvme") {
+                                "NVMe".to_string()
+                            } else if model.to_lowercase().contains("ssd") {
+                                "SSD".to_string()
+                            } else {
+                                "HDD".to_string()
+                            }
+                        }
+                    };
+
+                    let health_num = row.get("HealthStatus").and_then(variant_to_u32).unwrap_or(0);
+                    let health_status = match health_num {
+                        0 => "Healthy".to_string(),
+                        1 => "Warning".to_string(),
+                        2 => "Unhealthy".to_string(),
+                        _ => "Healthy".to_string(),
+                    };
+
+                    let (fallback_sn, fallback_fw) = disk_serial_fw
+                        .get(&disk_number)
+                        .cloned()
+                        .unwrap_or_else(|| (String::new(), String::new()));
+
+                    let serial_number = row
+                        .get("SerialNumber")
+                        .and_then(variant_to_string)
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(fallback_sn);
+
+                    let firmware_revision = row
+                        .get("FirmwareVersion")
+                        .and_then(variant_to_string)
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(fallback_fw);
+
+                    let mut letters = disk_to_letters.get(&disk_number).cloned().unwrap_or_default();
+                    letters.sort();
+
+                    let mut free_bytes_sum = 0u64;
+                    let mut total_logical_bytes = 0u64;
+                    for letter in &letters {
+                        if let Some(&(vol_total, vol_free, _, _, _)) = logical_map.get(letter) {
+                            total_logical_bytes += vol_total;
+                            free_bytes_sum += vol_free;
+                        }
+                    }
+
+                    if size_gb == 0 && total_logical_bytes > 0 {
+                        size_gb = total_logical_bytes / (1024 * 1024 * 1024);
+                    }
+
+                    let free_gb = free_bytes_sum / (1024 * 1024 * 1024);
+                    let used_gb = size_gb.saturating_sub(free_gb);
+                    let usage_percent = if size_gb > 0 {
+                        ((used_gb as f32 / size_gb as f32) * 1000.0).round() / 10.0
+                    } else {
+                        0.0
+                    };
+                    let free_percent = ((100.0 - usage_percent) * 10.0).round() / 10.0;
+                    let low_space_critical = !letters.is_empty() && size_gb > 0 && free_percent < 10.0;
+                    let is_hdd_or_usb_warning = media_type == "HDD" || bus_type == "USB";
+
+                    disks.push(StorageDisk {
+                        disk_number,
+                        model,
+                        size_gb,
+                        free_gb,
+                        used_gb,
+                        usage_percent,
+                        free_percent,
+                        low_space_critical,
+                        is_hdd_or_usb_warning,
+                        drive_letters: letters,
+                        media_type,
+                        bus_type,
+                        health_status,
+                        serial_number,
+                        firmware_revision,
+                    });
+                }
+            }
         }
 
-        let query = "SELECT DeviceId, FriendlyName, MediaType, BusType, Size, HealthStatus, SerialNumber, FirmwareVersion FROM MSFT_PhysicalDisk";
-        if let Ok(rows) = wmi_storage.raw_query::<HashMap<String, Variant>>(query) {
-            for (idx, row) in rows.iter().enumerate() {
-                let disk_number = row
-                    .get("DeviceId")
-                    .and_then(variant_to_string)
-                    .and_then(|s| s.trim().parse::<u32>().ok())
-                    .unwrap_or(idx as u32);
-
-                let model = row
-                    .get("FriendlyName")
-                    .and_then(variant_to_string)
-                    .unwrap_or_else(|| format!("Physical Disk #{}", disk_number));
-
-                let size_bytes = row.get("Size").and_then(variant_to_u64).unwrap_or(0);
+        // Win7 / Legacy fallback if MSFT_PhysicalDisk is not available
+        if disks.is_empty() {
+            for (disk_number, model, size_bytes, iface, mtype, serial_number, firmware_revision) in wmi_disk_drives {
                 let mut size_gb = size_bytes / (1024 * 1024 * 1024);
-
-                let media_num = row.get("MediaType").and_then(variant_to_u32).unwrap_or(0);
-                let bus_num = row.get("BusType").and_then(variant_to_u32).unwrap_or(0);
-
-                let bus_type = match bus_num {
-                    17 => "NVMe".to_string(),
-                    11 => "SATA".to_string(),
-                    7 => "USB".to_string(),
-                    8 => "RAID".to_string(),
-                    _ => "SATA".to_string(),
-                };
-
-                let media_type = match media_num {
-                    3 => "HDD".to_string(),
-                    4 => {
-                        if bus_type == "NVMe" {
-                            "NVMe".to_string()
-                        } else {
-                            "SSD".to_string()
-                        }
-                    }
-                    5 => "NVMe".to_string(),
-                    _ => {
-                        if model.to_lowercase().contains("nvme") {
-                            "NVMe".to_string()
-                        } else if model.to_lowercase().contains("ssd") {
-                            "SSD".to_string()
-                        } else {
-                            "HDD".to_string()
-                        }
-                    }
-                };
-
-                let health_num = row.get("HealthStatus").and_then(variant_to_u32).unwrap_or(0);
-                let health_status = match health_num {
-                    0 => "Healthy".to_string(),
-                    1 => "Warning".to_string(),
-                    2 => "Unhealthy".to_string(),
-                    _ => "Healthy".to_string(),
-                };
-
-                let (fallback_sn, fallback_fw) = disk_serial_fw
-                    .get(&disk_number)
-                    .cloned()
-                    .unwrap_or_else(|| (String::new(), String::new()));
-
-                let serial_number = row
-                    .get("SerialNumber")
-                    .and_then(variant_to_string)
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(fallback_sn);
-
-                let firmware_revision = row
-                    .get("FirmwareVersion")
-                    .and_then(variant_to_string)
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(fallback_fw);
-
                 let mut letters = disk_to_letters.get(&disk_number).cloned().unwrap_or_default();
                 letters.sort();
 
-                // Calculate exact free space from the logical volumes mounted on this physical disk
                 let mut free_bytes_sum = 0u64;
                 let mut total_logical_bytes = 0u64;
                 for letter in &letters {
@@ -929,10 +1404,24 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
                         free_bytes_sum += vol_free;
                     }
                 }
-
                 if size_gb == 0 && total_logical_bytes > 0 {
                     size_gb = total_logical_bytes / (1024 * 1024 * 1024);
                 }
+
+                let bus_type = if iface.to_uppercase().contains("USB") {
+                    "USB".to_string()
+                } else if model.to_lowercase().contains("nvme") {
+                    "NVMe".to_string()
+                } else {
+                    "SATA".to_string()
+                };
+                let media_type = if model.to_lowercase().contains("nvme") {
+                    "NVMe".to_string()
+                } else if model.to_lowercase().contains("ssd") || mtype.to_lowercase().contains("ssd") {
+                    "SSD".to_string()
+                } else {
+                    "HDD".to_string()
+                };
 
                 let free_gb = free_bytes_sum / (1024 * 1024 * 1024);
                 let used_gb = size_gb.saturating_sub(free_gb);
@@ -941,6 +1430,9 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
                 } else {
                     0.0
                 };
+                let free_percent = ((100.0 - usage_percent) * 10.0).round() / 10.0;
+                let low_space_critical = !letters.is_empty() && size_gb > 0 && free_percent < 10.0;
+                let is_hdd_or_usb_warning = media_type == "HDD" || bus_type == "USB";
 
                 disks.push(StorageDisk {
                     disk_number,
@@ -949,10 +1441,13 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
                     free_gb,
                     used_gb,
                     usage_percent,
+                    free_percent,
+                    low_space_critical,
+                    is_hdd_or_usb_warning,
                     drive_letters: letters,
                     media_type,
                     bus_type,
-                    health_status,
+                    health_status: "Healthy".to_string(),
                     serial_number,
                     firmware_revision,
                 });
@@ -977,6 +1472,8 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
         let free_gb = free_b / (1024 * 1024 * 1024);
         let used_gb = total_gb.saturating_sub(free_gb);
         let usage_percent = ((used_b_ratio(*total_b, *free_b) * 1000.0).round()) / 10.0;
+        let free_percent = ((100.0 - usage_percent) * 10.0).round() / 10.0;
+        let low_space_critical = free_percent < 10.0 || usage_percent >= 90.0;
 
         let matched_disk = disks.iter().find(|d| d.drive_letters.contains(letter));
         let physical_disk_model = matched_disk
@@ -996,7 +1493,7 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
         volumes.push(LogicalVolume {
             letter: letter.clone(),
             label: if label.is_empty() {
-                " Volume Local".trim().to_string()
+                "Volume Local".to_string()
             } else {
                 label.clone()
             },
@@ -1006,6 +1503,8 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
             free_gb,
             used_gb,
             usage_percent,
+            free_percent,
+            low_space_critical,
             physical_disk_model,
             physical_disk_type,
         });
@@ -1014,6 +1513,28 @@ fn detect_storage_disks(com_lib: COMLibrary) -> (Vec<StorageDisk>, Vec<LogicalVo
     volumes.sort_by(|a, b| a.letter.cmp(&b.letter));
 
     (disks, volumes)
+}
+
+fn detect_trim_enabled() -> bool {
+    if let Ok(out) = new_hidden_command("fsutil.exe")
+        .args(["behavior", "query", "DisableDeleteNotify"])
+        .output()
+    {
+        let text = String::from_utf8_lossy(&out.stdout).to_lowercase();
+        for line in text.lines() {
+            if (line.contains("ntfs") && line.contains("disabledeletenotify"))
+                || (line.contains("disabledeletenotify") && !line.contains("refs"))
+            {
+                if line.contains("= 0") {
+                    return true;
+                }
+                if line.contains("= 1") {
+                    return false;
+                }
+            }
+        }
+    }
+    true
 }
 
 fn used_b_ratio(total: u64, free: u64) -> f32 {
@@ -1329,21 +1850,33 @@ fn detect_windows_license(com_lib: Option<COMLibrary>) -> WindowsLicenseInfo {
 // -------------------------------------------------------------
 fn build_setup_export(
     device_type: &str,
+    hardware_tier: &str,
+    os_compat: &OsCompatibility,
+    trim_enabled: bool,
     os: &Option<OperatingSystemInfo>,
     cpu: &Option<CpuInfo>,
     mb: &Option<MotherboardInfo>,
     gpu: &Option<GpuInfo>,
+    all_gpus: &[GpuInfo],
     mem: &Option<MemoryInfo>,
     storage: &[StorageDisk],
+    logical_volumes: &[LogicalVolume],
     displays: &[DisplayInfo],
     security: &SecurityAndBootInfo,
 ) -> String {
     let mut s = String::new();
-    s.push_str("# 🖥️ Relatório de Setup — System Optimizer Tool\n\n");
-    s.push_str(&format!("- **Tipo de Dispositivo:** {}\n", device_type));
+    s.push_str("# 🖥️ Relatório Completo de Diagnóstico do PC — System Optimizer Tool\n\n");
+    s.push_str(&format!(
+        "- **Tipo de Dispositivo:** {} | **Hardware Tier:** {}\n",
+        device_type,
+        hardware_tier.to_uppercase()
+    ));
 
     if let Some(o) = os {
-        s.push_str(&format!("- **Sistema Operacional:** {} (Build {})\n", o.caption, o.build_number));
+        s.push_str(&format!(
+            "- **Sistema Operacional:** {} ({} {} • Build {})\n",
+            os_compat.product_name, os_compat.display_version, os_compat.os_tier, o.build_number
+        ));
     }
     if let Some(c) = cpu {
         s.push_str(&format!(
@@ -1357,7 +1890,24 @@ fn build_setup_export(
             m.manufacturer, m.product, m.bios_version, m.bios_release_date
         ));
     }
-    if let Some(g) = gpu {
+    if !all_gpus.is_empty() {
+        s.push_str("- **Placas de Vídeo (GPU):**\n");
+        for g in all_gpus {
+            s.push_str(&format!(
+                "  - {} - {:.1} GB VRAM (Driver {}) | {} @ {}Hz | {} {} | ReBAR: {} | MSI Mode: {} ({})\n",
+                g.name,
+                g.vram_gb,
+                g.driver_version,
+                if g.resolution.is_empty() { "Sem monitor" } else { &g.resolution },
+                g.refresh_rate_hz,
+                g.pcie_generation,
+                g.pcie_lanes,
+                if g.resizable_bar { "Ativo" } else { "Desativado" },
+                if g.msi_supported { "Ativo" } else { "Padrão (IRQ)" },
+                g.msi_priority
+            ));
+        }
+    } else if let Some(g) = gpu {
         s.push_str(&format!(
             "- **Placa de Vídeo (GPU):** {} - {:.1} GB VRAM (Driver {}) | {} @ {}Hz\n",
             g.name, g.vram_gb, g.driver_version, g.resolution, g.refresh_rate_hz
@@ -1366,27 +1916,44 @@ fn build_setup_export(
     if let Some(ram) = mem {
         let rounded_ram = ram.total_gb.round() as u64;
         s.push_str(&format!(
-            "- **Memória RAM:** {} GB {} ({} pentes • {})\n",
-            rounded_ram, ram.memory_type, ram.module_count, ram.xmp_status
+            "- **Memória RAM:** {} GB {} ({} pentes • {} • {})\n",
+            rounded_ram, ram.memory_type, ram.module_count, ram.channel_mode, ram.xmp_status
         ));
         for slot in &ram.modules {
             s.push_str(&format!(
-                "  - {}: {} {} ({} GB {} @ {} MHz • {})\n",
+                "  - {}: {} [{}] ({} GB {} @ {} MHz • {})\n",
                 slot.slot, slot.manufacturer, slot.part_number, slot.capacity_gb, slot.memory_type, slot.speed_mhz, slot.voltage
             ));
         }
+        for warn in &ram.ram_warnings {
+            s.push_str(&format!("  - ⚠️ {}\n", warn));
+        }
     }
+    s.push_str(&format!(
+        "- **Armazenamento & TRIM:** TRIM NTFS: {}\n",
+        if trim_enabled { "Ativo (DisableDeleteNotify = 0)" } else { "DESATIVADO (Requer ação!)" }
+    ));
     if !storage.is_empty() {
-        s.push_str("- **Armazenamento:**\n");
         for d in storage {
             let drives = if d.drive_letters.is_empty() {
                 format!("Disk #{}", d.disk_number)
             } else {
                 d.drive_letters.join(", ")
             };
+            let critical = if d.low_space_critical { " [CRÍTICO <10% LIVRE!]" } else { "" };
             s.push_str(&format!(
-                "  - [{}] {} ({} {} • {} GB Total / {} GB Livres • {:.1}% Usado) - Saúde: {}\n",
-                drives, d.model, d.media_type, d.bus_type, d.size_gb, d.free_gb, d.usage_percent, d.health_status
+                "  - [{}] {} ({} {} • {} GB Total / {} GB Livres • {:.1}% Usado) - Saúde: {}{}\n",
+                drives, d.model, d.media_type, d.bus_type, d.size_gb, d.free_gb, d.usage_percent, d.health_status, critical
+            ));
+        }
+    }
+    if !logical_volumes.is_empty() {
+        s.push_str("- **Partições / Volumes Lógicos:**\n");
+        for v in logical_volumes {
+            let crit = if v.low_space_critical { " [ALERTA <10% LIVRE]" } else { "" };
+            s.push_str(&format!(
+                "  - {} ({}) [{}] — {} GB livres de {} GB ({:.1}% usado){}\n",
+                v.letter, v.label, v.file_system, v.free_gb, v.total_gb, v.usage_percent, crit
             ));
         }
     }
@@ -1427,16 +1994,25 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
         sys.refresh_cpu_all();
         sys.refresh_memory();
 
-        let os_name = System::name().unwrap_or_else(|| "Windows 11".to_string());
-        let os_version = System::os_version().unwrap_or_default();
+        let os_compat = detect_os_compatibility();
+        let trim_enabled = detect_trim_enabled();
+
         let uptime_secs = System::uptime();
         let days = uptime_secs / 86400;
         let hours = (uptime_secs % 86400) / 3600;
         let minutes = (uptime_secs % 3600) / 60;
 
         let os_info = OperatingSystemInfo {
-            caption: format!("{} {}", os_name, os_version).trim().to_string(),
-            build_number: System::kernel_version().unwrap_or_default(),
+            caption: if os_compat.display_version.is_empty() {
+                os_compat.product_name.clone()
+            } else {
+                format!("{} {}", os_compat.product_name, os_compat.display_version)
+            },
+            build_number: if os_compat.build_number > 0 {
+                os_compat.build_number.to_string()
+            } else {
+                System::kernel_version().unwrap_or_default()
+            },
             uptime: UptimeInfo { days, hours, minutes },
             formatted_uptime: format!("{}d {}h {}m", days, hours, minutes),
         };
@@ -1447,7 +2023,7 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
             let (dev_type, bat_data) = detect_chassis_and_battery(com);
             let is_laptop = dev_type == "Laptop";
             let cpu_data = detect_cpu_details(com, &sys);
-            let mb_data = detect_motherboard_and_bios(com);
+            let mb_data = detect_motherboard_and_bios(com, &cpu_data);
             let (primary_gpu, gpus) = detect_gpus(com);
             let ram_data = detect_ram_modules(com, &sys);
             let (storage_data, logical_vols) = detect_storage_disks(com);
@@ -1483,17 +2059,31 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
             )
         };
 
+        let is_on_battery = battery
+            .as_ref()
+            .map(|b| !b.is_charging && b.status.eq_ignore_ascii_case("Discharging"))
+            .unwrap_or(false);
+        let physical_cores = cpu.as_ref().map(|c| c.physical_cores).unwrap_or(0);
+        let total_ram_gb = memory.as_ref().map(|m| m.total_gb).unwrap_or(0.0);
+        let has_capable_gpu = all_gpus.iter().any(|g| is_dedicated_gpu_name(&g.name, g.vram_mb) || g.vram_mb >= 2048);
+        let hardware_tier = classify_hardware_tier(physical_cores, total_ram_gb, has_capable_gpu, is_on_battery);
+
         let security = detect_security_and_boot(com_lib);
         let license = detect_windows_license(com_lib);
 
         let setup_text = build_setup_export(
             &device_type,
+            &hardware_tier,
+            &os_compat,
+            trim_enabled,
             &Some(os_info.clone()),
             &cpu,
             &motherboard,
             &gpu,
+            &all_gpus,
             &memory,
             &storage,
+            &logical_volumes,
             &displays,
             &security,
         );
@@ -1502,6 +2092,10 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
             status: "Success".to_string(),
             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             device_type,
+            hardware_tier,
+            is_on_battery,
+            os_compat,
+            trim_enabled,
             battery,
             operating_system: Some(os_info),
             cpu,
@@ -1523,4 +2117,63 @@ pub async fn get_system_diagnostics() -> Result<CommandResponse<SystemDiagnostic
     .map_err(|e| e.to_string())?;
 
     Ok(CommandResponse::ok("Diagnóstico carregado com sucesso.", Some(result)))
+}
+
+/// Ativa o comando TRIM para SSDs/NVMe em NTFS e ReFS
+#[tauri::command]
+pub async fn enable_trim() -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(|| {
+        if !is_process_elevated() {
+            return Err("Ativar o TRIM exige privilégios de Administrador.".to_string());
+        }
+        let out = new_hidden_command("fsutil.exe")
+            .args(["behavior", "set", "DisableDeleteNotify", "NTFS", "0"])
+            .output()
+            .map_err(|e| format!("Falha ao executar fsutil: {}", e))?;
+        let _ = new_hidden_command("fsutil.exe")
+            .args(["behavior", "set", "DisableDeleteNotify", "ReFS", "0"])
+            .output();
+
+        if out.status.success() {
+            Ok(CommandResponse::ok(
+                "TRIM ativado (DisableDeleteNotify NTFS = 0) com sucesso!",
+                Some(true),
+            ))
+        } else {
+            let err = String::from_utf8_lossy(&out.stderr).to_string();
+            Err(format!("Falha ao ativar TRIM: {}", err))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Reinicia o PC diretamente no firmware UEFI BIOS (`shutdown /r /fw /t 0`)
+#[tauri::command]
+pub async fn reboot_to_bios() -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(|| {
+        if !is_process_elevated() {
+            return Err("Reiniciar para a BIOS UEFI exige privilégios de Administrador.".to_string());
+        }
+        let sec = detect_security_and_boot(None);
+        if sec.bios_mode != "UEFI" {
+            return Err("Firmware Legacy/MBR detectado. O comando automático 'shutdown /r /fw' só é suportado em sistemas UEFI.".to_string());
+        }
+        let out = new_hidden_command("shutdown.exe")
+            .args(["/r", "/fw", "/t", "0"])
+            .output()
+            .map_err(|e| format!("Falha ao acionar reinicialização para BIOS UEFI: {}", e))?;
+
+        if out.status.success() {
+            Ok(CommandResponse::ok(
+                "Reiniciando diretamente no setup da BIOS UEFI...",
+                Some(true),
+            ))
+        } else {
+            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+            Err(format!("Não foi possível agendar o boot na BIOS UEFI: {}", stderr))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

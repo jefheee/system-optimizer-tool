@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   HardDrive,
   MemoryStick,
@@ -9,6 +9,7 @@ import {
   Loader2,
   Trophy,
   Gamepad2,
+  Scale,
 } from "lucide-react";
 import {
   runDiskBenchmark,
@@ -20,18 +21,25 @@ import {
 } from "../lib/api";
 import { useHardware } from "../lib/HardwareContext";
 import { useLanguage } from "../lib/LanguageContext";
+import BottleneckModule from "./BottleneckModule";
 
 interface BenchmarksModuleProps {
-  subTab: string; // "bench-disk" | "bench-ram" | "bench-cpu"
+  subTab: string; // "bench-disk" | "bench-ram" | "bench-cpu" | "bench-bottleneck"
   onChangeSubTab?: (sub: string) => void;
 }
 
 export default function BenchmarksModule({
   subTab,
-  onChangeSubTab,
 }: BenchmarksModuleProps) {
   const { diagnostics } = useHardware();
   const { lang } = useLanguage();
+  const [activeTool, setActiveTool] = useState<string>(subTab || "bench-disk");
+
+  useEffect(() => {
+    if (subTab) {
+      setActiveTool(subTab);
+    }
+  }, [subTab]);
 
   // Disk state
   const [selectedDrive, setSelectedDrive] = useState("C:");
@@ -148,18 +156,19 @@ export default function BenchmarksModule({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {[
             { id: "bench-disk", pt: "Disco (I/O)", en: "Disk (I/O)", icon: HardDrive },
             { id: "bench-ram", pt: "Memória RAM", en: "RAM Memory", icon: MemoryStick },
             { id: "bench-cpu", pt: "CPU & Jogos", en: "CPU & Games", icon: Gauge },
+            { id: "bench-bottleneck", pt: "Calculadora de Gargalo", en: "Bottleneck Calculator", icon: Scale },
           ].map((t) => {
             const Icon = t.icon;
-            const active = subTab === t.id;
+            const active = activeTool === t.id;
             return (
               <button
                 key={t.id}
-                onClick={() => onChangeSubTab?.(t.id)}
+                onClick={() => setActiveTool(t.id)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
                   active
                     ? "bg-white text-zinc-950 shadow-sm"
@@ -175,7 +184,7 @@ export default function BenchmarksModule({
       </div>
 
       {/* 1. DISK BENCHMARK */}
-      {subTab === "bench-disk" && (
+      {activeTool === "bench-disk" && (
         <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/90 p-6 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -292,7 +301,7 @@ export default function BenchmarksModule({
       )}
 
       {/* 2. RAM BENCHMARK */}
-      {subTab === "bench-ram" && (
+      {activeTool === "bench-ram" && (
         <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/90 p-6 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -388,7 +397,7 @@ export default function BenchmarksModule({
       )}
 
       {/* 3. CPU & GAME FPS SIMULATOR */}
-      {subTab === "bench-cpu" && (
+      {activeTool === "bench-cpu" && (
         <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/90 p-6 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -537,6 +546,11 @@ export default function BenchmarksModule({
             </>
           )}
         </div>
+      )}
+
+      {/* 4. BOTTLENECK & FRAME TIME CALCULATOR */}
+      {activeTool === "bench-bottleneck" && (
+        <BottleneckModule />
       )}
     </div>
   );

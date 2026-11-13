@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -13,7 +13,6 @@ import {
   Settings,
 } from "lucide-react";
 import {
-  checkAdmin,
   restartAsAdmin,
   minimizeWindow,
   toggleMaximizeWindow,
@@ -21,14 +20,13 @@ import {
 } from "../lib/api";
 import { useLanguage } from "../lib/LanguageContext";
 import { useSettings } from "../lib/SettingsContext";
+import { useHardware } from "../lib/HardwareContext";
 
 export type SysTopTabId =
   | "sys-core"
-  | "sys-otimiza"
-  | "sys-bench"
+  | "sys-optimize"
+  | "sys-gaming"
   | "sys-tuning"
-  | "sys-sync"
-  | "sys-jogos"
   | "sys-drivers"
   | "sys-docs";
 
@@ -49,57 +47,43 @@ export const SYS_TOP_TABS: {
     id: "sys-core",
     name: "CORE",
     label: "SYS CORE",
-    subtitlePt: "Diagnóstico, Sensores, Gargalo, Overlay & Stress",
-    subtitleEn: "Diagnostics, Sensors, Bottleneck, Overlay & Stress",
+    subtitlePt: "Visão Geral, Auditoria Completa de Sistema & BIOS, Sensores & Stress, Benchmarks & Gargalo",
+    subtitleEn: "Overview, System & BIOS Audit, Sensors & Stress Test, Benchmarks & Bottleneck",
   },
   {
-    id: "sys-otimiza",
-    name: "OTIMIZA",
-    label: "SYS OTIMIZA",
-    subtitlePt: "Presets 1-Clique, Limpeza SSD/HDD, Gamer 0.5ms & Sistema",
-    subtitleEn: "1-Click Presets, SSD/HDD Clean, Gamer 0.5ms & System",
+    id: "sys-optimize",
+    name: "OPTIMIZE",
+    label: "SYS OPTIMIZE",
+    subtitlePt: "Presets 1-Clique, Setup & Sistema, Debloat & Remoção de IA, Limpeza & Disco, Rede & Áudio, Inicialização & Serviços",
+    subtitleEn: "1-Click Presets, Setup & System, Debloat & AI Removal, Cleanup & Disk, Network & Audio, Startup & Services",
   },
   {
-    id: "sys-bench",
-    name: "BENCH",
-    label: "SYS BENCH",
-    subtitlePt: "Benchmarks Reais de Disco, RAM, CPU & Simulador de FPS",
-    subtitleEn: "Real Disk, RAM, CPU Benchmarks & FPS Simulator",
+    id: "sys-gaming",
+    name: "GAMING",
+    label: "SYS GAMING",
+    subtitlePt: "Biblioteca & Game Booster, GPU & Flip Models, Afinidade de CPU & Latência 0.5ms, HUD Overlay & RTSS",
+    subtitleEn: "Library & Game Booster, GPU & Flip Models, CPU Affinity & 0.5ms Latency, HUD Overlay & RTSS",
   },
   {
     id: "sys-tuning",
     name: "TUNING",
     label: "SYS TUNING",
-    subtitlePt: "Scanner Overclock XMP/Boost, Energia & WHEA Errors",
-    subtitleEn: "Overclock XMP/Boost Scanner, Power & WHEA Errors",
-  },
-  {
-    id: "sys-sync",
-    name: "SYNC",
-    label: "SYS SYNC",
-    subtitlePt: "Integração RGB, Limpador de USB Fantasmas & Portas COM",
-    subtitleEn: "RGB Integration, Ghost USB Cleaner & COM Ports",
-  },
-  {
-    id: "sys-jogos",
-    name: "JOGOS",
-    label: "SYS JOGOS",
-    subtitlePt: "Biblioteca Automática Steam/Epic/Riot & Game Booster",
-    subtitleEn: "Auto Steam/Epic/Riot Library & Game Booster",
+    subtitlePt: "Energia & Overclock Scan, Mouse/Controle/Monitor, USB & RGB Sync, Sandbox & Modo de Segurança",
+    subtitleEn: "Power & Overclock Scan, Mouse/Controller/Display, USB & RGB Sync, Sandbox & Safe Mode",
   },
   {
     id: "sys-drivers",
     name: "DRIVERS",
     label: "SYS DRIVERS",
-    subtitlePt: "Auditor de Drivers, Maker CH340/FTDI, Winget & Hub",
-    subtitleEn: "Driver Auditor, Maker CH340/FTDI, Winget & Hub",
+    subtitlePt: "Auditor de Drivers & DDU, Smart App Installer, Formatação Limpa & USB Bootável, Drivers Maker Serial",
+    subtitleEn: "Driver & DDU Auditor, Smart App Installer, Clean Install & Bootable USB, Serial Maker Drivers",
   },
   {
     id: "sys-docs",
     name: "DOCS",
     label: "SYS DOCS",
-    subtitlePt: "Enciclopédia Técnica Completa & Sobre o Projeto",
-    subtitleEn: "Full Technical Encyclopedia & About Project",
+    subtitlePt: "Enciclopédia Técnica de Otimizações, Guia de BIOS & Troubleshooting, Sobre & Integridade",
+    subtitleEn: "Technical Optimization Wiki, BIOS & Troubleshooting Guide, About & Integrity",
   },
 ];
 
@@ -110,22 +94,8 @@ export default function TopNavbar({
 }: TopNavbarProps) {
   const { lang, setLang } = useLanguage();
   const { theme, setTheme } = useSettings();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const { isAdmin } = useHardware();
   const [elevating, setElevating] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    checkAdmin()
-      .then((res) => {
-        if (mounted) setIsAdmin(Boolean(res));
-      })
-      .catch(() => {
-        if (mounted) setIsAdmin(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const handleElevate = async () => {
     try {
@@ -175,7 +145,7 @@ export default function TopNavbar({
           </div>
         </div>
 
-        {/* 8 Horizontal SYS Tabs */}
+        {/* 6 Horizontal SYS Tabs */}
         <nav className="flex items-center gap-1 shrink-0">
           {SYS_TOP_TABS.map((tab) => {
             const active = activeTopTab === tab.id;

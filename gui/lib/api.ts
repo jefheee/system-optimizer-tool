@@ -49,11 +49,23 @@ export interface CpuInfo {
   socket: string;
 }
 
+export interface OsCompatibility {
+  osTier: 'Win7' | 'Win8_81' | 'Win10' | 'Win11_21H2_23H2' | 'Win11_24H2_26H2' | string;
+  buildNumber: number;
+  productName: string;
+  displayVersion: string;
+  isWin1124h2OrNewer: boolean;
+  isLegacyWin78: boolean;
+}
+
 export interface MotherboardInfo {
   manufacturer: string;
   product: string;
   biosVersion: string;
   biosReleaseDate: string;
+  supportSearchUrl?: string;
+  cpuVendor?: 'AMD' | 'Intel' | 'Unknown' | string;
+  isX3d?: boolean;
 }
 
 export interface GpuInfo {
@@ -66,6 +78,13 @@ export interface GpuInfo {
   isPrimary: boolean;
   resizableBar: boolean;
   whqlSigned: boolean;
+  pcieDeviceId?: string;
+  msiSupported?: boolean;
+  msiPriority?: string;
+  pcieGeneration?: string;
+  pcieLanes?: string;
+  laneSharingWarning?: boolean;
+  connectedToIgpuWarning?: boolean;
 }
 
 export interface RamSlot {
@@ -90,6 +109,12 @@ export interface MemoryInfo {
   xmpAlert: boolean;
   xmpMessage: string;
   memoryType: string;
+  dualChannel?: boolean;
+  channelMode?: string;
+  mismatchedModules?: boolean;
+  slotPlacementOk?: boolean;
+  ddr5FourDimmWarning?: boolean;
+  ramWarnings?: string[];
 }
 
 export interface StorageDisk {
@@ -99,6 +124,9 @@ export interface StorageDisk {
   freeGb: number;
   usedGb: number;
   usagePercent: number;
+  freePercent?: number;
+  lowSpaceCritical?: boolean;
+  isHddOrUsbWarning?: boolean;
   driveLetters: string[] | string;
   mediaType: string; // "NVMe", "SSD", "HDD"
   busType: string;   // "NVMe", "SATA", "USB"
@@ -116,6 +144,8 @@ export interface LogicalVolume {
   freeGb: number;
   usedGb: number;
   usagePercent: number;
+  freePercent?: number;
+  lowSpaceCritical?: boolean;
   physicalDiskModel: string;
   physicalDiskType: string;
 }
@@ -165,6 +195,10 @@ export interface SystemDiagnostics {
   status: string;
   timestamp: string;
   deviceType: 'Desktop' | 'Laptop' | string;
+  hardwareTier: 'low' | 'mid' | 'high' | string;
+  isOnBattery: boolean;
+  osCompat: OsCompatibility;
+  trimEnabled: boolean;
   battery: BatteryInfo | null;
   operatingSystem: OperatingSystemInfo | null;
   cpu: CpuInfo | null;
@@ -182,6 +216,34 @@ export interface SystemDiagnostics {
   windowsLicense?: WindowsLicenseInfo;
   setupExport: string;
   message: string;
+}
+
+export interface RestorePointEntry {
+  sequenceNumber: number;
+  description: string;
+  creationTime: string;
+  restorePointType: string;
+}
+
+export interface RestorePointsStatus {
+  protectionEnabled: boolean;
+  frequencyUnlocked: boolean;
+  hasRecentRestorePoint: boolean;
+  points: RestorePointEntry[];
+}
+
+export interface LiveTweakStatus {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  riskLevel: 'low' | 'medium' | 'high' | string;
+  applied: boolean;
+  currentValue: string;
+  recommendedValue: string;
+  defaultValue: string;
+  registryPath: string;
+  minOsTier: string;
 }
 
 // -------------------------------------------------------------
@@ -393,6 +455,17 @@ export async function getSystemDiagnostics(): Promise<SystemDiagnostics> {
     status: "Success",
     timestamp: new Date().toISOString(),
     deviceType: "Desktop",
+    hardwareTier: "high",
+    isOnBattery: false,
+    osCompat: {
+      osTier: "Win11_24H2_26H2",
+      buildNumber: 26100,
+      productName: "Microsoft Windows 11 Pro",
+      displayVersion: "24H2",
+      isWin1124h2OrNewer: true,
+      isLegacyWin78: false,
+    },
+    trimEnabled: true,
     battery: null,
     operatingSystem: {
       caption: "Microsoft Windows 11 Pro 24H2",
@@ -1348,5 +1421,75 @@ export async function getWingetCatalog(): Promise<CommandResponse<WingetAppItem[
 
 export async function installWingetBatch(wingetIds: string[]): Promise<CommandResponse<number>> {
   return invokeCommand<number>("install_winget_batch", { wingetIds });
+}
+
+export async function getRestorePointsStatus(): Promise<CommandResponse<RestorePointsStatus>> {
+  const res = await invokeCommand<RestorePointsStatus>("get_restore_points_status");
+  if (res.success && res.data) return res;
+  return {
+    success: true,
+    message: "Preview web: Ponto de restauração pendente",
+    data: {
+      protectionEnabled: true,
+      frequencyUnlocked: false,
+      hasRecentRestorePoint: false,
+      points: [],
+    },
+  };
+}
+
+export async function getLiveTweaksStatus(): Promise<CommandResponse<LiveTweakStatus[]>> {
+  const res = await invokeCommand<LiveTweakStatus[]>("get_live_tweaks_status");
+  if (res.success && res.data) return res;
+  return {
+    success: true,
+    message: "Preview web",
+    data: [
+      {
+        id: "timer_05ms",
+        name: "Kernel Timer Resolution 0.5ms",
+        category: "Latência & CPU",
+        description: "Ativa GlobalTimerResolutionRequests = 1 e ajusta precisão do tick para 0.5ms.",
+        riskLevel: "low",
+        applied: true,
+        currentValue: "Global=1 (0.5ms)",
+        recommendedValue: "1 (0.5ms)",
+        defaultValue: "0 (15.6ms)",
+        registryPath: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\kernel\\GlobalTimerResolutionRequests",
+        minOsTier: "Win7",
+      },
+      {
+        id: "win32_priority",
+        name: "Win32PrioritySeparation (0x26 / 38)",
+        category: "Latência & CPU",
+        description: "Prioriza janela em primeiro plano (Short Variable Quantum).",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "0x2 (2)",
+        recommendedValue: "0x26 (38)",
+        defaultValue: "0x2 (2)",
+        registryPath: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl\\Win32PrioritySeparation",
+        minOsTier: "Win7",
+      },
+    ],
+  };
+}
+
+export async function applyOrRevertTweak(tweakId: string, apply: boolean): Promise<CommandResponse<LiveTweakStatus>> {
+  return invokeCommand<LiveTweakStatus>("apply_or_revert_tweak", { tweakId, apply });
+}
+
+export async function enableTrim(): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("enable_trim");
+}
+
+export async function rebootToBios(): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("reboot_to_bios");
+}
+
+export async function scanUsbDevices(): Promise<CommandResponse<UsbScanResult>> {
+  const res = await invokeCommand<UsbScanResult>("scan_usb_devices");
+  if (res.success && res.data) return res;
+  return getUsbDevices();
 }
 
