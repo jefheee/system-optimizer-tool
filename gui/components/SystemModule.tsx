@@ -24,8 +24,24 @@ import {
   removeStartupApp,
   generateBatteryOrEnergyReport,
   checkAdmin,
+  getLiveTweaksStatus,
+  applyOrRevertTweak,
+  getBitlockerStatus,
+  bitlockerDecrypt,
+  syncSystemTime,
+  restoreEssentialApp,
+  getAudioEndpoints,
+  injectLoudnessEq,
+  openSoundControlPanel,
+  disableNicPowerSaving,
+  getNetworkBindingsStatus,
+  toggleIpv4Only,
   DnsBenchmarkResult,
   StartupAppItem,
+  LiveTweakStatus,
+  BitLockerDriveStatus,
+  AudioEndpointItem,
+  NetworkBindingsStatus,
 } from '../lib/api';
 import { useLanguage } from '../lib/LanguageContext';
 import { useHardware } from '../lib/HardwareContext';
@@ -60,6 +76,11 @@ import {
   Activity,
   Shield,
   Layers,
+  Unlock,
+  Volume2,
+  Globe,
+  Sparkles,
+  Download,
 } from 'lucide-react';
 
 type SubView = 'general' | 'startup' | 'checklist' | 'maintenance';
@@ -79,7 +100,16 @@ export default function SystemModule({ initialSubView }: { initialSubView?: SubV
   const [startupSearch, setStartupSearch] = useState<string>('');
   const [techModalData, setTechModalData] = useState<TechDetailsData | null>(null);
 
+  // ETAPA 2 states (Módulos 3 e 6)
+  const [liveTweaks, setLiveTweaks] = useState<LiveTweakStatus[]>([]);
+  const [bitlockerDrives, setBitlockerDrives] = useState<BitLockerDriveStatus[]>([]);
+  const [audioEndpoints, setAudioEndpoints] = useState<AudioEndpointItem[]>([]);
+  const [selectedEndpointId, setSelectedEndpointId] = useState<string>('');
+  const [netBindings, setNetBindings] = useState<NetworkBindingsStatus | null>(null);
+  const [preserveSmb, setPreserveSmb] = useState<boolean>(true);
+
   const isLaptop = diagnostics?.deviceType === 'Laptop';
+  const ramTotalGb = diagnostics?.memory?.totalGb ?? 16;
 
   useEffect(() => {
     if (initialSubView) {
@@ -101,10 +131,171 @@ export default function SystemModule({ initialSubView }: { initialSubView?: SubV
     }
   };
 
+  const loadEtapa2State = async () => {
+    const [ltRes, blRes, auRes, nbRes] = await Promise.all([
+      getLiveTweaksStatus(),
+      getBitlockerStatus(),
+      getAudioEndpoints(),
+      getNetworkBindingsStatus(),
+    ]);
+    if (ltRes.success && ltRes.data) setLiveTweaks(ltRes.data);
+    if (blRes.success && blRes.data) setBitlockerDrives(blRes.data);
+    if (auRes.success && auRes.data) {
+      setAudioEndpoints(auRes.data);
+      if (auRes.data.length > 0) {
+        setSelectedEndpointId((prev) => prev || auRes.data![0].id);
+      }
+    }
+    if (nbRes.success && nbRes.data) setNetBindings(nbRes.data);
+  };
+
   useEffect(() => {
     checkAdmin().then(setIsAdmin);
     loadStartupList();
+    loadEtapa2State();
   }, []);
+
+  const getTweak = (id: string): LiveTweakStatus | undefined =>
+    liveTweaks.find((t) => t.id === id);
+
+  const handleLiveTweak = (
+    tweakId: string,
+    apply: boolean,
+    label: string,
+    guardRestore: boolean = true
+  ) => {
+    const run = async () => {
+      const key = `lt_${tweakId}`;
+      setActiveActions((prev) => ({ ...prev, [key]: true }));
+      try {
+        const res = await applyOrRevertTweak(tweakId, apply);
+        setResults((prev) => ({
+          ...prev,
+          [key]: { success: res.success, message: res.message },
+        }));
+        await loadEtapa2State();
+        await refreshAudit();
+      } catch (err: any) {
+        setResults((prev) => ({
+          ...prev,
+          [key]: { success: false, message: err?.message || 'Error' },
+        }));
+      } finally {
+        setActiveActions((prev) => ({ ...prev, [key]: false }));
+      }
+    };
+
+    if (apply && guardRestore) {
+      requireRestorePoint(label, 'medium', run);
+    } else {
+      void run();
+    }
+  };
+
+  const handleBitlockerDecrypt = (drive: string) => {
+    requireRestorePoint(
+      language === 'PT'
+        ? `Desencriptar BitLocker (${drive})`
+        : `Decrypt BitLocker (${drive})`,
+      'high',
+      async () => {
+        const key = `bl_${drive}`;
+        setActiveActions((prev) => ({ ...prev, [key]: true }));
+        try {
+          const res = await bitlockerDecrypt(drive);
+          setResults((prev) => ({
+            ...prev,
+            bitlocker: { success: res.success, message: res.message },
+          }));
+          await loadEtapa2State();
+        } finally {
+          setActiveActions((prev) => ({ ...prev, [key]: false }));
+        }
+      }
+    );
+  };
+
+  const handleLoudnessEq = (enable: boolean) => {
+    if (!selectedEndpointId) return;
+    const run = async () => {
+      setActiveActions((prev) => ({ ...prev, audio_eq: true }));
+      try {
+        const res = await injectLoudnessEq(selectedEndpointId, enable);
+        setResults((prev) => ({
+          ...prev,
+          audio_eq: { success: res.success, message: res.message },
+        }));
+        await loadEtapa2State();
+      } finally {
+        setActiveActions((prev) => ({ ...prev, audio_eq: false }));
+      }
+    };
+    if (enable) {
+      requireRestorePoint(
+        language === 'PT'
+          ? 'Injetar Enhancements & Loudness Equalization no Endpoint de Áudio'
+          : 'Inject Audio Enhancements & Loudness Equalization',
+        'medium',
+        run
+      );
+    } else {
+      void run();
+    }
+  };
+
+  const handleNicPowerSaving = (enable: boolean) => {
+    const run = async () => {
+      setActiveActions((prev) => ({ ...prev, nic_ps: true }));
+      try {
+        const res = await disableNicPowerSaving(enable);
+        setResults((prev) => ({
+          ...prev,
+          nic_ps: { success: res.success, message: res.message },
+        }));
+        await loadEtapa2State();
+      } finally {
+        setActiveActions((prev) => ({ ...prev, nic_ps: false }));
+      }
+    };
+    if (enable) {
+      requireRestorePoint(
+        language === 'PT'
+          ? 'Desativar Economia de Energia da Placa de Rede (NIC EEE Off)'
+          : 'Disable NIC Power Saving (EEE / PnP Off)',
+        'medium',
+        run
+      );
+    } else {
+      void run();
+    }
+  };
+
+  const handleToggleIpv4Only = (enable: boolean) => {
+    const run = async () => {
+      setActiveActions((prev) => ({ ...prev, ipv4_only: true }));
+      try {
+        const res = await toggleIpv4Only(enable, preserveSmb);
+        setResults((prev) => ({
+          ...prev,
+          ipv4_only: { success: res.success, message: res.message },
+        }));
+        await loadEtapa2State();
+      } finally {
+        setActiveActions((prev) => ({ ...prev, ipv4_only: false }));
+      }
+    };
+    if (enable) {
+      requireRestorePoint(
+        language === 'PT'
+          ? 'Ativar Modo de Rede IPv4-Only'
+          : 'Enable IPv4-Only Network Mode',
+        'medium',
+        run
+      );
+    } else {
+      void run();
+    }
+  };
 
   const executeActionRaw = async (id: string, fn: () => Promise<any>) => {
     setActiveActions((prev) => ({ ...prev, [id]: true }));
@@ -519,6 +710,194 @@ export default function SystemModule({ initialSubView }: { initialSubView?: SubV
               </div>
             </div>
           </div>
+
+          {/* MÓDULO 6: Injetor Profundo de Áudio (Loudness EQ) + NIC Power Saving Off + IPv4-Only */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
+            {/* Card A: Audio Loudness Equalization Injector */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-cyan-400">
+                    <Volume2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-neutral-100">
+                      {language === 'PT'
+                        ? 'Injetor de Áudio & Loudness Equalization (FPS)'
+                        : 'Deep Audio & Loudness Equalization Injector'}
+                    </h4>
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      MMDevices\Audio\Render\FxProperties
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => openSoundControlPanel()}
+                  className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-[10px] font-bold text-neutral-200 cursor-pointer shrink-0"
+                >
+                  mmsys.cpl
+                </button>
+              </div>
+
+              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                {language === 'PT'
+                  ? 'Destrava a aba oculta "Enhancements / Melhorias" em drivers modernos do Windows 11 e ativa Loudness Equalization para realçar passos e áudios baixos em jogos competitivos.'
+                  : 'Unlocks the hidden Windows Enhancements tab on modern drivers and enables Loudness Equalization for competitive audio clarity.'}
+              </p>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-neutral-400 mb-1">
+                  {language === 'PT' ? 'Endpoint de Reprodução Ativo:' : 'Active Render Endpoint:'}
+                </label>
+                <select
+                  value={selectedEndpointId}
+                  onChange={(e) => setSelectedEndpointId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-800 text-xs text-neutral-100"
+                >
+                  {audioEndpoints.length === 0 && (
+                    <option value="">{language === 'PT' ? 'Nenhum dispositivo ativo encontrado' : 'No active render endpoint found'}</option>
+                  )}
+                  {audioEndpoints.map((ep) => (
+                    <option key={ep.id} value={ep.id}>
+                      {ep.name} ({ep.deviceName}) {ep.loudnessEqEnabled ? '✓ Loudness EQ' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleLoudnessEq(true)}
+                  disabled={activeActions['audio_eq'] || !selectedEndpointId}
+                  className="flex-1 py-2 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-neutral-950 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {activeActions['audio_eq'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  <span>
+                    {language === 'PT'
+                      ? 'Destravar Enhancements & Ativar Loudness EQ'
+                      : 'Unlock Enhancements & Enable Loudness EQ'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => handleLoudnessEq(false)}
+                  disabled={activeActions['audio_eq'] || !selectedEndpointId}
+                  className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-xs font-semibold cursor-pointer"
+                >
+                  {language === 'PT' ? 'Reverter' : 'Revert'}
+                </button>
+              </div>
+
+              {results['audio_eq'] && (
+                <div className={`p-2 rounded-lg text-[11px] border ${results['audio_eq'].success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                  {results['audio_eq'].message}
+                </div>
+              )}
+            </div>
+
+            {/* Card B: NIC Power Saving Disabler & IPv4-Only Network Mode */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-cyan-400">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-neutral-100">
+                      {language === 'PT'
+                        ? 'Economia da NIC Off & Modo de Rede IPv4-Only'
+                        : 'NIC Power Saving Disabler & IPv4-Only Mode'}
+                    </h4>
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      {netBindings ? `NIC: ${netBindings.adapterName}` : 'Ethernet / Wi-Fi Bindings'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* NIC EEE / Green Ethernet / PnP */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-neutral-200">
+                    {language === 'PT' ? 'Desativar Economia da Placa de Rede (EEE / Green Ethernet / PnP)' : 'Disable NIC Power Saving (EEE / Green Ethernet / Wake-on-LAN)'}
+                  </div>
+                  <div className="text-[10px] text-neutral-400 font-mono">
+                    {getTweak('nic_power_saving_off')?.currentValue || 'PnPCapabilities=24, EEE=0, ULPMode=0'}
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => handleNicPowerSaving(true)}
+                    disabled={activeActions['nic_ps']}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold cursor-pointer"
+                  >
+                    {language === 'PT' ? 'Aplicar Off' : 'Apply Off'}
+                  </button>
+                  <button
+                    onClick={() => handleNicPowerSaving(false)}
+                    disabled={activeActions['nic_ps']}
+                    className="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 text-xs cursor-pointer"
+                  >
+                    {language === 'PT' ? 'Reverter' : 'Revert'}
+                  </button>
+                </div>
+              </div>
+
+              {/* IPv4-Only Binding Mode + Preserve SMB */}
+              <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-neutral-200">
+                    {language === 'PT' ? 'Modo de Rede IPv4-Only (NetAdapterBinding)' : 'IPv4-Only Network Mode (NetAdapterBinding)'}
+                  </span>
+                  {netBindings && (
+                    <div className="flex flex-wrap gap-1 text-[9px] font-mono">
+                      <span className={`px-1.5 py-0.5 rounded ${netBindings.ipv4Enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>IPv4:{netBindings.ipv4Enabled ? 'ON' : 'OFF'}</span>
+                      <span className={`px-1.5 py-0.5 rounded ${!netBindings.ipv6Enabled ? 'bg-cyan-500/15 text-cyan-300' : 'bg-neutral-800 text-neutral-400'}`}>IPv6:{netBindings.ipv6Enabled ? 'ON' : 'OFF'}</span>
+                      <span className={`px-1.5 py-0.5 rounded ${!netBindings.qosEnabled ? 'bg-cyan-500/15 text-cyan-300' : 'bg-neutral-800 text-neutral-400'}`}>QoS:{netBindings.qosEnabled ? 'ON' : 'OFF'}</span>
+                      <span className={`px-1.5 py-0.5 rounded ${netBindings.smbEnabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>SMB:{netBindings.smbEnabled ? 'ON' : 'OFF'}</span>
+                    </div>
+                  )}
+                </div>
+
+                <label className="flex items-center gap-2 text-[11px] text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={preserveSmb}
+                    onChange={(e) => setPreserveSmb(e.target.checked)}
+                    className="accent-cyan-400"
+                  />
+                  <span>
+                    {language === 'PT'
+                      ? 'Preservar Compartilhamento de Arquivos em Rede Local (SMB ms_server / ms_msclient)'
+                      : 'Preserve Local Network File Sharing (SMB ms_server / ms_msclient)'}
+                  </span>
+                </label>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleToggleIpv4Only(true)}
+                    disabled={activeActions['ipv4_only']}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-bold text-neutral-100 cursor-pointer"
+                  >
+                    {activeActions['ipv4_only'] ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" /> : null}
+                    <span>{language === 'PT' ? 'Ativar Modo IPv4-Only' : 'Enable IPv4-Only'}</span>
+                  </button>
+                  <button
+                    onClick={() => handleToggleIpv4Only(false)}
+                    disabled={activeActions['ipv4_only']}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs text-neutral-300 cursor-pointer"
+                  >
+                    {language === 'PT' ? 'Restaurar IPv6/QoS' : 'Restore All'}
+                  </button>
+                </div>
+              </div>
+
+              {(results['nic_ps'] || results['ipv4_only']) && (
+                <div className="p-2 rounded-lg text-[11px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                  {results['ipv4_only']?.message || results['nic_ps']?.message}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -683,12 +1062,410 @@ export default function SystemModule({ initialSubView }: { initialSubView?: SubV
               );
             })}
           </div>
+
+          {/* MÓDULO 3: SETUP INICIAL DO SISTEMA (BITLOCKER, RAM COMPRESSION, NTP SYNC, WINDOWS UPDATE, UWP) */}
+          <div className="pt-4 mt-4 border-t border-neutral-800/80 space-y-3">
+            <div className="flex items-center gap-2">
+              <Settings className="w-4 h-4 text-cyan-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200">
+                {language === 'PT'
+                  ? 'Módulo 3 — Setup Inicial do Sistema (BitLocker, Memória, NTP & Updates)'
+                  : 'Module 3 — Initial System Setup (BitLocker, Memory, NTP & Updates)'}
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {/* BitLocker Audit & 1-Click Decrypt */}
+              <div className="p-3.5 rounded-xl bg-neutral-950/70 border border-neutral-800 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Unlock className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold text-neutral-100">
+                      {language === 'PT'
+                        ? 'Auditoria e Desativação do BitLocker (Win11 24H2-26H2)'
+                        : 'BitLocker Audit & 1-Click Decrypt'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-neutral-400">manage-bde -off</span>
+                </div>
+                <p className="text-[11px] text-neutral-400 leading-snug">
+                  {language === 'PT'
+                    ? 'A criptografia automática do Windows 11 reduz IOPS aleatório em SSDs NVMe e adiciona overhead de CPU.'
+                    : 'Default BitLocker device encryption on Windows 11 24H2+ reduces NVMe random IOPS and adds CPU I/O overhead.'}
+                </p>
+                <div className="space-y-1.5">
+                  {bitlockerDrives.map((d) => (
+                    <div
+                      key={d.drive}
+                      className="flex items-center justify-between gap-2 p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-[11px]"
+                    >
+                      <div className="font-mono">
+                        <strong className="text-neutral-100">{d.drive}</strong> •{' '}
+                        <span className={d.protectionOn || d.percentageEncrypted > 0 ? 'text-amber-300' : 'text-emerald-300'}>
+                          {d.status} ({d.percentageEncrypted}%)
+                        </span>
+                      </div>
+                      {(d.protectionOn || d.percentageEncrypted > 0) && (
+                        <button
+                          onClick={() => handleBitlockerDecrypt(d.drive)}
+                          disabled={activeActions[`bl_${d.drive}`]}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold text-[10px] cursor-pointer"
+                        >
+                          {language === 'PT' ? 'Desencriptar' : 'Decrypt Off'}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {results['bitlocker'] && (
+                  <div className="text-[10px] font-mono text-emerald-300">{results['bitlocker'].message}</div>
+                )}
+              </div>
+
+              {/* Smart Memory Compression */}
+              <div className="p-3.5 rounded-xl bg-neutral-950/70 border border-neutral-800 space-y-2.5 flex flex-col justify-between">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-neutral-100">
+                      {language === 'PT'
+                        ? 'Compressão de Memória RAM (MMAgent)'
+                        : 'Smart Memory Compression (MMAgent)'}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        ramTotalGb >= 16
+                          ? 'bg-cyan-500/15 text-cyan-300'
+                          : 'bg-emerald-500/15 text-emerald-300'
+                      }`}
+                    >
+                      {ramTotalGb >= 16
+                        ? `${Math.round(ramTotalGb)} GB RAM -> ${language === 'PT' ? 'Recom. Desativar' : 'Rec: Disable'}`
+                        : `${Math.round(ramTotalGb)} GB RAM -> ${language === 'PT' ? 'Recom. Manter Ativo' : 'Rec: Keep Active'}`}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400 leading-snug">
+                    {language === 'PT'
+                      ? 'Com >= 16 GB de RAM, desativar a compressão elimina micro-stutters causados por compactação na CPU. Em portáteis <= 8 GB, mantenha ativo.'
+                      : 'With >= 16 GB RAM, disabling compression stops CPU compression micro-stutters. On <= 8 GB handhelds/laptops, keep enabled.'}
+                  </p>
+                  <div className="text-[10px] font-mono text-neutral-300">
+                    Status: <strong className="text-cyan-300">{getTweak('memory_compression')?.currentValue || 'Get-MMAgent'}</strong>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleLiveTweak('memory_compression', true, 'Disable Memory Compression', true)}
+                    disabled={activeActions['lt_memory_compression']}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 text-xs font-bold cursor-pointer"
+                  >
+                    {language === 'PT' ? 'Desativar Compressão' : 'Disable Compression'}
+                  </button>
+                  <button
+                    onClick={() => handleLiveTweak('memory_compression', false, 'Enable Memory Compression', false)}
+                    disabled={activeActions['lt_memory_compression']}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-xs cursor-pointer"
+                  >
+                    {language === 'PT' ? 'Reverter (Ativar)' : 'Enable (Revert)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* NTP Clock & Windows Update 1-Year Pause + Resume + Delivery Optimization */}
+              <div className="p-3.5 rounded-xl bg-neutral-950/70 border border-neutral-800 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-neutral-100">
+                    {language === 'PT'
+                      ? 'Relógio NTP Sync & Windows Update (Pausa 1 Ano + Resume)'
+                      : 'NTP Clock Sync & Windows Update (1-Year Pause + Resume)'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-400">
+                  {language === 'PT'
+                    ? 'Sincroniza w32time /resync (corrige falhas de login/download Xbox/Store), pausa updates por 365 dias ou retoma imediatamente, e desativa P2P.'
+                    : 'Resyncs w32time (fixes Microsoft Store / Xbox auth errors), pauses updates up to 1 year with instant Resume, and turns Delivery Optimization P2P Off.'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleAction('ntp_sync', syncSystemTime)}
+                    disabled={activeActions['ntp_sync']}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-bold text-neutral-100 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{language === 'PT' ? 'Sincronizar Relógio NTP' : 'Sync NTP Clock'}</span>
+                  </button>
+                  <button
+                    onClick={() => handleLiveTweak('windows_update_pause', true, 'Pausar Windows Update (1 Ano)', true)}
+                    disabled={activeActions['lt_windows_update_pause']}
+                    className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-bold cursor-pointer"
+                  >
+                    {language === 'PT' ? 'Pausar Updates (1 Ano)' : 'Pause Updates (1 Yr)'}
+                  </button>
+                  <button
+                    onClick={() => handleLiveTweak('windows_update_pause', false, 'Retomar Windows Update', false)}
+                    disabled={activeActions['lt_windows_update_pause']}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-200 text-xs font-bold cursor-pointer"
+                  >
+                    {language === 'PT' ? 'Retomar Atualizações (Resume)' : 'Resume Updates'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between pt-1 text-[10px] font-mono text-neutral-400">
+                  <span>{getTweak('windows_update_pause')?.currentValue || 'Update status'}</span>
+                  {results['ntp_sync'] && <span className="text-emerald-300">{results['ntp_sync'].message}</span>}
+                </div>
+              </div>
+
+              {/* Delivery Optimization + UWP Background + Store Auto-Update */}
+              <div className="p-3.5 rounded-xl bg-neutral-950/70 border border-neutral-800 space-y-2">
+                <span className="text-xs font-bold text-neutral-100 block">
+                  {language === 'PT'
+                    ? 'P2P Delivery Optimization, Apps UWP & Microsoft Store'
+                    : 'P2P Delivery Optimization, UWP Background & Store Auto-Update'}
+                </span>
+                {[
+                  { id: 'delivery_optimization_off', labelPt: 'Desativar Delivery Optimization (P2P Off)', labelEn: 'Disable Delivery Optimization (P2P Off)' },
+                  { id: 'uwp_background_off', labelPt: 'Bloquear Apps UWP em Segundo Plano', labelEn: 'Block Background UWP Apps' },
+                  { id: 'store_autoupdate_off', labelPt: 'Desativar Auto-Update da Microsoft Store', labelEn: 'Disable Store Auto-Updates' },
+                ].map((row) => {
+                  const tw = getTweak(row.id);
+                  const active = Boolean(tw?.applied);
+                  return (
+                    <div key={row.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-xs">
+                      <span className={active ? 'text-emerald-300 font-semibold' : 'text-neutral-300'}>
+                        {language === 'PT' ? row.labelPt : row.labelEn}
+                      </span>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleLiveTweak(row.id, true, row.labelPt, true)}
+                          className={`px-2.5 py-1 rounded text-[10px] font-bold cursor-pointer ${active ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'}`}
+                        >
+                          {active ? (language === 'PT' ? 'Aplicado' : 'Applied') : (language === 'PT' ? 'Aplicar' : 'Apply')}
+                        </button>
+                        {active && (
+                          <button
+                            onClick={() => handleLiveTweak(row.id, false, row.labelPt, false)}
+                            className="px-2 py-1 rounded bg-neutral-800 text-neutral-300 text-[10px] cursor-pointer"
+                          >
+                            {language === 'PT' ? 'Reverter' : 'Revert'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* MÓDULO 6.1: PERSONALIZAÇÃO SHELL, NOTEPAD, EFEITOS VISUAIS, EXPLORER PRO & TEMA BLACKOUT */}
+          <div className="pt-4 mt-4 border-t border-neutral-800/80 space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-200">
+                {language === 'PT'
+                  ? 'Módulo 6 — Shell Clássico, Notepad Limpo, Efeitos Visuais, Explorer Pro & Tema Blackout'
+                  : 'Module 6 — Classic Context Menu, Clean Notepad, Visual FX, Explorer Pro & Blackout Theme'}
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {[
+                {
+                  id: 'classic_context_menu',
+                  titlePt: 'Menu de Contexto Clássico (Win10)',
+                  titleEn: 'Classic Context Menu (Win10)',
+                  descPt: 'Menu direito instantâneo completo (nota: preserva acesso clássico p/ mapear unidade de rede).',
+                  descEn: 'Restores instant Win10 right-click menu (reinforces classic network drive workflows).',
+                },
+                {
+                  id: 'clean_notepad',
+                  titlePt: 'Bloco de Notas Limpo (Sem IA)',
+                  titleEn: 'Clean Notepad (No Copilot/Tabs)',
+                  descPt: 'Preserva o Notepad desativando Copilot/IA e abertura de abas da sessão anterior.',
+                  descEn: 'Preserves Notepad while disabling Copilot AI buttons and session tab restore.',
+                },
+                {
+                  id: 'visual_effects_opt',
+                  titlePt: 'Efeitos Visuais Otimizados',
+                  titleEn: 'Lean Visual Effects (ClearType Safe)',
+                  descPt: 'Remove animações de minimizar/barra preservando fontes nítidas e miniaturas.',
+                  descEn: 'Disables window animations while keeping ClearType font smoothing and thumbnails.',
+                },
+                {
+                  id: 'explorer_pro_settings',
+                  titlePt: 'Explorer Pro & Dynamic Lighting Off',
+                  titleEn: 'Explorer Pro & Dynamic Lighting Off',
+                  descPt: 'Mostra extensões, arquivos ocultos, abre em Este Computador e desliga Iluminação Dinâmica.',
+                  descEn: 'Shows extensions, hidden files, opens This PC, and turns off Dynamic Lighting.',
+                },
+                {
+                  id: 'full_blackout_theme',
+                  titlePt: 'Tema Escuro Total & Zero Transparência',
+                  titleEn: 'Full Blackout Theme (No Transparency)',
+                  descPt: 'Força Dark Mode total em Sistema/Apps e remove transparência Mica/Acrylic.',
+                  descEn: 'Enforces dark mode across Apps/OS and disables window transparency overhead.',
+                },
+              ].map((cfg) => {
+                const tw = getTweak(cfg.id);
+                const applied = Boolean(tw?.applied);
+                const busy = !!activeActions[`lt_${cfg.id}`];
+                return (
+                  <div
+                    key={cfg.id}
+                    className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 flex flex-col justify-between gap-2.5"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-neutral-100">
+                          {language === 'PT' ? cfg.titlePt : cfg.titleEn}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${applied ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-800 text-neutral-400'}`}>
+                          {applied ? 'ON' : 'OFF'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400 mt-1 leading-snug">
+                        {language === 'PT' ? cfg.descPt : cfg.descEn}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleLiveTweak(cfg.id, true, cfg.titlePt, false)}
+                        disabled={busy}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold cursor-pointer"
+                      >
+                        {language === 'PT' ? 'Aplicar' : 'Apply'}
+                      </button>
+                      <button
+                        onClick={() => handleLiveTweak(cfg.id, false, cfg.titlePt, false)}
+                        disabled={busy}
+                        className="py-1.5 px-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 text-[11px] cursor-pointer"
+                      >
+                        {language === 'PT' ? 'Reverter' : 'Revert'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
       {/* SUB-VIEW 4: Manutenção Avançada */}
       {subView === 'maintenance' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 shrink-0">
+        <div className="space-y-4 shrink-0">
+          {/* MÓDULO 6.2: Extermínio de IA Win11 24H2-26H2 + Whitelist Endurecida + Restauração Seletiva */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Windows AI Extermination + Hardened Whitelist */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-neutral-100 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                    <span>
+                      {language === 'PT'
+                        ? 'Extermínio de IA Windows 11 24H2–26H2'
+                        : 'Windows 11 24H2–26H2 AI Extermination'}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                    {language === 'PT'
+                      ? 'Desativa via GPO: Windows Copilot, Windows Recall (Snapshots), Paint Image Creator/Cocreator e Cross Device Resume.'
+                      : 'Disables Windows Copilot, Recall Snapshots, Paint Cocreator, and Cross Device Resume via Registry policies.'}
+                  </p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${getTweak('disable_windows_ai')?.applied ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-800 text-neutral-400'}`}>
+                  {getTweak('disable_windows_ai')?.applied ? 'IA Bloqueada' : 'Padrão'}
+                </span>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleLiveTweak('disable_windows_ai', true, 'Extermínio de IA (Copilot, Recall, Cocreator)', true)}
+                  disabled={activeActions['lt_disable_windows_ai']}
+                  className="flex-1 py-2 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-neutral-950 font-bold text-xs cursor-pointer"
+                >
+                  {language === 'PT' ? 'Desativar Toda IA do Windows 11' : 'Disable All Windows 11 AI'}
+                </button>
+                <button
+                  onClick={() => handleLiveTweak('disable_windows_ai', false, 'Reverter Políticas de IA', false)}
+                  disabled={activeActions['lt_disable_windows_ai']}
+                  className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs text-neutral-300 cursor-pointer"
+                >
+                  {language === 'PT' ? 'Reverter' : 'Revert'}
+                </button>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-neutral-950/70 border border-neutral-800 text-[10px]">
+                <strong className="text-emerald-300 block mb-1">
+                  {language === 'PT'
+                    ? 'Whitelist Endurecida de Debloat (Sempre Preservados):'
+                    : 'Hardened Debloat Whitelist (Never Removed):'}
+                </strong>
+                <div className="flex flex-wrap gap-1.5 font-mono text-neutral-300">
+                  {['Paint', 'Photos', 'Notepad', 'HEVC/AV1/WebP Codecs', '.NET Framework', 'VBScript', 'EdgeWebView2'].map((pkg) => (
+                    <span key={pkg} className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800">
+                      {pkg}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Selective Component Restoration Panel */}
+            <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-3">
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-neutral-100 flex items-center gap-2">
+                  <Download className="w-4 h-4 text-cyan-400" />
+                  <span>
+                    {language === 'PT'
+                      ? 'Restauração Seletiva de Componentes Essenciais'
+                      : 'Selective Essential Component Restoration'}
+                  </span>
+                </h4>
+                <p className="text-[11px] text-neutral-400 mt-0.5">
+                  {language === 'PT'
+                    ? 'Reinstale rapidamente componentes removidos por scripts agressivos ou ISOs modificadas.'
+                    : 'Quickly repair or reinstall core Windows packages broken by aggressive third-party debloaters.'}
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200">
+                <strong>{language === 'PT' ? 'Nota Xbox / Steam:' : 'Xbox / Steam Notice:'}</strong>{' '}
+                {language === 'PT'
+                  ? 'Jogos da Microsoft/Xbox comprados na Steam (Forza Horizon, Sea of Thieves, Halo, etc.) exigem Xbox Game Bar & Gaming Services para exibir o pop-up de login Xbox.'
+                  : 'Microsoft/Xbox titles on Steam (Forza Horizon, Sea of Thieves, Halo) require Xbox Game Bar & Gaming Services for the Xbox Live sign-in popup.'}
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => handleAction('restore_xbox', () => restoreEssentialApp('xbox_gaming'))}
+                  disabled={activeActions['restore_xbox']}
+                  className="py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-100 flex items-center justify-between cursor-pointer"
+                >
+                  <span>{language === 'PT' ? 'Reparar/Reinstalar Xbox Game Bar & Gaming Services' : 'Repair/Reinstall Xbox Game Bar & Gaming Services'}</span>
+                  {activeActions['restore_xbox'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-cyan-400" />}
+                </button>
+                <button
+                  onClick={() => handleAction('restore_store', () => restoreEssentialApp('ms_store'))}
+                  disabled={activeActions['restore_store']}
+                  className="py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-100 flex items-center justify-between cursor-pointer"
+                >
+                  <span>{language === 'PT' ? 'Reparar/Reinstalar Microsoft Store (wsreset -i)' : 'Repair/Reinstall Microsoft Store (wsreset -i)'}</span>
+                  {activeActions['restore_store'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-cyan-400" />}
+                </button>
+                <button
+                  onClick={() => handleAction('restore_calc_snip', () => restoreEssentialApp('calc_snipping'))}
+                  disabled={activeActions['restore_calc_snip']}
+                  className="py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-100 flex items-center justify-between cursor-pointer"
+                >
+                  <span>{language === 'PT' ? 'Reinstalar Calculadora & Ferramenta de Captura' : 'Reinstall Calculator & Snipping Tool'}</span>
+                  {activeActions['restore_calc_snip'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 text-cyan-400" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 shrink-0">
           {/* Tool 1: Bloatware */}
           <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between space-y-3">
             <div className="space-y-1.5">
@@ -843,6 +1620,7 @@ export default function SystemModule({ initialSubView }: { initialSubView?: SubV
               {activeActions['font_cache'] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Type className="w-3.5 h-3.5 text-neutral-400" />}
               <span>{language === 'PT' ? 'Resetar Cache' : 'Reset Font Cache'}</span>
             </button>
+          </div>
           </div>
         </div>
       )}

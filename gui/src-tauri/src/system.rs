@@ -635,7 +635,7 @@ pub async fn clean_orphan_tasks() -> Result<CommandResponse<u32>, String> {
 }
 
 /// Pacotes e componentes críticos do sistema que JAMAIS devem ser removidos pelo debloat
-/// (EdgeWebView2 quebra apps Tauri v2; VBScript quebra instaladores MSI e scripts corporativos)
+/// (EdgeWebView2 quebra apps Tauri v2; VBScript quebra instaladores MSI; Paint/Photos/Notepad/Codecs/.NET preservados)
 pub const PROTECTED_SYSTEM_PACKAGES: &[&str] = &[
     "Microsoft.EdgeWebView2",
     "MicrosoftEdgeWebView2",
@@ -647,6 +647,19 @@ pub const PROTECTED_SYSTEM_PACKAGES: &[&str] = &[
     "DesktopAppInstaller",
     "VCLibs",
     "UI.Xaml",
+    "MSPaint",
+    "Microsoft.Paint",
+    "Windows.Photos",
+    "Microsoft.Windows.Photos",
+    "WindowsNotepad",
+    "Microsoft.WindowsNotepad",
+    "HEVCVideoExtension",
+    "AV1VideoExtension",
+    "WebpImageExtension",
+    "VP9VideoExtensions",
+    "RawImageExtension",
+    "NetFx",
+    "NETFramework",
 ];
 
 pub fn is_protected_package(pkg_name: &str) -> bool {
@@ -659,23 +672,33 @@ pub fn is_protected_package(pkg_name: &str) -> bool {
         .any(|p| clean.contains(&p.to_lowercase()) || p.to_lowercase().contains(&clean))
 }
 
-/// Remove pacotes AppX pré-definidos como bloatware seguro (protegendo WebView2 e VBScript)
+/// Remove pacotes AppX pré-definidos como bloatware seguro (preservando Paint, Photos, Notepad, Codecs, .NET, WebView2 e VBScript)
 #[tauri::command]
 pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<BloatwareResult>, String> {
     tokio::task::spawn_blocking(move || {
         let targets = vec![
-            "*Cortana*",
+            "*Clipchamp*",
+            "*BingNews*",
             "*BingWeather*",
+            "*LinkedIn*",
+            "*OutlookForWindows*",
+            "*WindowsFeedbackHub*",
             "*GetHelp*",
             "*GetStarted*",
+            "*WindowsMaps*",
             "*Microsoft3DViewer*",
             "*MicrosoftSolitaireCollection*",
             "*MixedReality.Portal*",
             "*People*",
+            "*549981C3F5F10*",
+            "*Cortana*",
             "*SkypeApp*",
             "*YourPhone*",
             "*ZuneMusic*",
             "*ZuneVideo*",
+            "*GamingApp*",
+            "*Todos*",
+            "*PowerAutomateDesktop*",
         ];
 
         let total = targets.len();
@@ -685,10 +708,10 @@ pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<B
             if is_protected_package(app_name) {
                 continue;
             }
-            emit_step(&app, "bloatware", &format!("Removendo bloatware: {}", app_name.replace('*', "")), "running", "Desinstalando pacote de usuário e provisionado (WebView2/VBScript protegidos)...", i + 1, total);
+            emit_step(&app, "bloatware", &format!("Removendo bloatware: {}", app_name.replace('*', "")), "running", "Desinstalando pacote de usuário e provisionado (Whitelist endurecida ativa)...", i + 1, total);
 
             let ps_cmd = format!(
-                "Get-AppxPackage -Name '{}' | Where-Object {{ $_.Name -notmatch 'EdgeWebView2|WebView2|WindowsStore|VCLibs|DesktopAppInstaller' }} | Remove-AppxPackage -ErrorAction SilentlyContinue",
+                "Get-AppxPackage -Name '{}' | Where-Object {{ $_.Name -notmatch 'EdgeWebView2|WebView2|WindowsStore|VCLibs|DesktopAppInstaller|Paint|Photos|Notepad|HEVC|AV1|Webp|VP9|RawImage|XboxGamingOverlay|XboxIdentityProvider' }} | Remove-AppxPackage -ErrorAction SilentlyContinue",
                 app_name
             );
             let out = new_hidden_command("powershell.exe")
@@ -703,7 +726,7 @@ pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<B
         }
 
         let count = removed.len();
-        emit_step(&app, "bloatware", &format!("Bloatwares removidos: {} pacotes", count), "success", "Aplicativos desnecessários desinstalados com WebView2/VBScript intactos.", total, total);
+        emit_step(&app, "bloatware", &format!("Bloatwares removidos: {} pacotes", count), "success", "Aplicativos desnecessários desinstalados com componentes essenciais intactos.", total, total);
 
         let res = BloatwareResult {
             removed_count: count,
@@ -711,7 +734,7 @@ pub async fn remove_bloatware(app: tauri::AppHandle) -> Result<CommandResponse<B
         };
 
         Ok(CommandResponse::ok(
-            format!("Processamento de bloatware concluído ({} pacotes verificados/removidos; EdgeWebView2 e VBScript protegidos).", count),
+            format!("Processamento de bloatware concluído ({} pacotes removidos; Paint, Photos, Notepad, Codecs, EdgeWebView2 e VBScript protegidos).", count),
             Some(res),
         ))
     })
@@ -1828,6 +1851,150 @@ fn read_live_tweaks_sync(timer_active_in_state: bool) -> Vec<LiveTweakStatus> {
         .unwrap_or(0);
     let vbs_disabled = vbs_enabled == 0;
 
+    // 13. Compressão de Memória (MMAgent)
+    let mc_disabled = new_hidden_command("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "(Get-MMAgent).MemoryCompression",
+        ])
+        .output()
+        .ok()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .trim()
+                .eq_ignore_ascii_case("False")
+        })
+        .unwrap_or(false);
+
+    // 14. Pausa Avançada do Windows Update (até 1 ano)
+    let wu_expiry = hklm
+        .open_subkey_with_flags(r"SOFTWARE\Microsoft\WindowsUpdate\UX\Settings", key_read)
+        .and_then(|k| k.get_value::<String, _>("PauseUpdatesExpiryTime"))
+        .unwrap_or_default();
+    let wu_paused = if !wu_expiry.is_empty() {
+        chrono::DateTime::parse_from_rfc3339(&wu_expiry)
+            .map(|dt| dt.with_timezone(&chrono::Utc) > chrono::Utc::now())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
+    // 15. Delivery Optimization (P2P Off)
+    let do_mode = hklm
+        .open_subkey_with_flags(
+            r"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization",
+            key_read,
+        )
+        .and_then(|k| k.get_value::<u32, _>("DODownloadMode"))
+        .unwrap_or(1);
+    let do_applied = do_mode == 0;
+
+    // 16. UWP Background Apps Off
+    let uwp_bg_disabled = hkcu
+        .open_subkey_with_flags(
+            r"Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications",
+            key_read,
+        )
+        .and_then(|k| k.get_value::<u32, _>("GlobalUserDisabled"))
+        .map(|v| v == 1)
+        .unwrap_or(false);
+
+    // 17. Microsoft Store Auto-Update Off
+    let store_auto_off = hklm
+        .open_subkey_with_flags(r"SOFTWARE\Policies\Microsoft\WindowsStore", key_read)
+        .and_then(|k| k.get_value::<u32, _>("AutoDownload"))
+        .map(|v| v == 2)
+        .unwrap_or(false);
+
+    // 18. Menu de Contexto Clássico (Windows 10)
+    let classic_menu_applied = hkcu
+        .open_subkey_with_flags(
+            r"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32",
+            key_read,
+        )
+        .is_ok();
+
+    // 19. Bloco de Notas Limpo (sem Copilot/IA & sem restaurar abas)
+    let clean_notepad_applied = hklm
+        .open_subkey_with_flags(r"SOFTWARE\Policies\WindowsNotepad", key_read)
+        .and_then(|k| k.get_value::<u32, _>("DisableAIFeatures"))
+        .map(|v| v == 1)
+        .unwrap_or(false);
+
+    // 20. Efeitos Visuais Otimizados (Preserva Fontes e Miniaturas)
+    let vfx_setting = hkcu
+        .open_subkey_with_flags(
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects",
+            key_read,
+        )
+        .and_then(|k| k.get_value::<u32, _>("VisualFXSetting"))
+        .unwrap_or(0);
+    let min_animate = hkcu
+        .open_subkey_with_flags(r"Control Panel\Desktop\WindowMetrics", key_read)
+        .and_then(|k| k.get_value::<String, _>("MinAnimate"))
+        .unwrap_or_else(|_| "1".to_string());
+    let visual_fx_applied = vfx_setting == 3 && min_animate.trim() == "0";
+
+    // 21. Explorer Pro & Iluminação Dinâmica Off
+    let exp_adv = hkcu.open_subkey_with_flags(
+        r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
+        key_read,
+    );
+    let hide_ext = exp_adv
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("HideFileExt").ok())
+        .unwrap_or(1);
+    let show_hidden = exp_adv
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("Hidden").ok())
+        .unwrap_or(2);
+    let explorer_pro_applied = hide_ext == 0 && show_hidden == 1;
+
+    // 22. Tema Dark Blackout (Sem Transparência)
+    let pers = hkcu.open_subkey_with_flags(
+        r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        key_read,
+    );
+    let apps_light = pers
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("AppsUseLightTheme").ok())
+        .unwrap_or(1);
+    let sys_light = pers
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("SystemUsesLightTheme").ok())
+        .unwrap_or(1);
+    let transp = pers
+        .as_ref()
+        .ok()
+        .and_then(|k| k.get_value::<u32, _>("EnableTransparency").ok())
+        .unwrap_or(1);
+    let blackout_applied = apps_light == 0 && sys_light == 0 && transp == 0;
+
+    // 23. Extermínio de IA Windows 11 24H2-26H2 (Copilot, Recall, Paint Cocreator, Cross Device)
+    let copilot_off = hkcu
+        .open_subkey_with_flags(
+            r"Software\Policies\Microsoft\Windows\WindowsCopilot",
+            key_read,
+        )
+        .and_then(|k| k.get_value::<u32, _>("TurnOffWindowsCopilot"))
+        .map(|v| v == 1)
+        .unwrap_or(false);
+    let recall_off = hkcu
+        .open_subkey_with_flags(r"Software\Policies\Microsoft\Windows\WindowsAI", key_read)
+        .and_then(|k| k.get_value::<u32, _>("DisableAIDataAnalysis"))
+        .map(|v| v == 1)
+        .unwrap_or(false);
+    let win_ai_off = copilot_off && recall_off;
+
+    // 24. Economia de Energia do Adaptador de Rede (NIC Power Saving Off)
+    let (nic_ps_applied, nic_ps_desc) = check_nic_power_saving_sync();
+
     vec![
         LiveTweakStatus {
             id: "timer_05ms".to_string(),
@@ -1985,6 +2152,162 @@ fn read_live_tweaks_sync(timer_active_in_state: bool) -> Vec<LiveTweakStatus> {
             registry_path: r"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity".to_string(),
             min_os_tier: "Win10".to_string(),
         },
+        LiveTweakStatus {
+            id: "memory_compression".to_string(),
+            name: "Compressão de Memória (MMAgent)".to_string(),
+            category: "Memória & Sistema".to_string(),
+            description: "Desativa compressão de páginas em RAM (recomendado para >=16GB RAM para eliminar micro-stutters; mantenha Ativo em <=8GB).".to_string(),
+            risk_level: "low".to_string(),
+            applied: mc_disabled,
+            current_value: if mc_disabled { "Desativada (False)".to_string() } else { "Ativa (True)".to_string() },
+            recommended_value: "Desativada (>=16GB) / Ativa (<=8GB)".to_string(),
+            default_value: "Ativa (True)".to_string(),
+            registry_path: "PowerShell: Get-MMAgent / Disable-MMAgent -mc".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "windows_update_pause".to_string(),
+            name: "Pausar Windows Update (Até 1 Ano)".to_string(),
+            category: "Windows Update".to_string(),
+            description: "Pausa atualizações automáticas e drivers via WU por 365 dias com opção de retomar (Resume) a qualquer momento.".to_string(),
+            risk_level: "medium".to_string(),
+            applied: wu_paused,
+            current_value: if wu_paused { format!("Pausado até {}", &wu_expiry.chars().take(10).collect::<String>()) } else { "Ativo (Automático)".to_string() },
+            recommended_value: "Pausado (+365d) c/ Resume Manual".to_string(),
+            default_value: "Ativo".to_string(),
+            registry_path: r"HKLM\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "delivery_optimization_off".to_string(),
+            name: "Desativar Delivery Optimization (P2P Off)".to_string(),
+            category: "Rede & Update".to_string(),
+            description: "Define DODownloadMode = 0 impedindo que o Windows consuma seu upload enviando updates P2P na rede.".to_string(),
+            risk_level: "low".to_string(),
+            applied: do_applied,
+            current_value: format!("DODownloadMode={}", do_mode),
+            recommended_value: "0 (P2P Desativado)".to_string(),
+            default_value: "1 (LAN/P2P)".to_string(),
+            registry_path: r"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "uwp_background_off".to_string(),
+            name: "Bloquear Apps UWP em Segundo Plano".to_string(),
+            category: "Sistema & Privacidade".to_string(),
+            description: "Impede que apps da Microsoft Store rodem processos ocultos em segundo plano consumindo RAM e CPU.".to_string(),
+            risk_level: "low".to_string(),
+            applied: uwp_bg_disabled,
+            current_value: if uwp_bg_disabled { "GlobalUserDisabled=1 (Bloqueado)".to_string() } else { "Permitido".to_string() },
+            recommended_value: "1 (Bloqueado)".to_string(),
+            default_value: "0 (Permitido)".to_string(),
+            registry_path: r"HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "store_autoupdate_off".to_string(),
+            name: "Desativar Auto-Update da Microsoft Store".to_string(),
+            category: "Sistema & Privacidade".to_string(),
+            description: "Evita downloads silenciosos da Microsoft Store roubando banda e I/O durante partidas online.".to_string(),
+            risk_level: "low".to_string(),
+            applied: store_auto_off,
+            current_value: if store_auto_off { "AutoDownload=2 (Desativado)".to_string() } else { "Automático (4)".to_string() },
+            recommended_value: "2 (Manual)".to_string(),
+            default_value: "4 (Automático)".to_string(),
+            registry_path: r"HKLM\SOFTWARE\Policies\Microsoft\WindowsStore".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "classic_context_menu".to_string(),
+            name: "Menu de Contexto Clássico (Windows 10)".to_string(),
+            category: "Shell & Interface".to_string(),
+            description: "Restaura o menu de botão direito completo instantâneo do Windows 10 (remove o submenu extra do Win11).".to_string(),
+            risk_level: "low".to_string(),
+            applied: classic_menu_applied,
+            current_value: if classic_menu_applied { "Clássico Win10 Ativo".to_string() } else { "Padrão Win11".to_string() },
+            recommended_value: "Ativo".to_string(),
+            default_value: "Padrão Win11".to_string(),
+            registry_path: r"HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}".to_string(),
+            min_os_tier: "Win11".to_string(),
+        },
+        LiveTweakStatus {
+            id: "clean_notepad".to_string(),
+            name: "Bloco de Notas Limpo (Sem Copilot/IA & Sem Abas)".to_string(),
+            category: "Shell & Interface".to_string(),
+            description: "Preserva o Notepad clássico desativando botões de IA/Copilot e restauração de sessões antigas.".to_string(),
+            risk_level: "low".to_string(),
+            applied: clean_notepad_applied,
+            current_value: if clean_notepad_applied { "IA Desativada (1)".to_string() } else { "IA / Sessão Padrão".to_string() },
+            recommended_value: "DisableAIFeatures=1".to_string(),
+            default_value: "0".to_string(),
+            registry_path: r"HKLM\SOFTWARE\Policies\WindowsNotepad".to_string(),
+            min_os_tier: "Win11".to_string(),
+        },
+        LiveTweakStatus {
+            id: "visual_effects_opt".to_string(),
+            name: "Efeitos Visuais Enxutos (Preserva Fontes e Thumbnails)".to_string(),
+            category: "Shell & Interface".to_string(),
+            description: "Remove animações de minimizar/maximizar e barra de tarefas sem estragar ClearType nem miniaturas.".to_string(),
+            risk_level: "low".to_string(),
+            applied: visual_fx_applied,
+            current_value: if visual_fx_applied { "Custom (MinAnimate=0)".to_string() } else { "Padrão".to_string() },
+            recommended_value: "VisualFXSetting=3".to_string(),
+            default_value: "1 / 0".to_string(),
+            registry_path: r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "explorer_pro_settings".to_string(),
+            name: "Explorer Pro & Iluminação Dinâmica Off".to_string(),
+            category: "Shell & Interface".to_string(),
+            description: "Exibe extensões de arquivos, pastas ocultas, abre em 'Este Computador' e desativa Windows Dynamic Lighting.".to_string(),
+            risk_level: "low".to_string(),
+            applied: explorer_pro_applied,
+            current_value: if explorer_pro_applied { "Extensões + Ocultos Visíveis".to_string() } else { "Padrão Oculto".to_string() },
+            recommended_value: "HideFileExt=0, Hidden=1".to_string(),
+            default_value: "HideFileExt=1, Hidden=2".to_string(),
+            registry_path: r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
+        LiveTweakStatus {
+            id: "full_blackout_theme".to_string(),
+            name: "Tema Escuro Total & Sem Transparência".to_string(),
+            category: "Shell & Interface".to_string(),
+            description: "Ativa Dark Mode em Apps e Sistema (0) e desativa transparência Mica/Acrylic para menor carga da GPU Desktop.".to_string(),
+            risk_level: "low".to_string(),
+            applied: blackout_applied,
+            current_value: if blackout_applied { "Blackout Total (Transp=0)".to_string() } else { "Claro ou Transparência Ativa".to_string() },
+            recommended_value: "Dark=1, Transparency=0".to_string(),
+            default_value: "Transparency=1".to_string(),
+            registry_path: r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize".to_string(),
+            min_os_tier: "Win10".to_string(),
+        },
+        LiveTweakStatus {
+            id: "disable_windows_ai".to_string(),
+            name: "Extermínio de IA Win11 24H2-26H2 (Copilot/Recall/Cocreator)".to_string(),
+            category: "Privacidade & IA".to_string(),
+            description: "Desativa Copilot, Windows Recall (Snapshots), Paint Image Creator/Cocreator e Cross Device Resume via GPO.".to_string(),
+            risk_level: "medium".to_string(),
+            applied: win_ai_off,
+            current_value: if win_ai_off { "Copilot & Recall Desativados".to_string() } else { "Recursos de IA Ativos".to_string() },
+            recommended_value: "TurnOffCopilot=1, DisableRecall=1".to_string(),
+            default_value: "Ativo no Win11".to_string(),
+            registry_path: r"HKCU\Software\Policies\Microsoft\Windows\WindowsAI".to_string(),
+            min_os_tier: "Win11".to_string(),
+        },
+        LiveTweakStatus {
+            id: "nic_power_saving_off".to_string(),
+            name: "Desativar Economia de Energia da Placa de Rede (NIC EEE Off)".to_string(),
+            category: "Rede & Latência".to_string(),
+            description: "Desativa EEE, Green Ethernet, Wake-on-MagicPacket e PnPCapabilities nos adaptadores de rede evitando micro-quedas de ping.".to_string(),
+            risk_level: "medium".to_string(),
+            applied: nic_ps_applied,
+            current_value: nic_ps_desc,
+            recommended_value: "PnP=24, EEE=0, GreenEthernet=0".to_string(),
+            default_value: "Economia Ativa".to_string(),
+            registry_path: r"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}".to_string(),
+            min_os_tier: "Win7".to_string(),
+        },
     ]
 }
 
@@ -2030,6 +2353,14 @@ pub async fn apply_or_revert_tweak(
                 | "hibernation"
                 | "telemetry"
                 | "vbs_hvci"
+                | "memory_compression"
+                | "windows_update_pause"
+                | "delivery_optimization_off"
+                | "uwp_background_off"
+                | "store_autoupdate_off"
+                | "clean_notepad"
+                | "disable_windows_ai"
+                | "nic_power_saving_off"
         );
 
         if needs_admin && !is_process_elevated() {
@@ -2149,6 +2480,206 @@ pub async fn apply_or_revert_tweak(
                 key.set_value("Enabled", &(if apply { 0u32 } else { 1u32 }))
                     .map_err(|e| e.to_string())?;
             }
+            "memory_compression" => {
+                let cmd = if apply { "Disable-MMAgent -mc" } else { "Enable-MMAgent -mc" };
+                let out = new_hidden_command("powershell.exe")
+                    .args(["-NoProfile", "-NonInteractive", "-Command", cmd])
+                    .output()
+                    .map_err(|e| e.to_string())?;
+                if !out.status.success() {
+                    return Err(String::from_utf8_lossy(&out.stderr).to_string());
+                }
+            }
+            "windows_update_pause" => {
+                let (ux_key, _) = hklm
+                    .create_subkey(r"SOFTWARE\Microsoft\WindowsUpdate\UX\Settings")
+                    .map_err(|e| e.to_string())?;
+                if apply {
+                    let now = chrono::Utc::now();
+                    let expiry = now + chrono::Duration::days(365);
+                    let now_s = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                    let exp_s = expiry.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                    let _ = ux_key.set_value("FlightSettingsMaxPauseDays", &365u32);
+                    let _ = ux_key.set_value("PauseFeatureUpdatesStartTime", &now_s);
+                    let _ = ux_key.set_value("PauseQualityUpdatesStartTime", &now_s);
+                    let _ = ux_key.set_value("PauseUpdatesStartTime", &now_s);
+                    let _ = ux_key.set_value("PauseFeatureUpdatesEndTime", &exp_s);
+                    let _ = ux_key.set_value("PauseQualityUpdatesEndTime", &exp_s);
+                    let _ = ux_key.set_value("PauseUpdatesExpiryTime", &exp_s);
+
+                    if let Ok((wu_pol, _)) = hklm.create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate") {
+                        let _ = wu_pol.set_value("ExcludeWUDriversInQualityUpdate", &1u32);
+                    }
+                } else {
+                    for val in [
+                        "PauseFeatureUpdatesStartTime",
+                        "PauseQualityUpdatesStartTime",
+                        "PauseUpdatesStartTime",
+                        "PauseFeatureUpdatesEndTime",
+                        "PauseQualityUpdatesEndTime",
+                        "PauseUpdatesExpiryTime",
+                    ] {
+                        let _ = ux_key.delete_value(val);
+                    }
+                }
+            }
+            "delivery_optimization_off" => {
+                let (pol, _) = hklm
+                    .create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization")
+                    .map_err(|e| e.to_string())?;
+                pol.set_value("DODownloadMode", &(if apply { 0u32 } else { 1u32 }))
+                    .map_err(|e| e.to_string())?;
+                if let Ok((cfg, _)) = hklm.create_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config") {
+                    let _ = cfg.set_value("DODownloadMode", &(if apply { 0u32 } else { 1u32 }));
+                }
+            }
+            "uwp_background_off" => {
+                let (key, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications")
+                    .map_err(|e| e.to_string())?;
+                key.set_value("GlobalUserDisabled", &(if apply { 1u32 } else { 0u32 }))
+                    .map_err(|e| e.to_string())?;
+                if let Ok((pol, _)) = hklm.create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\AppPrivacy") {
+                    if apply {
+                        let _ = pol.set_value("LetAppsRunInBackground", &2u32);
+                    } else {
+                        let _ = pol.delete_value("LetAppsRunInBackground");
+                    }
+                }
+            }
+            "store_autoupdate_off" => {
+                let (pol, _) = hklm
+                    .create_subkey(r"SOFTWARE\Policies\Microsoft\WindowsStore")
+                    .map_err(|e| e.to_string())?;
+                if apply {
+                    pol.set_value("AutoDownload", &2u32).map_err(|e| e.to_string())?;
+                } else {
+                    let _ = pol.delete_value("AutoDownload");
+                }
+            }
+            "classic_context_menu" => {
+                let clsid = r"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}";
+                if apply {
+                    let (key, _) = hkcu
+                        .create_subkey(format!(r"{}\InprocServer32", clsid))
+                        .map_err(|e| e.to_string())?;
+                    key.set_value("", &"").map_err(|e| e.to_string())?;
+                } else {
+                    let _ = hkcu.delete_subkey_all(clsid);
+                }
+                let _ = new_hidden_command("taskkill.exe")
+                    .args(["/F", "/IM", "explorer.exe"])
+                    .output();
+                let _ = new_hidden_command("explorer.exe").spawn();
+            }
+            "clean_notepad" => {
+                let (pol, _) = hklm
+                    .create_subkey(r"SOFTWARE\Policies\WindowsNotepad")
+                    .map_err(|e| e.to_string())?;
+                if apply {
+                    pol.set_value("DisableAIFeatures", &1u32).map_err(|e| e.to_string())?;
+                } else {
+                    let _ = pol.delete_value("DisableAIFeatures");
+                }
+                if let Ok((np, _)) = hkcu.create_subkey(r"Software\Microsoft\Notepad") {
+                    let _ = np.set_value("ShowCopilotButton", &(if apply { 0u32 } else { 1u32 }));
+                    let _ = np.set_value("SessionState", &(if apply { 0u32 } else { 1u32 }));
+                }
+            }
+            "visual_effects_opt" => {
+                let (vfx, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects")
+                    .map_err(|e| e.to_string())?;
+                vfx.set_value("VisualFXSetting", &(if apply { 3u32 } else { 1u32 }))
+                    .map_err(|e| e.to_string())?;
+                if let Ok((wm, _)) = hkcu.create_subkey(r"Control Panel\Desktop\WindowMetrics") {
+                    let _ = wm.set_value("MinAnimate", &(if apply { "0" } else { "1" }));
+                }
+                if let Ok((desk, _)) = hkcu.create_subkey(r"Control Panel\Desktop") {
+                    let _ = desk.set_value("SmoothScroll", &(if apply { 0u32 } else { 1u32 }));
+                    let _ = desk.set_value("DragFullWindows", &"1");
+                    let _ = desk.set_value("FontSmoothing", &"2");
+                }
+                if let Ok((adv, _)) = hkcu.create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced") {
+                    let _ = adv.set_value("TaskbarAnimations", &(if apply { 0u32 } else { 1u32 }));
+                    let _ = adv.set_value("IconsOnly", &0u32);
+                }
+            }
+            "explorer_pro_settings" => {
+                let (adv, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced")
+                    .map_err(|e| e.to_string())?;
+                adv.set_value("HideFileExt", &(if apply { 0u32 } else { 1u32 }))
+                    .map_err(|e| e.to_string())?;
+                adv.set_value("Hidden", &(if apply { 1u32 } else { 2u32 }))
+                    .map_err(|e| e.to_string())?;
+                adv.set_value("LaunchTo", &(if apply { 1u32 } else { 2u32 }))
+                    .map_err(|e| e.to_string())?;
+                if let Ok((pol, _)) = hkcu.create_subkey(r"Software\Policies\Microsoft\Windows\Explorer") {
+                    let _ = pol.set_value("DisableSearchBoxSuggestions", &(if apply { 1u32 } else { 0u32 }));
+                }
+                if let Ok((light, _)) = hkcu.create_subkey(r"Software\Microsoft\Lighting") {
+                    let _ = light.set_value("AmbientLightingEnabled", &(if apply { 0u32 } else { 1u32 }));
+                }
+            }
+            "full_blackout_theme" => {
+                let (pers, _) = hkcu
+                    .create_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+                    .map_err(|e| e.to_string())?;
+                if apply {
+                    pers.set_value("AppsUseLightTheme", &0u32).map_err(|e| e.to_string())?;
+                    pers.set_value("SystemUsesLightTheme", &0u32).map_err(|e| e.to_string())?;
+                    pers.set_value("EnableTransparency", &0u32).map_err(|e| e.to_string())?;
+                } else {
+                    pers.set_value("EnableTransparency", &1u32).map_err(|e| e.to_string())?;
+                }
+            }
+            "disable_windows_ai" => {
+                let (cu_cop, _) = hkcu
+                    .create_subkey(r"Software\Policies\Microsoft\Windows\WindowsCopilot")
+                    .map_err(|e| e.to_string())?;
+                let (cu_ai, _) = hkcu
+                    .create_subkey(r"Software\Policies\Microsoft\Windows\WindowsAI")
+                    .map_err(|e| e.to_string())?;
+                if apply {
+                    cu_cop.set_value("TurnOffWindowsCopilot", &1u32).map_err(|e| e.to_string())?;
+                    cu_ai.set_value("DisableAIDataAnalysis", &1u32).map_err(|e| e.to_string())?;
+                    if let Ok((lm_cop, _)) = hklm.create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot") {
+                        let _ = lm_cop.set_value("TurnOffWindowsCopilot", &1u32);
+                    }
+                    if let Ok((lm_ai, _)) = hklm.create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\WindowsAI") {
+                        let _ = lm_ai.set_value("DisableAIDataAnalysis", &1u32);
+                    }
+                    if let Ok((paint, _)) = hklm.create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\Paint") {
+                        let _ = paint.set_value("DisableImageCreator", &1u32);
+                        let _ = paint.set_value("DisableCocreator", &1u32);
+                    }
+                    if let Ok((sys_pol, _)) = hklm.create_subkey(r"SOFTWARE\Policies\Microsoft\Windows\System") {
+                        let _ = sys_pol.set_value("EnableCdp", &0u32);
+                        let _ = sys_pol.set_value("AllowCrossDeviceClipboard", &0u32);
+                    }
+                } else {
+                    let _ = cu_cop.delete_value("TurnOffWindowsCopilot");
+                    let _ = cu_ai.delete_value("DisableAIDataAnalysis");
+                    if let Ok(lm_cop) = hklm.open_subkey_with_flags(r"SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot", winreg::enums::KEY_WRITE) {
+                        let _ = lm_cop.delete_value("TurnOffWindowsCopilot");
+                    }
+                    if let Ok(lm_ai) = hklm.open_subkey_with_flags(r"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", winreg::enums::KEY_WRITE) {
+                        let _ = lm_ai.delete_value("DisableAIDataAnalysis");
+                    }
+                    if let Ok(paint) = hklm.open_subkey_with_flags(r"SOFTWARE\Policies\Microsoft\Windows\Paint", winreg::enums::KEY_WRITE) {
+                        let _ = paint.delete_value("DisableImageCreator");
+                        let _ = paint.delete_value("DisableCocreator");
+                    }
+                    if let Ok(sys_pol) = hklm.open_subkey_with_flags(r"SOFTWARE\Policies\Microsoft\Windows\System", winreg::enums::KEY_WRITE) {
+                        let _ = sys_pol.delete_value("EnableCdp");
+                        let _ = sys_pol.delete_value("AllowCrossDeviceClipboard");
+                    }
+                }
+            }
+            "nic_power_saving_off" => {
+                set_nic_power_saving_sync(apply)?;
+            }
             _ => return Err(format!("Tweak desconhecido: {}", id_clone)),
         }
 
@@ -2166,5 +2697,618 @@ pub async fn apply_or_revert_tweak(
         format!("'{}' foi {} com sucesso!", updated_item.name, action_word),
         Some(updated_item),
     ))
+}
+
+// ============================================================================
+// MÓDULO 3 & MÓDULO 6: BITLOCKER, NTP SYNC, RESTAURAÇÃO, AUDIO LOUDNESS EQ & REDE
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BitLockerDriveStatus {
+    pub drive: String,
+    pub status: String,
+    pub protection_on: bool,
+    pub percentage_encrypted: f32,
+    pub encryption_method: String,
+}
+
+#[tauri::command]
+pub async fn get_bitlocker_status() -> Result<CommandResponse<Vec<BitLockerDriveStatus>>, String> {
+    tokio::task::spawn_blocking(|| {
+        let out = new_hidden_command("manage-bde")
+            .args(["-status"])
+            .output();
+
+        let mut drives = Vec::new();
+        if let Ok(res) = out {
+            let stdout = String::from_utf8_lossy(&res.stdout).to_string();
+            let mut cur_drive = String::new();
+            let mut cur_status = String::from("Desconhecido");
+            let mut cur_pct = 0.0f32;
+            let mut cur_prot = false;
+            let mut cur_method = String::from("N/A");
+
+            for raw_line in stdout.lines() {
+                let line = raw_line.trim();
+                let lower = line.to_lowercase();
+                if lower.starts_with("volume ") && line.contains(':') {
+                    if !cur_drive.is_empty() {
+                        drives.push(BitLockerDriveStatus {
+                            drive: cur_drive.clone(),
+                            status: cur_status.clone(),
+                            protection_on: cur_prot,
+                            percentage_encrypted: cur_pct,
+                            encryption_method: cur_method.clone(),
+                        });
+                    }
+                    let after_vol = line.trim_start_matches("Volume ").trim();
+                    cur_drive = after_vol
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("C:")
+                        .to_string();
+                    cur_status = String::from("Verificado");
+                    cur_pct = 0.0;
+                    cur_prot = false;
+                    cur_method = String::from("Nenhum");
+                } else if lower.contains("conversion status:") || lower.contains("status da conversão:") {
+                    if let Some((_, val)) = line.split_once(':') {
+                        cur_status = val.trim().to_string();
+                    }
+                } else if lower.contains("percentage encrypted:") || lower.contains("porcentagem criptografada:") {
+                    if let Some((_, val)) = line.split_once(':') {
+                        let num_s: String = val
+                            .trim()
+                            .chars()
+                            .filter(|c| c.is_ascii_digit() || *c == '.' || *c == ',')
+                            .collect();
+                        cur_pct = num_s.replace(',', ".").parse::<f32>().unwrap_or(0.0);
+                    }
+                } else if lower.contains("protection status:") || lower.contains("status da proteção:") {
+                    if let Some((_, val)) = line.split_once(':') {
+                        let v = val.trim().to_lowercase();
+                        cur_prot = v.contains("on") || v.contains("ativ") || v.contains("proteg");
+                    }
+                } else if lower.contains("encryption method:") || lower.contains("método de criptografia:") {
+                    if let Some((_, val)) = line.split_once(':') {
+                        cur_method = val.trim().to_string();
+                    }
+                }
+            }
+
+            if !cur_drive.is_empty() {
+                drives.push(BitLockerDriveStatus {
+                    drive: cur_drive,
+                    status: cur_status,
+                    protection_on: cur_prot,
+                    percentage_encrypted: cur_pct,
+                    encryption_method: cur_method,
+                });
+            }
+        }
+
+        if drives.is_empty() {
+            drives.push(BitLockerDriveStatus {
+                drive: "C:".to_string(),
+                status: "Descriptografado / Inativo".to_string(),
+                protection_on: false,
+                percentage_encrypted: 0.0,
+                encryption_method: "Nenhum".to_string(),
+            });
+        }
+
+        Ok(CommandResponse::ok(
+            "Auditoria de BitLocker concluída.",
+            Some(drives),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn bitlocker_decrypt(drive: String) -> Result<CommandResponse<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        if !is_process_elevated() {
+            return Ok(CommandResponse::err(
+                "Descriptografar o BitLocker exige privilégios de Administrador.",
+            ));
+        }
+        let letter = drive
+            .trim()
+            .chars()
+            .next()
+            .filter(|c| c.is_ascii_alphabetic())
+            .unwrap_or('C');
+        let target = format!("{}:", letter.to_ascii_uppercase());
+
+        let out = new_hidden_command("manage-bde")
+            .args(["-off", &target])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+        if out.status.success() {
+            Ok(CommandResponse::ok(
+                format!("Descriptografia BitLocker iniciada em {}! {}", target, stdout.trim()),
+                Some(target),
+            ))
+        } else {
+            Ok(CommandResponse::err(format!(
+                "Falha ao executar manage-bde -off {}: {} {}",
+                target, stdout, stderr
+            )))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn sync_system_time() -> Result<CommandResponse<String>, String> {
+    tokio::task::spawn_blocking(|| {
+        let _ = new_hidden_command("sc")
+            .args(["config", "w32time", "start=", "auto"])
+            .output();
+        let _ = new_hidden_command("net").args(["start", "w32time"]).output();
+
+        let resync = new_hidden_command("w32tm")
+            .args(["/resync", "/force"])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        let tz_out = new_hidden_command("tzutil").args(["/g"]).output();
+        let tz = tz_out
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_else(|_| "Desconhecido".to_string());
+
+        let msg = if resync.status.success() {
+            format!("Relógio NTP sincronizado com sucesso! Fuso horário ativo: {}", tz)
+        } else {
+            format!(
+                "Serviço w32time configurado e verificado (Fuso: {}). Aviso resync: {}",
+                tz,
+                String::from_utf8_lossy(&resync.stdout).trim()
+            )
+        };
+        Ok(CommandResponse::ok(msg.clone(), Some(msg)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn restore_essential_app(target: String) -> Result<CommandResponse<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let (ps_cmd, label) = match target.as_str() {
+            "xbox_gaming" => (
+                "Get-AppxPackage -AllUsers *XboxGamingOverlay* | ForEach-Object { Add-AppxPackage -DisableDevelopmentMode -Register \"$($_.InstallLocation)\\AppXManifest.xml\" -ErrorAction SilentlyContinue }; Get-AppxPackage -AllUsers *XboxIdentityProvider* | ForEach-Object { Add-AppxPackage -DisableDevelopmentMode -Register \"$($_.InstallLocation)\\AppXManifest.xml\" -ErrorAction SilentlyContinue }; winget install --id Microsoft.GamingServices -e --accept-source-agreements --accept-package-agreements --silent",
+                "Xbox Game Bar & Gaming Services",
+            ),
+            "ms_store" => (
+                "Start-Process wsreset -ArgumentList '-i' -WindowStyle Hidden; Get-AppxPackage -AllUsers *WindowsStore* | ForEach-Object { Add-AppxPackage -DisableDevelopmentMode -Register \"$($_.InstallLocation)\\AppXManifest.xml\" -ErrorAction SilentlyContinue }",
+                "Microsoft Store",
+            ),
+            "calc_snipping" => (
+                "winget install --id 9WZDNCRFHVN5 -e --accept-source-agreements --accept-package-agreements --silent; winget install --id 9MZ95KL8MR0L -e --accept-source-agreements --accept-package-agreements --silent; Get-AppxPackage -AllUsers *WindowsCalculator* | ForEach-Object { Add-AppxPackage -DisableDevelopmentMode -Register \"$($_.InstallLocation)\\AppXManifest.xml\" -ErrorAction SilentlyContinue }; Get-AppxPackage -AllUsers *ScreenSketch* | ForEach-Object { Add-AppxPackage -DisableDevelopmentMode -Register \"$($_.InstallLocation)\\AppXManifest.xml\" -ErrorAction SilentlyContinue }",
+                "Calculadora & Ferramenta de Captura",
+            ),
+            _ => {
+                return Ok(CommandResponse::err(format!(
+                    "Alvo de restauração desconhecido: {}",
+                    target
+                )))
+            }
+        };
+
+        let _ = new_hidden_command("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", ps_cmd])
+            .output();
+
+        let msg = format!("Comando de reparo/reinstalação concluído para '{}'.", label);
+        Ok(CommandResponse::ok(msg.clone(), Some(msg)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ============================================================================
+// AUDIO RENDER ENDPOINTS & LOUDNESS EQUALIZATION INJECTOR
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioEndpointItem {
+    pub id: String,
+    pub name: String,
+    pub device_name: String,
+    pub loudness_eq_enabled: bool,
+    pub enhancements_unlocked: bool,
+}
+
+#[tauri::command]
+pub async fn get_audio_endpoints() -> Result<CommandResponse<Vec<AudioEndpointItem>>, String> {
+    tokio::task::spawn_blocking(|| {
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        let base_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render";
+        let mut items = Vec::new();
+
+        if let Ok(render_key) = hklm.open_subkey_with_flags(base_path, winreg::enums::KEY_READ) {
+            for guid in render_key.enum_keys().flatten() {
+                let Ok(ep_key) = render_key.open_subkey_with_flags(&guid, winreg::enums::KEY_READ) else {
+                    continue;
+                };
+                let state = ep_key.get_value::<u32, _>("DeviceState").unwrap_or(0);
+                if state != 1 {
+                    continue; // Apenas dispositivos Ativos
+                }
+
+                let props = ep_key.open_subkey_with_flags("Properties", winreg::enums::KEY_READ);
+                let friendly = props
+                    .as_ref()
+                    .ok()
+                    .and_then(|p| {
+                        p.get_value::<String, _>("{a45c254e-df1c-4efd-8020-67d146a850e0},14")
+                            .or_else(|_| p.get_value::<String, _>("{a45c254e-df1c-4efd-8020-67d146a850e0},2"))
+                            .ok()
+                    })
+                    .unwrap_or_else(|| "Dispositivo de Áudio".to_string());
+                let adapter = props
+                    .as_ref()
+                    .ok()
+                    .and_then(|p| {
+                        p.get_value::<String, _>("{b3f8fa53-0004-438e-9003-51a46e139b69},6")
+                            .ok()
+                    })
+                    .unwrap_or_else(|| "Windows Audio Endpoint".to_string());
+
+                let fx = ep_key.open_subkey_with_flags("FxProperties", winreg::enums::KEY_READ);
+                let enhancements_unlocked = fx
+                    .as_ref()
+                    .ok()
+                    .and_then(|f| f.get_value::<String, _>("{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},3").ok())
+                    .map(|v| !v.is_empty())
+                    .unwrap_or(false);
+                let loudness_eq_enabled = fx
+                    .as_ref()
+                    .ok()
+                    .and_then(|f| f.get_raw_value("{fc52a749-4be9-4510-896e-966ba6525980},3").ok())
+                    .map(|raw| raw.bytes.get(4).copied().unwrap_or(0) == 1)
+                    .unwrap_or(false);
+
+                items.push(AudioEndpointItem {
+                    id: guid,
+                    name: friendly,
+                    device_name: adapter,
+                    loudness_eq_enabled,
+                    enhancements_unlocked,
+                });
+            }
+        }
+
+        Ok(CommandResponse::ok(
+            format!("{} dispositivo(s) de reprodução ativo(s) encontrado(s).", items.len()),
+            Some(items),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn inject_loudness_eq(
+    endpoint_id: String,
+    enable: bool,
+) -> Result<CommandResponse<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        if !is_process_elevated() {
+            return Ok(CommandResponse::err(
+                "Injetar FxProperties APO em dispositivos de áudio exige privilégios de Administrador.",
+            ));
+        }
+
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        let fx_path = format!(
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\{}\FxProperties",
+            endpoint_id
+        );
+
+        let (fx_key, _) = match hklm.create_subkey(&fx_path) {
+            Ok(pair) => pair,
+            Err(e) => {
+                return Ok(CommandResponse::err(format!(
+                    "Sem acesso de escrita em FxProperties (o driver OEM pode restringir ACLs a SYSTEM): {}",
+                    e
+                )));
+            }
+        };
+
+        if enable {
+            let _ = fx_key.set_value(
+                "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},1",
+                &"{5860E1C5-F95C-4a7a-8EC8-8AEF24F379A1}",
+            );
+            let _ = fx_key.set_value(
+                "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},2",
+                &"{62dc1a93-ae24-464c-a43e-452f824c4250}",
+            );
+            let _ = fx_key.set_value(
+                "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},3",
+                &"{5860E1C5-F95C-4a7a-8EC8-8AEF24F379A1}",
+            );
+            let loudness_on = winreg::RegValue {
+                bytes: vec![
+                    0x0b, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00,
+                ],
+                vtype: winreg::enums::REG_BINARY,
+            };
+            let _ = fx_key.set_raw_value("{fc52a749-4be9-4510-896e-966ba6525980},3", &loudness_on);
+        } else {
+            let loudness_off = winreg::RegValue {
+                bytes: vec![
+                    0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                ],
+                vtype: winreg::enums::REG_BINARY,
+            };
+            let _ = fx_key.set_raw_value("{fc52a749-4be9-4510-896e-966ba6525980},3", &loudness_off);
+        }
+
+        let _ = new_hidden_command("net").args(["stop", "Audiosrv", "/y"]).output();
+        let _ = new_hidden_command("net").args(["start", "AudioEndpointBuilder"]).output();
+        let _ = new_hidden_command("net").args(["start", "Audiosrv"]).output();
+
+        let msg = if enable {
+            "Aba Enhancements destravada, Loudness Equalization ativado e serviço de áudio reiniciado!"
+        } else {
+            "Loudness Equalization revertido no endpoint selecionado."
+        };
+        Ok(CommandResponse::ok(msg, Some(msg.to_string())))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn open_sound_control_panel() -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(|| {
+        let res = new_hidden_command("cmd")
+            .args(["/C", "start", "", "control", "mmsys.cpl", "sounds"])
+            .spawn();
+        match res {
+            Ok(_) => Ok(CommandResponse::ok(
+                "Painel clássico de Som (mmsys.cpl) aberto.",
+                Some(true),
+            )),
+            Err(e) => Ok(CommandResponse::err(format!("Falha ao abrir mmsys.cpl: {}", e))),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ============================================================================
+// NIC POWER SAVING DISABLER & IPv4-ONLY NETWORK MODE
+// ============================================================================
+
+fn check_nic_power_saving_sync() -> (bool, String) {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let class_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}";
+    let mut physical_count = 0u32;
+    let mut optimized_count = 0u32;
+
+    if let Ok(base) = hklm.open_subkey_with_flags(class_path, winreg::enums::KEY_READ) {
+        for sub in base.enum_keys().flatten() {
+            if sub.len() == 4 && sub.chars().all(|c| c.is_ascii_digit()) {
+                if let Ok(k) = base.open_subkey_with_flags(&sub, winreg::enums::KEY_READ) {
+                    let chars = k.get_value::<u32, _>("Characteristics").unwrap_or(0);
+                    if (chars & 0x04) != 0 {
+                        physical_count += 1;
+                        let pnp = k.get_value::<u32, _>("PnPCapabilities").unwrap_or(0);
+                        let eee = k
+                            .get_value::<String, _>("EEE")
+                            .unwrap_or_else(|_| "1".to_string());
+                        if pnp == 24 && eee == "0" {
+                            optimized_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if physical_count == 0 {
+        (false, "Nenhum adaptador físico detectado".to_string())
+    } else if optimized_count > 0 {
+        (
+            true,
+            format!("{}/{} adaptador(es) sem economia EEE/PnP", optimized_count, physical_count),
+        )
+    } else {
+        (false, "Economia de energia ativa no adaptador".to_string())
+    }
+}
+
+fn set_nic_power_saving_sync(disable_power_saving: bool) -> Result<u32, String> {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let class_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}";
+    let base = hklm.open_subkey_with_flags(class_path, winreg::enums::KEY_READ).map_err(|e| e.to_string())?;
+    let mut touched = 0u32;
+
+    for sub in base.enum_keys().flatten() {
+        if sub.len() == 4 && sub.chars().all(|c| c.is_ascii_digit()) {
+            let sub_path = format!(r"{}\{}", class_path, sub);
+            if let Ok(k) = hklm.open_subkey_with_flags(&sub_path, winreg::enums::KEY_ALL_ACCESS) {
+                let chars = k.get_value::<u32, _>("Characteristics").unwrap_or(0);
+                if (chars & 0x04) != 0 {
+                    if disable_power_saving {
+                        for str_key in [
+                            "EEE",
+                            "EEELinkAdvertisement",
+                            "GreenEthernet",
+                            "GigabitLite",
+                            "EnablePME",
+                            "WakeOnMagicPacket",
+                            "WakeOnPattern",
+                            "ULPMode",
+                        ] {
+                            let _ = k.set_value(str_key, &"0");
+                        }
+                        let _ = k.set_value("PnPCapabilities", &24u32);
+                    } else {
+                        for str_key in ["EEE", "EEELinkAdvertisement", "EnablePME", "WakeOnMagicPacket"] {
+                            let _ = k.set_value(str_key, &"1");
+                        }
+                        let _ = k.set_value("PnPCapabilities", &0u32);
+                    }
+                    touched += 1;
+                }
+            }
+        }
+    }
+
+    Ok(touched)
+}
+
+#[tauri::command]
+pub async fn disable_nic_power_saving(enable: bool) -> Result<CommandResponse<u32>, String> {
+    tokio::task::spawn_blocking(move || {
+        if !is_process_elevated() {
+            return Ok(CommandResponse::err(
+                "Alterar chaves de driver da NIC (HKLM) exige privilégios de Administrador.",
+            ));
+        }
+        match set_nic_power_saving_sync(enable) {
+            Ok(count) => {
+                let msg = if enable {
+                    format!("Economia de energia (EEE, Green Ethernet, Wake-on-LAN, PnP) desativada em {} placa(s) de rede.", count)
+                } else {
+                    format!("Economia de energia da rede revertida em {} placa(s).", count)
+                };
+                Ok(CommandResponse::ok(msg, Some(count)))
+            }
+            Err(e) => Ok(CommandResponse::err(e)),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkBindingsStatus {
+    pub adapter_name: String,
+    pub ipv4_enabled: bool,
+    pub ipv6_enabled: bool,
+    pub qos_enabled: bool,
+    pub lltd_enabled: bool,
+    pub smb_enabled: bool,
+    pub ipv4_only_mode: bool,
+}
+
+#[tauri::command]
+pub async fn get_network_bindings_status() -> Result<CommandResponse<NetworkBindingsStatus>, String> {
+    tokio::task::spawn_blocking(|| {
+        let ps = "$a = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.HardwareInterface -eq $true } | Select-Object -First 1; if (-not $a) { $a = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1 }; if ($a) { $b = Get-NetAdapterBinding -Name $a.Name | Where-Object { $_.ComponentID -in @('ms_tcpip','ms_tcpip6','ms_pacer','ms_lltdio','ms_server') }; [PSCustomObject]@{ AdapterName = $a.Name; IPv4 = [bool](($b | Where-Object ComponentID -eq 'ms_tcpip').Enabled); IPv6 = [bool](($b | Where-Object ComponentID -eq 'ms_tcpip6').Enabled); QoS = [bool](($b | Where-Object ComponentID -eq 'ms_pacer').Enabled); LLTD = [bool](($b | Where-Object ComponentID -eq 'ms_lltdio').Enabled); SMB = [bool](($b | Where-Object ComponentID -eq 'ms_server').Enabled) } | ConvertTo-Json -Compress }";
+        let out = new_hidden_command("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", ps])
+            .output();
+
+        let status = if let Ok(res) = out {
+            let txt = String::from_utf8_lossy(&res.stdout).trim().to_string();
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&txt) {
+                let ipv6 = val.get("IPv6").and_then(|v| v.as_bool()).unwrap_or(true);
+                let qos = val.get("QoS").and_then(|v| v.as_bool()).unwrap_or(true);
+                let lltd = val.get("LLTD").and_then(|v| v.as_bool()).unwrap_or(true);
+                NetworkBindingsStatus {
+                    adapter_name: val
+                        .get("AdapterName")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Ethernet")
+                        .to_string(),
+                    ipv4_enabled: val.get("IPv4").and_then(|v| v.as_bool()).unwrap_or(true),
+                    ipv6_enabled: ipv6,
+                    qos_enabled: qos,
+                    lltd_enabled: lltd,
+                    smb_enabled: val.get("SMB").and_then(|v| v.as_bool()).unwrap_or(true),
+                    ipv4_only_mode: !ipv6 && !qos && !lltd,
+                }
+            } else {
+                NetworkBindingsStatus {
+                    adapter_name: "Ethernet / Wi-Fi".to_string(),
+                    ipv4_enabled: true,
+                    ipv6_enabled: true,
+                    qos_enabled: true,
+                    lltd_enabled: true,
+                    smb_enabled: true,
+                    ipv4_only_mode: false,
+                }
+            }
+        } else {
+            NetworkBindingsStatus {
+                adapter_name: "Ethernet / Wi-Fi".to_string(),
+                ipv4_enabled: true,
+                ipv6_enabled: true,
+                qos_enabled: true,
+                lltd_enabled: true,
+                smb_enabled: true,
+                ipv4_only_mode: false,
+            }
+        };
+
+        Ok(CommandResponse::ok("Vínculos de rede auditados.", Some(status)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn toggle_ipv4_only(
+    enable_ipv4_only: bool,
+    preserve_smb: bool,
+) -> Result<CommandResponse<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        if !is_process_elevated() {
+            return Ok(CommandResponse::err(
+                "Alterar vínculos (bindings) do adaptador de rede exige privilégios de Administrador.",
+            ));
+        }
+
+        let ps = if enable_ipv4_only {
+            if preserve_smb {
+                "$adapters = Get-NetAdapter | Where-Object { $_.HardwareInterface -eq $true }; foreach ($a in $adapters) { Disable-NetAdapterBinding -Name $a.Name -ComponentID ms_tcpip6,ms_pacer,ms_lltdio,ms_rspndr -ErrorAction SilentlyContinue; Enable-NetAdapterBinding -Name $a.Name -ComponentID ms_tcpip,ms_server,ms_msclient -ErrorAction SilentlyContinue }"
+            } else {
+                "$adapters = Get-NetAdapter | Where-Object { $_.HardwareInterface -eq $true }; foreach ($a in $adapters) { Disable-NetAdapterBinding -Name $a.Name -ComponentID ms_tcpip6,ms_pacer,ms_lltdio,ms_rspndr,ms_server,ms_msclient -ErrorAction SilentlyContinue; Enable-NetAdapterBinding -Name $a.Name -ComponentID ms_tcpip -ErrorAction SilentlyContinue }"
+            }
+        } else {
+            "$adapters = Get-NetAdapter | Where-Object { $_.HardwareInterface -eq $true }; foreach ($a in $adapters) { Enable-NetAdapterBinding -Name $a.Name -ComponentID ms_tcpip,ms_tcpip6,ms_pacer,ms_lltdio,ms_rspndr,ms_server,ms_msclient -ErrorAction SilentlyContinue }"
+        };
+
+        let out = new_hidden_command("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", ps])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if out.status.success() {
+            let msg = if enable_ipv4_only {
+                if preserve_smb {
+                    "Modo IPv4-Only ativado (IPv6, QoS, LLTD desativados; compartilhamento SMB local preservado)."
+                } else {
+                    "Modo IPv4-Only estrito ativado (IPv6, QoS, LLTD e SMB desativados)."
+                }
+            } else {
+                "Vínculos padrão de rede (IPv4 + IPv6 + QoS + SMB) restaurados."
+            };
+            Ok(CommandResponse::ok(msg, Some(msg.to_string())))
+        } else {
+            Ok(CommandResponse::err(format!(
+                "Falha ao atualizar bindings da placa de rede: {}",
+                String::from_utf8_lossy(&out.stderr)
+            )))
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 

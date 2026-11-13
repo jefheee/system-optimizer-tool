@@ -1407,14 +1407,27 @@ export async function getWingetCatalog(): Promise<CommandResponse<WingetAppItem[
     success: true,
     message: "Catálogo Winget",
     data: [
-      { id: "Google.Chrome", name: "Google Chrome", category: "Navegadores", description: "Navegador oficial do Google.", installed: true },
+      { id: "imputnet.helium", name: "Helium Browser (Chromium Ultraleve)", category: "Navegadores", description: "Chromium enxuto focado em privacidade e zero telemetria.", installed: false },
       { id: "Brave.Brave", name: "Brave Browser", category: "Navegadores", description: "Navegador focado em privacidade e bloqueio nativo de anúncios.", installed: false },
-      { id: "Discord.Discord", name: "Discord", category: "Comunicação & Jogos", description: "Comunicação por voz e vídeo de baixa latência.", installed: true },
-      { id: "Valve.Steam", name: "Steam", category: "Comunicação & Jogos", description: "Maior plataforma de jogos para PC.", installed: true },
-      { id: "7zip.7zip", name: "7-Zip", category: "Utilitários", description: "Compactador e descompactador ultraleve.", installed: true },
-      { id: "Microsoft.VCRedist.2015+.x64", name: "Visual C++ 2015-2022 (x64)", category: "Runtimes & Diagnóstico", description: "Bibliotecas essenciais para jogos.", installed: true },
-      { id: "CPUID.CPU-Z", name: "CPU-Z", category: "Runtimes & Diagnóstico", description: "Inspeção detalhada de CPU, placa-mãe e timings de RAM.", installed: false },
-      { id: "TechPowerUp.GPU-Z", name: "TechPowerUp GPU-Z", category: "Runtimes & Diagnóstico", description: "Diagnóstico avançado de placa de vídeo.", installed: false },
+      { id: "Mozilla.Firefox", name: "Mozilla Firefox", category: "Navegadores", description: "Navegador rápido baseado em Gecko.", installed: false },
+      { id: "Google.Chrome", name: "Google Chrome", category: "Navegadores", description: "Navegador oficial do Google.", installed: true },
+      { id: "Discord.Discord", name: "Discord", category: "Comunicação & Mídia", description: "Comunicação por voz e vídeo de baixa latência.", installed: true },
+      { id: "Spotify.Spotify", name: "Spotify", category: "Comunicação & Mídia", description: "Streaming de áudio e podcasts.", installed: false },
+      { id: "OBSProject.OBSStudio", name: "OBS Studio", category: "Comunicação & Mídia", description: "Gravação NVENC/AV1 e streaming profissional.", installed: false },
+      { id: "Daum.PotPlayer", name: "PotPlayer", category: "Comunicação & Mídia", description: "Player acelerado por hardware ultra-leve.", installed: false },
+      { id: "VideoLAN.VLC", name: "VLC Media Player", category: "Comunicação & Mídia", description: "Reprodutor universal com codecs integrados.", installed: false },
+      { id: "Valve.Steam", name: "Steam", category: "Comunicação & Mídia", description: "Maior plataforma de jogos para PC.", installed: true },
+      { id: "EpicGames.EpicGamesLauncher", name: "Epic Games Launcher", category: "Comunicação & Mídia", description: "Launcher oficial da Epic Games.", installed: false },
+      { id: "Microsoft.DirectX", name: "DirectX End-User Runtime", category: "Utilitários de Hardware & Runtimes", description: "Bibliotecas legadas DirectX 9/10/11 para jogos.", installed: true },
+      { id: "Microsoft.VCRedist.2015+.x64", name: "Visual C++ 2015-2022 (x64)", category: "Utilitários de Hardware & Runtimes", description: "Runtime C++ 64-bit obrigatório.", installed: true },
+      { id: "Microsoft.VCRedist.2015+.x86", name: "Visual C++ 2015-2022 (x86)", category: "Utilitários de Hardware & Runtimes", description: "Runtime C++ 32-bit para jogos clássicos.", installed: true },
+      { id: "7zip.7zip", name: "7-Zip", category: "Utilitários de Hardware & Runtimes", description: "Compactador ultraleve open-source.", installed: true },
+      { id: "Notepad++.Notepad++", name: "Notepad++", category: "Utilitários de Hardware & Runtimes", description: "Editor de texto e código ultrarrápido.", installed: false },
+      { id: "Guru3D.Afterburner", name: "MSI Afterburner", category: "Utilitários de Hardware & Runtimes", description: "Controle de fans, undervolt e curva V/F de GPU.", installed: false },
+      { id: "Guru3D.RTSS", name: "RivaTuner Statistics Server (RTSS)", category: "Utilitários de Hardware & Runtimes", description: "Limitador de FPS de frame-pacing e OSD.", installed: false },
+      { id: "CPUID.CPU-Z", name: "CPU-Z", category: "Utilitários de Hardware & Runtimes", description: "Inspeção detalhada de CPU, placa-mãe e RAM.", installed: false },
+      { id: "TechPowerUp.GPU-Z", name: "TechPowerUp GPU-Z", category: "Utilitários de Hardware & Runtimes", description: "Diagnóstico avançado de placa de vídeo e ReBAR.", installed: false },
+      { id: "CPUID.HWMonitor", name: "HWMonitor", category: "Utilitários de Hardware & Runtimes", description: "Monitoramento de tensões e temperaturas.", installed: false },
     ],
   };
 }
@@ -1471,6 +1484,162 @@ export async function getLiveTweaksStatus(): Promise<CommandResponse<LiveTweakSt
         registryPath: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl\\Win32PrioritySeparation",
         minOsTier: "Win7",
       },
+      {
+        id: "memory_compression",
+        name: "Compressão de Memória (MMAgent)",
+        category: "Memória & Sistema",
+        description: "Desativa compressão de páginas em RAM (recomendado para >=16GB RAM).",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "Ativa (True)",
+        recommendedValue: "Desativada (>=16GB) / Ativa (<=8GB)",
+        defaultValue: "Ativa (True)",
+        registryPath: "PowerShell: Get-MMAgent / Disable-MMAgent -mc",
+        minOsTier: "Win10",
+      },
+      {
+        id: "windows_update_pause",
+        name: "Pausar Windows Update (Até 1 Ano)",
+        category: "Windows Update",
+        description: "Pausa atualizações automáticas por 365 dias com opção Resume.",
+        riskLevel: "medium",
+        applied: false,
+        currentValue: "Ativo (Automático)",
+        recommendedValue: "Pausado (+365d) c/ Resume Manual",
+        defaultValue: "Ativo",
+        registryPath: "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings",
+        minOsTier: "Win10",
+      },
+      {
+        id: "delivery_optimization_off",
+        name: "Desativar Delivery Optimization (P2P Off)",
+        category: "Rede & Update",
+        description: "Impede upload P2P de atualizações do Windows (DODownloadMode = 0).",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "DODownloadMode=1",
+        recommendedValue: "0 (P2P Desativado)",
+        defaultValue: "1 (LAN/P2P)",
+        registryPath: "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization",
+        minOsTier: "Win10",
+      },
+      {
+        id: "uwp_background_off",
+        name: "Bloquear Apps UWP em Segundo Plano",
+        category: "Sistema & Privacidade",
+        description: "Impede execução oculta em segundo plano de apps da Microsoft Store.",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "Permitido",
+        recommendedValue: "1 (Bloqueado)",
+        defaultValue: "0 (Permitido)",
+        registryPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications",
+        minOsTier: "Win10",
+      },
+      {
+        id: "store_autoupdate_off",
+        name: "Desativar Auto-Update da Microsoft Store",
+        category: "Sistema & Privacidade",
+        description: "Evita downloads automáticos em segundo plano da Store.",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "Automático (4)",
+        recommendedValue: "2 (Manual)",
+        defaultValue: "4 (Automático)",
+        registryPath: "HKLM\\SOFTWARE\\Policies\\Microsoft\\WindowsStore",
+        minOsTier: "Win10",
+      },
+      {
+        id: "classic_context_menu",
+        name: "Menu de Contexto Clássico (Windows 10)",
+        category: "Shell & Interface",
+        description: "Restaura menu completo do botão direito instantaneamente.",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "Padrão Win11",
+        recommendedValue: "Ativo",
+        defaultValue: "Padrão Win11",
+        registryPath: "HKCU\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}",
+        minOsTier: "Win11",
+      },
+      {
+        id: "clean_notepad",
+        name: "Bloco de Notas Limpo (Sem Copilot/IA & Sem Abas)",
+        category: "Shell & Interface",
+        description: "Desativa botões IA/Copilot e restauração de sessões antigas.",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "IA / Sessão Padrão",
+        recommendedValue: "DisableAIFeatures=1",
+        defaultValue: "0",
+        registryPath: "HKLM\\SOFTWARE\\Policies\\WindowsNotepad",
+        minOsTier: "Win11",
+      },
+      {
+        id: "visual_effects_opt",
+        name: "Efeitos Visuais Enxutos (Preserva Fontes e Thumbnails)",
+        category: "Shell & Interface",
+        description: "Remove animações pesadas preservando ClearType e miniaturas.",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "Padrão",
+        recommendedValue: "VisualFXSetting=3",
+        defaultValue: "1 / 0",
+        registryPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects",
+        minOsTier: "Win7",
+      },
+      {
+        id: "explorer_pro_settings",
+        name: "Explorer Pro & Iluminação Dinâmica Off",
+        category: "Shell & Interface",
+        description: "Mostra extensões/ocultos e desativa Windows Dynamic Lighting.",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "Padrão Oculto",
+        recommendedValue: "HideFileExt=0, Hidden=1",
+        defaultValue: "HideFileExt=1, Hidden=2",
+        registryPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        minOsTier: "Win7",
+      },
+      {
+        id: "full_blackout_theme",
+        name: "Tema Escuro Total & Sem Transparência",
+        category: "Shell & Interface",
+        description: "Ativa Dark Mode em Apps/Sistema e desativa transparência.",
+        riskLevel: "low",
+        applied: false,
+        currentValue: "Claro ou Transparência Ativa",
+        recommendedValue: "Dark=1, Transparency=0",
+        defaultValue: "Transparency=1",
+        registryPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        minOsTier: "Win10",
+      },
+      {
+        id: "disable_windows_ai",
+        name: "Extermínio de IA Win11 24H2-26H2 (Copilot/Recall/Cocreator)",
+        category: "Privacidade & IA",
+        description: "Desativa Copilot, Windows Recall, Paint Cocreator e Cross Device Resume.",
+        riskLevel: "medium",
+        applied: false,
+        currentValue: "Recursos de IA Ativos",
+        recommendedValue: "TurnOffCopilot=1, DisableRecall=1",
+        defaultValue: "Ativo no Win11",
+        registryPath: "HKCU\\Software\\Policies\\Microsoft\\Windows\\WindowsAI",
+        minOsTier: "Win11",
+      },
+      {
+        id: "nic_power_saving_off",
+        name: "Desativar Economia de Energia da Placa de Rede (NIC EEE Off)",
+        category: "Rede & Latência",
+        description: "Desativa EEE, Green Ethernet e PnPCapabilities no adaptador de rede.",
+        riskLevel: "medium",
+        applied: false,
+        currentValue: "Economia Ativa",
+        recommendedValue: "PnP=24, EEE=0, GreenEthernet=0",
+        defaultValue: "Economia Ativa",
+        registryPath: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}",
+        minOsTier: "Win7",
+      },
     ],
   };
 }
@@ -1491,5 +1660,178 @@ export async function scanUsbDevices(): Promise<CommandResponse<UsbScanResult>> 
   const res = await invokeCommand<UsbScanResult>("scan_usb_devices");
   if (res.success && res.data) return res;
   return getUsbDevices();
+}
+
+// =================================================================
+// 8. ETAPA 2 — MÓDULOS 2, 3, 4 E 6 (CLEAN INSTALL USB, APP POST-PROC,
+//    BITLOCKER, NTP SYNC, RESTAURAÇÃO, AUDIO LOUDNESS EQ & IPV4-ONLY)
+// =================================================================
+
+export interface CleanInstallUsbResult {
+  autounattendPath: string;
+  setupCompletePath?: string;
+  localUsername: string;
+  bypassWin11Reqs: boolean;
+  skipOobeTelemetry: boolean;
+  injectOemDriverBlock: boolean;
+}
+
+export interface AppPostProcessResult {
+  shortcutsFlattened: number;
+  emptyFoldersRemoved: number;
+  browsersOptimized: string[];
+  discordSpotifyOptimized: boolean;
+  details: string[];
+}
+
+export interface BitLockerDriveStatus {
+  drive: string;
+  status: string;
+  protectionOn: boolean;
+  percentageEncrypted: number;
+  encryptionMethod: string;
+}
+
+export interface AudioEndpointItem {
+  id: string;
+  name: string;
+  deviceName: string;
+  loudnessEqEnabled: boolean;
+  enhancementsUnlocked: boolean;
+}
+
+export interface NetworkBindingsStatus {
+  adapterName: string;
+  ipv4Enabled: boolean;
+  ipv6Enabled: boolean;
+  qosEnabled: boolean;
+  lltdEnabled: boolean;
+  smbEnabled: boolean;
+  ipv4OnlyMode: boolean;
+}
+
+export async function cleanWindowsUpdateCache(): Promise<CommandResponse<CleanResult>> {
+  return invokeCommand<CleanResult>("clean_windows_update_cache");
+}
+
+export async function generateCleanInstallUsb(
+  targetPath: string,
+  localUsername: string,
+  bypassWin11Reqs: boolean,
+  skipOobeTelemetry: boolean,
+  injectOemDriverBlock: boolean
+): Promise<CommandResponse<CleanInstallUsbResult>> {
+  return invokeCommand<CleanInstallUsbResult>("generate_clean_install_usb", {
+    targetPath,
+    localUsername,
+    bypassWin11Reqs,
+    skipOobeTelemetry,
+    injectOemDriverBlock,
+  });
+}
+
+export async function openAccountControlPanel(tool: "netplwiz" | "lusrmgr"): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("open_account_control_panel", { tool });
+}
+
+export async function runAppPostProcessing(
+  flattenShortcuts: boolean,
+  optimizeBrowsers: boolean,
+  optimizeDiscordSpotify: boolean,
+  disableBrowserHwAccel: boolean
+): Promise<CommandResponse<AppPostProcessResult>> {
+  return invokeCommand<AppPostProcessResult>("run_app_post_processing", {
+    flattenShortcuts,
+    optimizeBrowsers,
+    optimizeDiscordSpotify,
+    disableBrowserHwAccel,
+  });
+}
+
+export async function getBitlockerStatus(): Promise<CommandResponse<BitLockerDriveStatus[]>> {
+  const res = await invokeCommand<BitLockerDriveStatus[]>("get_bitlocker_status");
+  if (res.success && res.data) return res;
+  return {
+    success: true,
+    message: "Auditoria BitLocker (Preview Web)",
+    data: [
+      {
+        drive: "C:",
+        status: "Fully Encrypted (Preview)",
+        protectionOn: true,
+        percentageEncrypted: 100,
+        encryptionMethod: "XTS-AES 128",
+      },
+    ],
+  };
+}
+
+export async function bitlockerDecrypt(drive: string): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("bitlocker_decrypt", { drive });
+}
+
+export async function syncSystemTime(): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("sync_system_time");
+}
+
+export async function restoreEssentialApp(
+  target: "xbox_gaming" | "ms_store" | "calc_snipping"
+): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("restore_essential_app", { target });
+}
+
+export async function getAudioEndpoints(): Promise<CommandResponse<AudioEndpointItem[]>> {
+  const res = await invokeCommand<AudioEndpointItem[]>("get_audio_endpoints");
+  if (res.success && res.data) return res;
+  return {
+    success: true,
+    message: "Endpoints de áudio carregados",
+    data: [
+      {
+        id: "{preview-audio-endpoint-1}",
+        name: "Alto-falantes / Headset Principal",
+        deviceName: "Realtek(R) Audio",
+        loudnessEqEnabled: false,
+        enhancementsUnlocked: false,
+      },
+    ],
+  };
+}
+
+export async function injectLoudnessEq(endpointId: string, enable: boolean): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("inject_loudness_eq", { endpointId, enable });
+}
+
+export async function openSoundControlPanel(): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("open_sound_control_panel");
+}
+
+export async function disableNicPowerSaving(enable: boolean): Promise<CommandResponse<number>> {
+  return invokeCommand<number>("disable_nic_power_saving", { enable });
+}
+
+export async function getNetworkBindingsStatus(): Promise<CommandResponse<NetworkBindingsStatus>> {
+  const res = await invokeCommand<NetworkBindingsStatus>("get_network_bindings_status");
+  if (res.success && res.data) return res;
+  return {
+    success: true,
+    message: "Vínculos de rede auditados",
+    data: {
+      adapterName: "Ethernet (Preview)",
+      ipv4Enabled: true,
+      ipv6Enabled: true,
+      qosEnabled: true,
+      lltdEnabled: true,
+      smbEnabled: true,
+      ipv4OnlyMode: false,
+    },
+  };
+}
+
+export async function toggleIpv4Only(
+  enableIpv4Only: boolean,
+  preserveSmb: boolean
+): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("toggle_ipv4_only", { enableIpv4Only, preserveSmb });
 }
 

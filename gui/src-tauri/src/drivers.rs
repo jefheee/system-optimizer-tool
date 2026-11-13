@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
-use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
+use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WRITE};
 use winreg::RegKey;
 use wmi::{COMLibrary, Variant, WMIConnection};
 
@@ -1245,21 +1245,30 @@ pub async fn get_winget_catalog() -> Result<CommandResponse<Vec<WingetAppItem>>,
         }
 
         let raw_apps = [
-            ("Google.Chrome", "Google Chrome", "Navegadores", "Navegador oficial do Google.", "chrome"),
-            ("Brave.Brave", "Brave Browser", "Navegadores", "Navegador focado em privacidade e bloqueio nativo de anúncios.", "brave"),
+            // Navegadores
+            ("imputnet.helium", "Helium Browser (Chromium Ultraleve)", "Navegadores", "Chromium enxuto de altíssima velocidade focado em privacidade e zero telemetria.", "helium"),
+            ("Brave.Brave", "Brave Browser", "Navegadores", "Navegador focado em privacidade, Shields integrados e bloqueio nativo de anúncios.", "brave"),
             ("Mozilla.Firefox", "Mozilla Firefox", "Navegadores", "Navegador rápido e independente baseado no motor Gecko.", "firefox"),
-            ("Discord.Discord", "Discord", "Comunicação & Jogos", "Comunicação por voz, vídeo e chat de baixa latência para gamers.", "discord"),
-            ("Valve.Steam", "Steam", "Comunicação & Jogos", "Maior plataforma e biblioteca de jogos para PC.", "steam"),
-            ("EpicGames.EpicGamesLauncher", "Epic Games Launcher", "Comunicação & Jogos", "Launcher para Fortnite, Rocket League, Unreal Engine e jogos gratuitos.", "epic games"),
-            ("7zip.7zip", "7-Zip", "Utilitários", "Compactador e descompactador ultraleve (.7z, .zip, .rar).", "7-zip"),
-            ("RARLab.WinRAR", "WinRAR", "Utilitários", "Gerenciador clássico de arquivos compactados .RAR e .ZIP.", "winrar"),
-            ("VideoLAN.VLC", "VLC Media Player", "Utilitários", "Reprodutor multimídia universal com todos os codecs integrados.", "vlc"),
-            ("Skillbrains.Lightshot", "Lightshot", "Utilitários", "Ferramenta rápida para captura e anotação de área de tela.", "lightshot"),
-            ("Microsoft.VCRedist.2015+.x64", "Visual C++ 2015-2022 (x64)", "Runtimes & Diagnóstico", "Bibliotecas essenciais exigidas por 99% dos jogos modernos.", "visual c++ 2015-2022"),
-            ("Microsoft.DirectX", "DirectX End-User Runtime", "Runtimes & Diagnóstico", "Bibliotecas legadas DirectX 9/10/11 (XInput, D3DX9) para jogos.", "directx"),
-            ("CPUID.CPU-Z", "CPU-Z", "Runtimes & Diagnóstico", "Utilitário clássico para inspeção detalhada de CPU, placa-mãe e timings de RAM.", "cpu-z"),
-            ("CPUID.HWMonitor", "HWMonitor", "Runtimes & Diagnóstico", "Monitoramento de tensões, temperaturas e rotações de ventoinhas.", "hwmonitor"),
-            ("TechPowerUp.GPU-Z", "TechPowerUp GPU-Z", "Runtimes & Diagnóstico", "Diagnóstico avançado de placa de vídeo, sensores de hotspot e BIOS de GPU.", "gpu-z"),
+            ("Google.Chrome", "Google Chrome", "Navegadores", "Navegador oficial do Google com sincronização em nuvem.", "chrome"),
+            // Comunicação & Mídia
+            ("Discord.Discord", "Discord", "Comunicação & Mídia", "Comunicação por voz, vídeo e chat de baixa latência para gamers.", "discord"),
+            ("Spotify.Spotify", "Spotify", "Comunicação & Mídia", "Cliente oficial de streaming de áudio e podcasts.", "spotify"),
+            ("OBSProject.OBSStudio", "OBS Studio", "Comunicação & Mídia", "Gravação NVENC/AV1 sem perdas e streaming profissional de baixa sobrecarga.", "obs studio"),
+            ("Daum.PotPlayer", "PotPlayer", "Comunicação & Mídia", "Player de vídeo acelerado por hardware ultra-leve com decodificação avançada.", "potplayer"),
+            ("VideoLAN.VLC", "VLC Media Player", "Comunicação & Mídia", "Reprodutor multimídia universal com todos os codecs integrados.", "vlc"),
+            ("Valve.Steam", "Steam", "Comunicação & Mídia", "Maior plataforma e biblioteca de jogos para PC.", "steam"),
+            ("EpicGames.EpicGamesLauncher", "Epic Games Launcher", "Comunicação & Mídia", "Launcher oficial da Epic Games e Unreal Engine.", "epic games"),
+            // Utilitários de Hardware & Runtimes
+            ("Microsoft.DirectX", "DirectX End-User Runtime", "Utilitários de Hardware & Runtimes", "Bibliotecas essenciais DirectX 9/10/11 (XInput, D3DX9) exigidas por jogos clássicos.", "directx"),
+            ("Microsoft.VCRedist.2015+.x64", "Visual C++ 2015-2022 (x64)", "Utilitários de Hardware & Runtimes", "Runtime C++ 64-bit obrigatório para jogos e drivers modernos.", "visual c++ 2015-2022"),
+            ("Microsoft.VCRedist.2015+.x86", "Visual C++ 2015-2022 (x86)", "Utilitários de Hardware & Runtimes", "Runtime C++ 32-bit exigido por launchers e jogos DirectX 9/11.", "x86"),
+            ("7zip.7zip", "7-Zip", "Utilitários de Hardware & Runtimes", "Compactador e descompactador open-source ultraleve (.7z, .zip, .rar).", "7-zip"),
+            ("Notepad++.Notepad++", "Notepad++", "Utilitários de Hardware & Runtimes", "Editor de código, logs e arquivos de configuração ultrarrápido.", "notepad++"),
+            ("Guru3D.Afterburner", "MSI Afterburner", "Utilitários de Hardware & Runtimes", "Controle de curva de fans, undervolt V/F e overclock seguro de GPU.", "afterburner"),
+            ("Guru3D.RTSS", "RivaTuner Statistics Server (RTSS)", "Utilitários de Hardware & Runtimes", "Limitador de FPS de frame-pacing perfeito (scanline/async) e OSD.", "rivatuner"),
+            ("CPUID.CPU-Z", "CPU-Z", "Utilitários de Hardware & Runtimes", "Inspeção de clock, stepping, timings XMP/EXPO e largura de banda PCIe.", "cpu-z"),
+            ("TechPowerUp.GPU-Z", "TechPowerUp GPU-Z", "Utilitários de Hardware & Runtimes", "Diagnóstico de GPU, PCIe link speed, ReBAR e sensores de Hotspot.", "gpu-z"),
+            ("CPUID.HWMonitor", "HWMonitor", "Utilitários de Hardware & Runtimes", "Monitoramento completo de tensões Vcore, temperaturas e RPMs.", "hwmonitor"),
         ];
 
         raw_apps
@@ -1358,4 +1367,548 @@ pub async fn install_winget_batch(
         ),
         Some(installed_count),
     ))
+}
+
+// ============================================================================
+// MÓDULO 2: GERADOR NATIVO DE FORMATAÇÃO LIMPA (autounattend.xml + $OEM$)
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanInstallUsbResult {
+    pub autounattend_path: String,
+    pub setup_complete_path: Option<String>,
+    pub local_username: String,
+    pub bypass_win11_reqs: bool,
+    pub skip_oobe_telemetry: bool,
+    pub inject_oem_driver_block: bool,
+}
+
+fn sanitize_xml_text(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let base = if trimmed.is_empty() { "User" } else { trimmed };
+    let mut out = String::with_capacity(base.len());
+    for ch in base.chars() {
+        match ch {
+            '<' | '>' | '&' | '"' | '\'' | '\\' | '/' | ':' | '*' | '?' | '|' => {}
+            _ if ch.is_control() => {}
+            _ => out.push(ch),
+        }
+    }
+    let final_name = out.trim();
+    if final_name.is_empty() {
+        "User".to_string()
+    } else {
+        final_name.chars().take(20).collect()
+    }
+}
+
+/// Construtor determinístico do autounattend.xml (Windows 10/11 Pro/Home)
+pub fn build_autounattend_xml(
+    local_username: &str,
+    bypass_win11_reqs: bool,
+    skip_oobe_telemetry: bool,
+) -> String {
+    let safe_user = sanitize_xml_text(local_username);
+
+    let winpe_bypass_block = if bypass_win11_reqs {
+        r#"            <RunSynchronous>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>1</Order>
+                    <Path>reg add HKLM\SYSTEM\Setup\LabConfig /v BypassTPMCheck /t REG_DWORD /d 1 /f</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>2</Order>
+                    <Path>reg add HKLM\SYSTEM\Setup\LabConfig /v BypassSecureBootCheck /t REG_DWORD /d 1 /f</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>3</Order>
+                    <Path>reg add HKLM\SYSTEM\Setup\LabConfig /v BypassRAMCheck /t REG_DWORD /d 1 /f</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>4</Order>
+                    <Path>reg add HKLM\SYSTEM\Setup\LabConfig /v BypassCPUCheck /t REG_DWORD /d 1 /f</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>5</Order>
+                    <Path>reg add HKLM\SYSTEM\Setup\LabConfig /v BypassStorageCheck /t REG_DWORD /d 1 /f</Path>
+                </RunSynchronousCommand>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>6</Order>
+                    <Path>reg add HKLM\SYSTEM\Setup\MoSetup /v AllowUpgradesWithUnsupportedTPMOrCPU /t REG_DWORD /d 1 /f</Path>
+                </RunSynchronousCommand>
+            </RunSynchronous>
+"#
+    } else {
+        ""
+    };
+
+    let oobe_block = if skip_oobe_telemetry {
+        r#"            <OOBE>
+                <HideEULAPage>true</HideEULAPage>
+                <HideLocalAccountScreen>true</HideLocalAccountScreen>
+                <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+                <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+                <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+                <NetworkLocation>Home</NetworkLocation>
+                <ProtectYourPC>3</ProtectYourPC>
+                <SkipMachineOOBE>false</SkipMachineOOBE>
+                <SkipUserOOBE>false</SkipUserOOBE>
+            </OOBE>"#
+    } else {
+        r#"            <OOBE>
+                <HideEULAPage>true</HideEULAPage>
+                <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+                <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+            </OOBE>"#
+    };
+
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+    <settings pass="windowsPE">
+        <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+{winpe_bypass_block}            <UserData>
+                <AcceptEula>true</AcceptEula>
+            </UserData>
+        </component>
+    </settings>
+    <settings pass="specialize">
+        <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+            <RunSynchronous>
+                <RunSynchronousCommand wcm:action="add">
+                    <Order>1</Order>
+                    <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f</Path>
+                </RunSynchronousCommand>
+            </RunSynchronous>
+        </component>
+    </settings>
+    <settings pass="oobeSystem">
+        <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+{oobe_block}
+            <UserAccounts>
+                <LocalAccounts>
+                    <LocalAccount wcm:action="add">
+                        <Password>
+                            <Value></Value>
+                            <PlainText>true</PlainText>
+                        </Password>
+                        <Description>Local Admin Account created by System Optimizer Tool</Description>
+                        <DisplayName>{safe_user}</DisplayName>
+                        <Group>Administrators</Group>
+                        <Name>{safe_user}</Name>
+                    </LocalAccount>
+                </LocalAccounts>
+            </UserAccounts>
+            <AutoLogon>
+                <Password>
+                    <Value></Value>
+                    <PlainText>true</PlainText>
+                </Password>
+                <Enabled>true</Enabled>
+                <LogonCount>1</LogonCount>
+                <Username>{safe_user}</Username>
+            </AutoLogon>
+            <FirstLogonCommands>
+                <SynchronousCommand wcm:action="add">
+                    <Order>1</Order>
+                    <Description>Run SetupComplete pre-boot policy enforcement</Description>
+                    <CommandLine>cmd /c if exist C:\Windows\Setup\Scripts\SetupComplete.cmd call C:\Windows\Setup\Scripts\SetupComplete.cmd</CommandLine>
+                </SynchronousCommand>
+            </FirstLogonCommands>
+        </component>
+    </settings>
+</unattend>
+"#
+    )
+}
+
+/// Construtor determinístico do $OEM$\$$\Setup\Scripts\SetupComplete.cmd (pré-carregamento do Desktop)
+pub fn build_setup_complete_cmd() -> String {
+    r#"@echo off
+REM System Optimizer Tool - Pre-Boot Driver & OEM Bloatware Prevention
+REM Runs silently before first user logon
+
+REM 1. Block automatic driver installation via Windows Update (Group Policy + DriverSearching)
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" /v ExcludeWUDriversInQualityUpdate /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" /v SearchOrderConfig /t REG_DWORD /d 0 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata" /v PreventDeviceMetadataFromNetwork /t REG_DWORD /d 1 /f >nul 2>&1
+
+REM 2. Disable silent OEM motherboard/peripheral auto-installer prompts (ASUS Armoury Crate, MSI Center, Gigabyte GCC)
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Settings" /v DisableSendGenericDriverNotFoundToWER /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v DisableWindowsConsumerFeatures /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v DisableSoftLanding /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f >nul 2>&1
+
+exit /b 0
+"#
+    .to_string()
+}
+
+#[tauri::command]
+pub async fn generate_clean_install_usb(
+    target_path: String,
+    local_username: String,
+    bypass_win11_reqs: bool,
+    skip_oobe_telemetry: bool,
+    inject_oem_driver_block: bool,
+) -> Result<CommandResponse<CleanInstallUsbResult>, String> {
+    tokio::task::spawn_blocking(move || {
+        let trimmed = target_path.trim();
+        if trimmed.is_empty() {
+            return Ok(CommandResponse::err(
+                "Informe a letra da unidade USB (ex: E:\\) ou o caminho de uma pasta local.",
+            ));
+        }
+
+        let normalized = if trimmed.len() == 2 && trimmed.ends_with(':') {
+            format!("{}\\", trimmed)
+        } else {
+            trimmed.to_string()
+        };
+
+        let base_dir = PathBuf::from(&normalized);
+        if !base_dir.exists() {
+            if let Err(e) = fs::create_dir_all(&base_dir) {
+                return Ok(CommandResponse::err(format!(
+                    "Não foi possível acessar/criar o destino {}: {}",
+                    base_dir.display(),
+                    e
+                )));
+            }
+        }
+
+        let safe_user = sanitize_xml_text(&local_username);
+        let xml_content = build_autounattend_xml(&safe_user, bypass_win11_reqs, skip_oobe_telemetry);
+        let xml_path = base_dir.join("autounattend.xml");
+        if let Err(e) = fs::write(&xml_path, xml_content.as_bytes()) {
+            return Ok(CommandResponse::err(format!(
+                "Falha ao gravar autounattend.xml em {}: {}",
+                xml_path.display(),
+                e
+            )));
+        }
+
+        let mut setup_complete_path_out: Option<String> = None;
+        if inject_oem_driver_block {
+            let scripts_dir = base_dir.join("$OEM$").join("$$").join("Setup").join("Scripts");
+            if let Err(e) = fs::create_dir_all(&scripts_dir) {
+                return Ok(CommandResponse::err(format!(
+                    "Falha ao criar estrutura $OEM$ em {}: {}",
+                    scripts_dir.display(),
+                    e
+                )));
+            }
+            let cmd_path = scripts_dir.join("SetupComplete.cmd");
+            let cmd_content = build_setup_complete_cmd();
+            if let Err(e) = fs::write(&cmd_path, cmd_content.as_bytes()) {
+                return Ok(CommandResponse::err(format!(
+                    "Falha ao gravar SetupComplete.cmd em {}: {}",
+                    cmd_path.display(),
+                    e
+                )));
+            }
+            setup_complete_path_out = Some(cmd_path.to_string_lossy().to_string());
+        }
+
+        let result = CleanInstallUsbResult {
+            autounattend_path: xml_path.to_string_lossy().to_string(),
+            setup_complete_path: setup_complete_path_out,
+            local_username: safe_user,
+            bypass_win11_reqs,
+            skip_oobe_telemetry,
+            inject_oem_driver_block,
+        };
+
+        Ok(CommandResponse::ok(
+            format!(
+                "Kit Clean Install gerado com sucesso em {}!",
+                base_dir.display()
+            ),
+            Some(result),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn open_account_control_panel(tool: String) -> Result<CommandResponse<bool>, String> {
+    tokio::task::spawn_blocking(move || {
+        let target = match tool.as_str() {
+            "lusrmgr" => "lusrmgr.msc",
+            _ => "netplwiz",
+        };
+        let status = Command::new("cmd")
+            .args(["/C", "start", "", target])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
+        match status {
+            Ok(_) => Ok(CommandResponse::ok(
+                format!("Utilitário '{}' aberto.", target),
+                Some(true),
+            )),
+            Err(e) => Ok(CommandResponse::err(format!(
+                "Não foi possível abrir '{}': {}",
+                target, e
+            ))),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ============================================================================
+// MÓDULO 4: PÓS-PROCESSAMENTO INTELIGENTE DE APLICATIVOS
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppPostProcessResult {
+    pub shortcuts_flattened: u32,
+    pub empty_folders_removed: u32,
+    pub browsers_optimized: Vec<String>,
+    pub discord_spotify_optimized: bool,
+    pub details: Vec<String>,
+}
+
+fn is_whitelisted_start_menu_dir(folder_name: &str) -> bool {
+    let lower = folder_name.to_lowercase();
+    matches!(
+        lower.as_str(),
+        "accessories"
+            | "administrative tools"
+            | "system tools"
+            | "startup"
+            | "accessibility"
+            | "windows powershell"
+            | "windows system"
+            | "maintenance"
+            | "windows accessories"
+            | "windows administrative tools"
+            | "windows ease of access"
+            | "acessórios"
+            | "acessórios do windows"
+            | "ferramentas administrativas"
+            | "ferramentas administrativas do windows"
+            | "ferramentas do sistema"
+            | "inicializar"
+            | "sistema do windows"
+            | "facilidade de acesso"
+            | "acessibilidade"
+    )
+}
+
+fn move_lnk_files_up(
+    dir: &Path,
+    programs_root: &Path,
+    moved: &mut u32,
+    removed_dirs: &mut u32,
+) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            move_lnk_files_up(&p, programs_root, moved, removed_dirs);
+        } else if p.is_file() {
+            if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+                if ext.eq_ignore_ascii_case("lnk") {
+                    if let Some(file_name) = p.file_name() {
+                        let dest = programs_root.join(file_name);
+                        if !dest.exists() && fs::rename(&p, &dest).is_ok() {
+                            *moved += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Ok(mut remaining) = fs::read_dir(dir) {
+        if remaining.next().is_none() && fs::remove_dir(dir).is_ok() {
+            *removed_dirs += 1;
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn run_app_post_processing(
+    flatten_shortcuts: bool,
+    optimize_browsers: bool,
+    optimize_discord_spotify: bool,
+    disable_browser_hw_accel: bool,
+) -> Result<CommandResponse<AppPostProcessResult>, String> {
+    tokio::task::spawn_blocking(move || {
+        let mut shortcuts_flattened = 0u32;
+        let mut empty_folders_removed = 0u32;
+        let mut browsers_optimized = Vec::new();
+        let mut discord_spotify_optimized = false;
+        let mut details = Vec::new();
+
+        // 1. Nivelar atalhos de pastas aninhadas no Menu Iniciar
+        if flatten_shortcuts {
+            let mut roots = vec![PathBuf::from(
+                r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs",
+            )];
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                roots.push(
+                    PathBuf::from(appdata)
+                        .join("Microsoft")
+                        .join("Windows")
+                        .join("Start Menu")
+                        .join("Programs"),
+                );
+            }
+
+            for root in roots {
+                if !root.exists() {
+                    continue;
+                }
+                if let Ok(entries) = fs::read_dir(&root) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_dir() {
+                            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                                if !is_whitelisted_start_menu_dir(name) {
+                                    move_lnk_files_up(
+                                        &p,
+                                        &root,
+                                        &mut shortcuts_flattened,
+                                        &mut empty_folders_removed,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            details.push(format!(
+                "Menu Iniciar nivelado: {} atalho(s) movido(s), {} pasta(s) vazia(s) removida(s).",
+                shortcuts_flattened, empty_folders_removed
+            ));
+        }
+
+        // 2. Otimizar Navegadores (Brave / Chrome / Edge) via Políticas de Registro + Updaters
+        if optimize_browsers {
+            let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+            let targets = [
+                ("Chrome", r"SOFTWARE\Policies\Google\Chrome"),
+                ("Brave", r"SOFTWARE\Policies\BraveSoftware\Brave"),
+                ("Edge", r"SOFTWARE\Policies\Microsoft\Edge"),
+            ];
+
+            for (label, reg_path) in targets {
+                if let Ok((key, _)) = hklm.create_subkey(reg_path) {
+                    let _ = key.set_value("BackgroundModeEnabled", &0u32);
+                    let _ = key.set_value("HighEfficiencyModeEnabled", &1u32);
+                    if disable_browser_hw_accel {
+                        let _ = key.set_value("HardwareAccelerationModeEnabled", &0u32);
+                    } else {
+                        let _ = key.delete_value("HardwareAccelerationModeEnabled");
+                    }
+                    browsers_optimized.push(label.to_string());
+                }
+            }
+
+            // Desativar serviços e tarefas em segundo plano de updaters pesados
+            for svc in ["gupdate", "gupdatem", "brave", "bravem"] {
+                let _ = Command::new("sc")
+                    .args(["config", svc, "start=", "disabled"])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output();
+                let _ = Command::new("sc")
+                    .args(["stop", svc])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output();
+            }
+            for task in [
+                "GoogleUpdateTaskMachineCore",
+                "GoogleUpdateTaskMachineUA",
+                "BraveSoftwareUpdateTaskMachineCore",
+                "BraveSoftwareUpdateTaskMachineUA",
+            ] {
+                let _ = Command::new("schtasks")
+                    .args(["/Change", "/TN", task, "/DISABLE"])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output();
+            }
+
+            details.push(format!(
+                "Navegadores otimizados via GPO/Registro ({}): BackgroundMode OFF, Efficiency ON{}.",
+                browsers_optimized.join(", "),
+                if disable_browser_hw_accel {
+                    ", HW Accel OFF"
+                } else {
+                    ""
+                }
+            ));
+        }
+
+        // 3. Otimizar Discord & Spotify (remover Auto-Start + settings.json do Discord)
+        if optimize_discord_spotify {
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            if let Ok(run_key) = hkcu.open_subkey_with_flags(
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                KEY_WRITE,
+            ) {
+                for val_name in ["Discord", "Spotify", "Spotify Web Helper"] {
+                    let _ = run_key.delete_value(val_name);
+                }
+            }
+
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let discord_settings = PathBuf::from(&appdata).join("discord").join("settings.json");
+                let mut json_obj = if discord_settings.exists() {
+                    fs::read_to_string(&discord_settings)
+                        .ok()
+                        .and_then(|txt| serde_json::from_str::<serde_json::Value>(&txt).ok())
+                        .unwrap_or_else(|| serde_json::json!({}))
+                } else {
+                    serde_json::json!({})
+                };
+
+                if let Some(map) = json_obj.as_object_mut() {
+                    map.insert("MINIMIZE_TO_TRAY".to_string(), serde_json::json!(false));
+                    map.insert("OPEN_ON_STARTUP".to_string(), serde_json::json!(false));
+                    map.insert(
+                        "enableHardwareAcceleration".to_string(),
+                        serde_json::json!(false),
+                    );
+                    if let Some(parent) = discord_settings.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    if let Ok(formatted) = serde_json::to_string_pretty(&json_obj) {
+                        let _ = fs::write(&discord_settings, formatted);
+                    }
+                }
+            }
+
+            discord_spotify_optimized = true;
+            details.push(
+                "Discord e Spotify otimizados: removidos do auto-boot e Minimize to Tray/HW Accel desativados."
+                    .to_string(),
+            );
+        }
+
+        let res = AppPostProcessResult {
+            shortcuts_flattened,
+            empty_folders_removed,
+            browsers_optimized,
+            discord_spotify_optimized,
+            details: details.clone(),
+        };
+
+        let summary = if details.is_empty() {
+            "Nenhuma opção de pós-processamento selecionada.".to_string()
+        } else {
+            details.join(" | ")
+        };
+
+        Ok(CommandResponse::ok(summary, Some(res)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

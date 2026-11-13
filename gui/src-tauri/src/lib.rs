@@ -57,6 +57,9 @@ pub fn run() {
             drivers::clean_arduino_cache,
             drivers::get_winget_catalog,
             drivers::install_winget_batch,
+            drivers::generate_clean_install_usb,
+            drivers::open_account_control_panel,
+            drivers::run_app_post_processing,
 
             // 5. Presets Inteligentes / 1-Click Profiles (SYS OTIMIZA)
             presets::run_preset,
@@ -66,6 +69,7 @@ pub fn run() {
             clean::run_lite_clean,
             clean::toggle_hibernation,
             clean::clean_old_windows_installations,
+            clean::clean_windows_update_cache,
 
             // 7. Ferramentas Gamer & Baixa Latência + Process Freezer (SYS OTIMIZA)
             gamer::get_gamer_status,
@@ -113,6 +117,16 @@ pub fn run() {
             system::remove_startup_app,
             system::generate_battery_or_energy_report,
             system::open_external_url,
+            system::get_bitlocker_status,
+            system::bitlocker_decrypt,
+            system::sync_system_time,
+            system::restore_essential_app,
+            system::get_audio_endpoints,
+            system::inject_loudness_eq,
+            system::open_sound_control_panel,
+            system::disable_nic_power_saving,
+            system::get_network_bindings_status,
+            system::toggle_ipv4_only,
 
             // 9. Hub da Comunidade & Ferramentas Externas (SYS DRIVERS)
             external_tools::check_installed_tools,
@@ -169,6 +183,52 @@ mod tests {
         assert!(system::is_protected_package("*Microsoft.WindowsStore*"));
         assert!(!system::is_protected_package("*Cortana*"));
         assert!(!system::is_protected_package("*BingWeather*"));
+    }
+
+    #[test]
+    fn test_expanded_protected_packages_whitelist() {
+        for protected in [
+            "Microsoft.Paint",
+            "MSPaint",
+            "Microsoft.Windows.Photos",
+            "Microsoft.WindowsNotepad",
+            "Microsoft.HEVCVideoExtension",
+            "Microsoft.AV1VideoExtension",
+            "Microsoft.WebpImageExtension",
+            "NetFx3",
+            "Microsoft.EdgeWebView2",
+            "VBScript",
+        ] {
+            assert!(
+                system::is_protected_package(protected),
+                "Package '{}' must be protected from debloat",
+                protected
+            );
+        }
+        assert!(!system::is_protected_package("Clipchamp.Clipchamp"));
+        assert!(!system::is_protected_package("Microsoft.BingNews"));
+        assert!(!system::is_protected_package("Microsoft.OutlookForWindows"));
+    }
+
+    #[test]
+    fn test_autounattend_xml_and_setup_complete_generation() {
+        let xml = drivers::build_autounattend_xml("Jefh<Admin>", true, true);
+        assert!(xml.contains("BypassTPMCheck"));
+        assert!(xml.contains("BypassSecureBootCheck"));
+        assert!(xml.contains("BypassRAMCheck"));
+        assert!(xml.contains("BypassCPUCheck"));
+        assert!(xml.contains("<ProtectYourPC>3</ProtectYourPC>"));
+        assert!(xml.contains("<Name>JefhAdmin</Name>"));
+        assert!(xml.contains("SetupComplete.cmd"));
+
+        let xml_no_bypass = drivers::build_autounattend_xml("   ", false, false);
+        assert!(!xml_no_bypass.contains("BypassTPMCheck"));
+        assert!(xml_no_bypass.contains("<Name>User</Name>"));
+
+        let cmd = drivers::build_setup_complete_cmd();
+        assert!(cmd.contains("ExcludeWUDriversInQualityUpdate"));
+        assert!(cmd.contains("SearchOrderConfig"));
+        assert!(cmd.contains("DisableWindowsConsumerFeatures"));
     }
 
     #[test]

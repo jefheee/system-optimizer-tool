@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../lib/LanguageContext';
 import { useHardware } from '../lib/HardwareContext';
-import { runDeepClean, runLiteClean, toggleHibernation, cleanOldWindowsInstallations, CleanResult } from '../lib/api';
+import { runDeepClean, runLiteClean, toggleHibernation, cleanOldWindowsInstallations, cleanWindowsUpdateCache, CleanResult } from '../lib/api';
 import TechDetailsModal, { TechDetailsData } from './TechDetailsModal';
 import {
   Trash2,
@@ -119,6 +119,34 @@ export default function CleanModule() {
         setErrorMessage(null);
         try {
           const res = await cleanOldWindowsInstallations();
+          if (res.success && res.data) {
+            setCleanResult(res.data);
+            await refreshAudit();
+          } else {
+            setErrorMessage(res.message);
+          }
+        } catch (err: any) {
+          setErrorMessage(err?.message || 'Error');
+        } finally {
+          setRunning(null);
+        }
+      }
+    );
+  };
+
+  const handleCleanWuCache = () => {
+    requireRestorePoint(
+      language === 'PT'
+        ? 'Limpar Cache do Windows Update (SoftwareDistribution\\Download)'
+        : 'Clean Windows Update Cache (SoftwareDistribution\\Download)',
+      'medium',
+      async () => {
+        setRunning('wu_cache');
+        setCleanResult(null);
+        setActionMessage(null);
+        setErrorMessage(null);
+        try {
+          const res = await cleanWindowsUpdateCache();
           if (res.success && res.data) {
             setCleanResult(res.data);
             await refreshAudit();
@@ -523,6 +551,73 @@ export default function CleanModule() {
             >
               {running === 'old_win' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderArchive className="w-3.5 h-3.5 text-neutral-400" />}
               <span>{language === 'PT' ? 'Limpar Instalações Antigas' : 'Clean Old Installs'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 5: Cache do Windows Update (SoftwareDistribution\Download) */}
+        <div className="p-4 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all flex flex-col justify-between md:col-span-2">
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-cyan-400">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <h3 className="text-xs sm:text-sm font-bold text-neutral-100">
+                  {language === 'PT'
+                    ? 'Cache do Windows Update (SoftwareDistribution\\Download)'
+                    : 'Windows Update Download Cache (SoftwareDistribution\\Download)'}
+                </h3>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 border border-neutral-700">
+                wuauserv + bits safe stop/start
+              </span>
+            </div>
+
+            <p className="text-[11px] text-neutral-300 leading-relaxed">
+              {language === 'PT'
+                ? 'Para com segurança os serviços wuauserv e bits, esvazia pacotes de atualização travados ou acumulados em C:\\Windows\\SoftwareDistribution\\Download e reinicia os serviços ao concluir.'
+                : 'Safely pauses wuauserv and bits, purges accumulated or corrupted update packages in C:\\Windows\\SoftwareDistribution\\Download, and restarts both services automatically.'}
+            </p>
+
+            <button
+              onClick={() =>
+                setTechModalData({
+                  title: 'SoftwareDistribution\\Download Purge',
+                  securityRating: 'safe',
+                  action: 'net stop wuauserv / net stop bits -> limpar C:\\Windows\\SoftwareDistribution\\Download -> net start bits / net start wuauserv.',
+                  targetArea: 'C:\\Windows\\SoftwareDistribution\\Download',
+                  expectedBenefit: 'Recupera vários GB de instaladores de atualizações obsoletos e resolve erros travados do Windows Update.',
+                })
+              }
+              className="inline-flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-neutral-200 transition-colors"
+            >
+              <Info className="w-3 h-3 text-cyan-400" />
+              <span>{language === 'PT' ? 'Ver Detalhes Técnicos & Impacto' : 'View Technical Details & Impact'}</span>
+            </button>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-mono text-cyan-400 font-semibold">
+              {language === 'PT'
+                ? 'Segurança: Pausa/Reinício automático de serviços'
+                : 'Safety: Automatic service stop & restart'}
+            </span>
+            <button
+              onClick={handleCleanWuCache}
+              disabled={running !== null}
+              className="py-2 px-4 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-xs font-semibold flex items-center gap-2 border border-cyan-500/30 transition-all active:scale-[0.98] cursor-pointer"
+            >
+              {running === 'wu_cache' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
+              <span>
+                {language === 'PT'
+                  ? 'Limpar Cache do Windows Update'
+                  : 'Purge Windows Update Cache'}
+              </span>
             </button>
           </div>
         </div>

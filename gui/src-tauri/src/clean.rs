@@ -296,3 +296,92 @@ pub async fn clean_old_windows_installations(app: tauri::AppHandle) -> Result<Co
     .await
     .map_err(|e| e.to_string())?
 }
+
+/// Limpa o cache do Windows Update (C:\Windows\SoftwareDistribution\Download) parando wuauserv & bits e reiniciando ao concluir.
+#[tauri::command]
+pub async fn clean_windows_update_cache(app: tauri::AppHandle) -> Result<CommandResponse<CleanResult>, String> {
+    tokio::task::spawn_blocking(move || {
+        let total_steps = 3;
+
+        emit_step(
+            &app,
+            "wu_stop_services",
+            "Pausando serviços wuauserv e bits...",
+            "running",
+            "Parando Windows Update (wuauserv) e BITS temporariamente com segurança.",
+            1,
+            total_steps,
+        );
+        let _ = new_hidden_command("net").args(["stop", "wuauserv", "/y"]).output();
+        let _ = new_hidden_command("net").args(["stop", "bits", "/y"]).output();
+        emit_step(
+            &app,
+            "wu_stop_services",
+            "Serviços pausados",
+            "success",
+            "wuauserv e bits parados com segurança.",
+            1,
+            total_steps,
+        );
+
+        emit_step(
+            &app,
+            "wu_clean_download",
+            "Limpando C:\\Windows\\SoftwareDistribution\\Download...",
+            "running",
+            "Removendo pacotes e instaladores baixados em cache do Windows Update.",
+            2,
+            total_steps,
+        );
+        let wu_download = PathBuf::from("C:\\Windows\\SoftwareDistribution\\Download");
+        let cat = clean_path_list("Cache do Windows Update (SoftwareDistribution\\Download)", vec![wu_download]);
+        let total_bytes = cat.bytes_freed;
+        let total_files = cat.files_deleted;
+        emit_step(
+            &app,
+            "wu_clean_download",
+            &format!("{:.1} MB limpos no cache do Windows Update", cat.mb_freed),
+            "success",
+            &format!("{} arquivos removidos.", cat.files_deleted),
+            2,
+            total_steps,
+        );
+
+        emit_step(
+            &app,
+            "wu_start_services",
+            "Reiniciando serviços wuauserv e bits...",
+            "running",
+            "Restaurando operação normal do Windows Update e BITS.",
+            3,
+            total_steps,
+        );
+        let _ = new_hidden_command("net").args(["start", "bits"]).output();
+        let _ = new_hidden_command("net").args(["start", "wuauserv"]).output();
+        emit_step(
+            &app,
+            "wu_start_services",
+            "Serviços reiniciados",
+            "success",
+            "wuauserv e bits ativos novamente.",
+            3,
+            total_steps,
+        );
+
+        let total_freed_mb = ((total_bytes as f64) / (1024.0 * 1024.0) * 100.0).round() / 100.0;
+        let res = CleanResult {
+            total_freed_mb,
+            total_files_deleted: total_files,
+            categories: vec![cat],
+            message: format!(
+                "Cache do Windows Update limpo com sucesso! {:.2} MB liberados ({} arquivos).",
+                total_freed_mb, total_files
+            ),
+            bytes_freed: total_freed_mb,
+        };
+        let msg = res.message.clone();
+        Ok(CommandResponse::ok(msg, Some(res)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

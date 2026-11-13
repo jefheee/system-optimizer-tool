@@ -42,7 +42,6 @@ import TuningModule from '../components/TuningModule';
 import SyncAndUsbModule from '../components/SyncAndUsbModule';
 import GamesLibraryModule from '../components/GamesLibraryModule';
 import DriversAndAppsModule from '../components/DriversAndAppsModule';
-import ExternalToolsModule from '../components/ExternalToolsModule';
 import DocsAndAboutModule from '../components/DocsAndAboutModule';
 import SettingsModule from '../components/SettingsModule';
 import LiveProgressDrawer from '../components/LiveProgressDrawer';
@@ -418,9 +417,6 @@ export default function Page() {
       }
 
       case 'sys-drivers':
-        if (activeSubTab === 'drv-hub') {
-          return <ExternalToolsModule />;
-        }
         return <DriversAndAppsModule subTab={activeSubTab} onChangeSubTab={setActiveSubTab} />;
 
       case 'sys-docs':
