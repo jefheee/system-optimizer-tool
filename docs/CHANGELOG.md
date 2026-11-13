@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026-11-13] — Root `README.md` Complete Overhaul (`v6.0.0`)
+- **Files:** `README.md`, `docs/PROJECT_STATE.md`, `docs/CHANGELOG.md`.
+- **Goal:** Completely rewrite root `README.md` with hero branding, shields badges, Mermaid architecture diagram, full coverage of all 6 `SYS` tabs and sub-modules (`SYS CORE` through `SYS DOCS`), security guardrails (`RestorePointGuard`, protected whitelist, RX 7000+ ULPS/HAGS lock, Auto-Tiering), accurate repository tree, all 11 `cargo test` specs, and dev/test/build guides.
+- **Verification:** Verified every referenced path against the repository tree and ran `npx tsc --noEmit` cleanly (`exit code 0`).
+
 ## [2026-11-13] — ETAPA 3 DE 3 (FINAL): Modules 5, 7, 8 & Self-Test Suite (`SYS GAMING`, `SYS TUNING`, `SYS DOCS`)
 - **Files:** `gui/src-tauri/src/{gamer.rs,drivers.rs,system.rs,lib.rs}`, `gui/lib/{api.ts,i18n.ts}`, `gui/components/{SysCoreSystemView.tsx,SensorsAndStressModule.tsx,GamerModule.tsx,TuningModule.tsx,SyncAndUsbModule.tsx,DocsAndAboutModule.tsx}`, `docs/{PROJECT_STATE.md,CHANGELOG.md}`.
 - **Goal:** Implement GPU hardware & 3D profile tweaks (HAGS, OFWG, P0 State w/ laptop guardrail, HDCP Off, Intel PresentMon/AMD/NV service optimizer), MSI Afterburner 1% Low `.cfg` patcher (`F10`/`F11`/`F12`), `Win32PrioritySeparation`/MMCSS + per-game CPU affinity (`SMT Off` / `Core 0 Off` + Steam/Epic `/affinity` inheritance), Flip Models (MPO/FSO/AMD ULPS w/ RX 7000+ HAGS safety lock), MarkC 1:1 DPI mouse curves (`100%`–`225%`), background polling unlock, `hidusbf` overclock guide, global USB/HID power-saving disabler, Monitor UFO/Bufferbloat tools, Anti-Cheat readiness matrix (`Vanguard` CFG, `FACEIT` VBS, `EAC`/`BattlEye`), PT/EN Encyclopedia updates, and `cargo test` verification.

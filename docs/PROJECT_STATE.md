@@ -1,6 +1,6 @@
 # System Optimizer Tool — Project State
 
-**Current Milestone:** ETAPA 3 DE 3 (FINAL) Completed — Full v6.0 Implementation Across All Modules of `MASTER_SPEC.md` (`SYS CORE`, `SYS OPTIMIZE`, `SYS GAMING`, `SYS TUNING`, `SYS DRIVERS`, `SYS DOCS`), Protected by `RestorePointGuard`, Bilingual `PT`/`EN`, with Full Rust Unit Test Suite.
+**Current Milestone:** ETAPA 3 DE 3 (FINAL) + `README.md` v6.0 Complete — Full v6.0 Implementation Across All Modules of `MASTER_SPEC.md` (`SYS CORE`, `SYS OPTIMIZE`, `SYS GAMING`, `SYS TUNING`, `SYS DRIVERS`, `SYS DOCS`), Protected by `RestorePointGuard`, Bilingual `PT`/`EN`, Rust Unit Test Suite, and Comprehensive Root `README.md` Documentation.
 
 ## Implemented Architecture Summary
 - **Backend (Rust / Tauri v2 — `gui/src-tauri/src/`):**
@@ -18,8 +18,10 @@
 ## Verified Checks (Latest Run)
 - `gui/src-tauri`: `cargo check --all-targets` (`0` errors, `0` warnings) & `cargo test --no-fail-fast -- --nocapture` (`11/11` unit tests passed in `1.69s`).
 - `gui`: `npx tsc --noEmit` (`0` errors), `npm run lint` (`0` errors), `npm run build` (Next.js 16.2.6 Turbopack static build exited `0`).
+- **Documentation (`README.md`, `docs/`):**
+  - Rewrote root `README.md` for `v6.0.0` covering architectural evolution, Mermaid system/IPC diagram, all 6 `SYS` tabs (`SYS CORE`, `SYS OPTIMIZE`, `SYS GAMING`, `SYS TUNING`, `SYS DRIVERS`, `SYS DOCS`), safety guardrails (`RestorePointGuard`, hardened package whitelist, RX 7000+ ULPS+HAGS lock, laptop/battery warnings, Auto-Tiering), exact repository tree (`gui/`, `cli/`, `docs/`, `public/`, `.github/`), all 11 Rust unit tests, and build/test/packaging commands (`cargo check`, `cargo test`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npm run tauri build`).
 - Private spec stored at gitignored `docs/internal/MASTER_SPEC.md`.
 
 ## Context Handoff
-- **Completed:** All 3 phases (**ETAPA 1 DE 3**, **ETAPA 2 DE 3**, **ETAPA 3 DE 3 FINAL**) for `System Optimizer Tool v6.0` are implemented and verified across Rust and Next.js toolchains.
-- **Exact Next Step:** Ready for desktop packaging/manual QA (`cargo tauri dev` or `cargo tauri build`) or user feature requests.
+- **Completed:** All 3 phases (**ETAPA 1 DE 3**, **ETAPA 2 DE 3**, **ETAPA 3 DE 3 FINAL**) plus full root **`README.md` v6.0** overhaul are completed and verified across Rust and Next.js toolchains.
+- **Exact Next Step:** Ready for desktop packaging/manual QA (`npm run tauri dev` or `npm run tauri build`) or further feature requests.
