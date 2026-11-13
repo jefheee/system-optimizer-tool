@@ -1912,3 +1912,83 @@ pub async fn run_app_post_processing(
     .await
     .map_err(|e| e.to_string())?
 }
+
+/// Desativa ou restaura a economia de energia em todos os controladores USB e dispositivos HID no Registro
+/// e no plano de energia ativo (Selective Suspend / EnhancedPowerManagementEnabled / AllowIdleIrpInD3).
+#[tauri::command]
+pub async fn disable_usb_power_saving(revert: bool) -> Result<CommandResponse<usize>, String> {
+    tokio::task::spawn_blocking(move || {
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        let enum_roots = [
+            r"SYSTEM\CurrentControlSet\Enum\USB",
+            r"SYSTEM\CurrentControlSet\Enum\HID",
+        ];
+
+        let target_val: u32 = if revert { 1 } else { 0 };
+        let mut updated = 0usize;
+
+        for root_path in enum_roots {
+            let Ok(root_key) = hklm.open_subkey_with_flags(root_path, KEY_READ) else {
+                continue;
+            };
+            for dev_name in root_key.enum_keys().flatten() {
+                let Ok(dev_key) = root_key.open_subkey_with_flags(&dev_name, KEY_READ) else {
+                    continue;
+                };
+                for inst_name in dev_key.enum_keys().flatten() {
+                    let dp_path = format!(r"{}\{}\{}\Device Parameters", root_path, dev_name, inst_name);
+                    if let Ok(dp_key) = hklm.open_subkey_with_flags(&dp_path, KEY_WRITE) {
+                        let _ = dp_key.set_value("EnhancedPowerManagementEnabled", &target_val);
+                        let _ = dp_key.set_value("AllowIdleIrpInD3", &target_val);
+                        let _ = dp_key.set_value("DeviceSelectiveSuspended", &target_val);
+                        let _ = dp_key.set_value("SelectiveSuspendEnabled", &target_val);
+                        updated += 1;
+                    }
+                }
+            }
+        }
+
+        // Desativa / restaura USB Selective Suspend no plano de energia ativo via powercfg
+        let ac_dc = if revert { "1" } else { "0" };
+        let _ = Command::new("powercfg")
+            .args([
+                "/SETACVALUEINDEX",
+                "SCHEME_CURRENT",
+                "2a737441-1930-4402-8d77-b2bebba308a3",
+                "48e6b7a6-50f5-4782-a5d4-53bb8f07e226",
+                ac_dc,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        let _ = Command::new("powercfg")
+            .args([
+                "/SETDCVALUEINDEX",
+                "SCHEME_CURRENT",
+                "2a737441-1930-4402-8d77-b2bebba308a3",
+                "48e6b7a6-50f5-4782-a5d4-53bb8f07e226",
+                ac_dc,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        let _ = Command::new("powercfg")
+            .args(["/SETACTIVE", "SCHEME_CURRENT"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        let msg = if revert {
+            format!(
+                "Economia de energia USB/HID restaurada ao padrão em {} dispositivos + USB Selective Suspend reativado.",
+                updated
+            )
+        } else {
+            format!(
+                "Economia de energia desativada em {} controladores/dispositivos USB & HID! (Dica: se mudar o mouse/controle de porta USB, clique aqui novamente).",
+                updated
+            )
+        };
+
+        Ok(CommandResponse::ok(msg, Some(updated)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

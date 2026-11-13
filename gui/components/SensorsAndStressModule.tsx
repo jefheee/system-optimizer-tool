@@ -19,6 +19,9 @@ import {
   Thermometer,
 } from "lucide-react";
 import {
+  applyAfterburner1PercentLowFix,
+  getGpuGamingState,
+  GpuGamingState,
   LiveSensorSnapshot,
   openExternalUrl,
   scanOcAndErrors,
@@ -28,6 +31,7 @@ import {
   TuningAndErrorsReport,
 } from "../lib/api";
 import { useLanguage } from "../lib/LanguageContext";
+import { useHardware } from "../lib/HardwareContext";
 
 interface SensorsAndStressModuleProps {
   mode: "sensors" | "stress" | "overlay";
@@ -43,6 +47,7 @@ export default function SensorsAndStressModule({
   onRefreshSensors,
 }: SensorsAndStressModuleProps) {
   const { lang } = useLanguage();
+  const { requireRestorePoint } = useHardware();
   const [activeTab, setActiveTab] = useState<TelemetrySubTab>(
     mode === "stress" ? "stress" : "live"
   );
@@ -57,10 +62,50 @@ export default function SensorsAndStressModule({
   const [wheaReport, setWheaReport] = useState<TuningAndErrorsReport | null>(null);
   const [wheaLoading, setWheaLoading] = useState(false);
 
-  // Overlay state
+  // Overlay & Afterburner 1% Low Fix state
   const [overlayActive, setOverlayActive] = useState(false);
   const [overlayPos, setOverlayPos] = useState<string>("top-right");
   const [overlayMsg, setOverlayMsg] = useState<string | null>(null);
+  const [gpuState, setGpuState] = useState<GpuGamingState | null>(null);
+  const [abBusy, setAbBusy] = useState(false);
+  const [abFeedback, setAbFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const loadGpuState = useCallback(async () => {
+    const res = await getGpuGamingState();
+    if (res.success && res.data) setGpuState(res.data);
+  }, []);
+
+  useEffect(() => {
+    if (mode === "overlay") {
+      loadGpuState();
+    }
+  }, [mode, loadGpuState]);
+
+  const handleAfterburnerFix = (revert: boolean) => {
+    requireRestorePoint(
+      revert
+        ? lang === "en"
+          ? "Revert MSI Afterburner Config Backup"
+          : "Reverter Backup do MSI Afterburner"
+        : lang === "en"
+        ? "MSI Afterburner 1% Lows Profile Fix"
+        : "Fix Crítico de 1% Lows (MSI Afterburner + RTSS)",
+      "low",
+      async () => {
+        setAbBusy(true);
+        setAbFeedback(null);
+        try {
+          const res = await applyAfterburner1PercentLowFix(revert);
+          setAbFeedback({ ok: res.success, msg: res.message });
+          await loadGpuState();
+        } catch (err: unknown) {
+          setAbFeedback({ ok: false, msg: err instanceof Error ? err.message : String(err) });
+        } finally {
+          setAbBusy(false);
+        }
+      }
+    );
+  };
 
   const loadWheaLogs = useCallback(async () => {
     setWheaLoading(true);
@@ -222,6 +267,119 @@ export default function SensorsAndStressModule({
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Module 5.2: MSI Afterburner + RTSS Optimized Profile Generator (1% Lows Critical Fix) */}
+        <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/90 p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                <span>
+                  {lang === "en"
+                    ? "MSI Afterburner + RTSS Profile Generator (1% Lows Stutter Fix)"
+                    : "Gerador de Perfil MSI Afterburner + RTSS (Fix Crítico de 1% Lows)"}
+                </span>
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {lang === "en"
+                  ? "Hardware polling of GPU Power (W) and Power Percent (%) causes severe frame dips. Patch MSIAfterburner.cfg safely with backup and pre-configured F10/F11/F12 hotkeys."
+                  : "O polling de sensores GPU Power (W) e Power Percent (%) no Afterburner causa quedas severas de 1% Lows. Patcheia MSIAfterburner.cfg com backup automático e hotkeys."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold border ${
+                  gpuState?.afterburnerInstalled
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                    : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                }`}
+              >
+                {gpuState?.afterburnerInstalled
+                  ? lang === "en"
+                    ? "Afterburner Detected"
+                    : "Afterburner Detectado"
+                  : lang === "en"
+                  ? "Not Installed"
+                  : "Não Instalado"}
+              </span>
+              {gpuState?.afterburnerFixApplied && (
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-sky-500/15 border border-sky-500/30 text-sky-300">
+                  1% Low Fix ON
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-1">
+              <p className="font-bold text-amber-300">
+                {lang === "en" ? "Sensor Polling Stutter Discovery" : "Descoberta: Sensor Polling Lag"}
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                {lang === "en"
+                  ? "Querying 'GPU Power' and 'Power Percent' over SMbus/NVAPI on every tick blocks frame submission queues. Keeping Temp/Clocks/Frametime without Power polling preserves 1% Lows."
+                  : "Consultar 'GPU power' e 'Power percent' a cada tick trava o barramento da GPU e derruba os 1% Lows em até 15%."}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 space-y-1">
+              <p className="font-bold text-zinc-200">
+                {lang === "en" ? "Pre-Configured Global Hotkeys" : "Hotkeys Globais Pré-Configuradas"}
+              </p>
+              <ul className="text-[11px] text-zinc-400 font-mono space-y-0.5">
+                <li>• F10: {lang === "en" ? "Toggle OSD Overlay" : "Mostrar/Ocultar OSD"}</li>
+                <li>• F11: {lang === "en" ? "Begin Benchmark Log" : "Iniciar Benchmark"}</li>
+                <li>• F12: {lang === "en" ? "End Benchmark Log" : "Encerrar Benchmark"}</li>
+              </ul>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 space-y-1">
+              <p className="font-bold text-zinc-200">
+                {lang === "en" ? "Target Configuration File" : "Arquivo & Backup Seguro"}
+              </p>
+              <p className="text-[10px] font-mono text-sky-300 break-all">
+                {gpuState?.afterburnerCfgPath ||
+                  "C:\\Program Files (x86)\\MSI Afterburner\\Profiles\\MSIAfterburner.cfg"}
+              </p>
+              <p className="text-[10px] text-zinc-500">
+                Backup: MSIAfterburner.cfg.bak
+              </p>
+            </div>
+          </div>
+
+          {abFeedback && (
+            <div
+              className={`p-3 rounded-xl border text-xs ${
+                abFeedback.ok
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                  : "bg-red-500/10 border-red-500/30 text-red-300"
+              }`}
+            >
+              {abFeedback.msg}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => handleAfterburnerFix(false)}
+              disabled={abBusy}
+              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs transition-all cursor-pointer"
+            >
+              {abBusy
+                ? "..."
+                : lang === "en"
+                ? "Apply 1% Lows Profile Fix (.cfg + Hotkeys)"
+                : "Aplicar Fix 1% Lows em MSIAfterburner.cfg"}
+            </button>
+            <button
+              onClick={() => handleAfterburnerFix(true)}
+              disabled={abBusy || !gpuState?.afterburnerFixApplied}
+              className="px-4 py-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 disabled:opacity-40 font-semibold text-xs cursor-pointer"
+            >
+              {lang === "en" ? "Restore Original .cfg.bak" : "Reverter Backup .cfg.bak"}
+            </button>
           </div>
         </div>
       </div>

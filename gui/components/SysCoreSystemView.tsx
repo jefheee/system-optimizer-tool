@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AlertTriangle,
   BatteryCharging,
@@ -31,11 +31,14 @@ import { useHardware } from "../lib/HardwareContext";
 import { useLanguage } from "../lib/LanguageContext";
 import { useSettings } from "../lib/SettingsContext";
 import {
+  applyGpuTweak,
   applyOrRevertTweak,
   benchmarkDns,
   DnsBenchmarkResult,
   enableTrim,
   generateBatteryOrEnergyReport,
+  getGpuGamingState,
+  GpuGamingState,
   openExternalUrl,
   optimizeDns,
   rebootToBios,
@@ -218,6 +221,52 @@ export default function SysCoreSystemView({
   const [trimFeedback, setTrimFeedback] = useState<string | null>(null);
   const [msiBusy, setMsiBusy] = useState(false);
   const [msiFeedback, setMsiFeedback] = useState<string | null>(null);
+
+  // Module 5 & 8: GPU Hardware, Flip Models, P0 State, HDCP, MPO, ULPS & 3D Profiles
+  const [gpuGaming, setGpuGaming] = useState<GpuGamingState | null>(null);
+  const [gpuBusy, setGpuBusy] = useState<string | null>(null);
+  const [gpuFeedback, setGpuFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  useEffect(() => {
+    getGpuGamingState().then((res) => {
+      if (res.success && res.data) setGpuGaming(res.data);
+    });
+  }, []);
+
+  const handleToggleGpuTweak = (
+    tweakId:
+      | "hags"
+      | "ofwg"
+      | "gpu_p0_state"
+      | "gpu_disable_hdcp"
+      | "mpo_disable"
+      | "fso_disable"
+      | "amd_ulps_disable"
+      | "gpu_telemetry_services"
+      | "gpu_3d_profile",
+    enable: boolean,
+    label: string
+  ) => {
+    if (tweakId === "amd_ulps_disable" && enable && gpuGaming?.ulpsBlockedByRx7000) {
+      setGpuFeedback({ ok: false, msg: gpuGaming.ulpsWarning });
+      return;
+    }
+    requireRestorePoint(label, "medium", async () => {
+      setGpuBusy(tweakId);
+      setGpuFeedback(null);
+      try {
+        const res = await applyGpuTweak(tweakId, enable);
+        if (res.data) setGpuGaming(res.data);
+        setGpuFeedback({ ok: res.success, msg: res.message });
+        await refreshDiagnostics();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setGpuFeedback({ ok: false, msg });
+      } finally {
+        setGpuBusy(null);
+      }
+    });
+  };
 
   const pills: { id: SystemCategoryPill; labelPt: string; labelEn: string }[] = [
     { id: "os", labelPt: "Sistema operacional", labelEn: "Operating System" },
@@ -1559,6 +1608,372 @@ export default function SysCoreSystemView({
                   </div>
                 </div>
               ))}
+
+              {/* Module 5 & 8 GPU Engineering Control Deck */}
+              <div className="p-4 rounded-xl bg-zinc-950/75 border border-zinc-800/90 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-sky-400" />
+                      <span>
+                        {lang === "en"
+                          ? "GPU Hardware, Flip Models & ULPS Engineering (Module 5 & 8)"
+                          : "Engenharia Gráfica, Flip Models & Estado P0 (Módulos 5 & 8)"}
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      {lang === "en"
+                        ? "Configure HAGS, Windowed Games Independent Flip, P0 Boost Lock, HDCP, MPO, FSO & ULPS with Restore Point protection."
+                        : "Controle HAGS, Optimizations for Windowed Games, trava Boost 2 (P0 State), HDCP, MPO, Legacy Flip e ULPS com proteção."}
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-zinc-900 border border-zinc-700 text-[11px] font-mono text-sky-300">
+                    {gpuGaming?.gpuVendor || "GPU"} • {gpuGaming?.gpuName || diagnostics?.gpu?.name}
+                  </span>
+                </div>
+
+                {/* Laptop / Battery Idle Consumption Guardrail */}
+                {(diagnostics?.deviceType === "Laptop" || diagnostics?.isOnBattery) && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/35 text-amber-200 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px]">
+                      {lang === "en"
+                        ? "Laptop / Battery Guardrail: Enabling 'Force P0 State' locks maximum GPU boost clocks even on desktop idle, increasing wattage and heat. Use 1-click Revert when on battery."
+                        : "Guardrail de Notebook / Bateria: Forçar 'P0 State (Boost Máximo)' impede a GPU de baixar o clock na área de trabalho, elevando consumo e temperatura em idle. Use Revert 1-clique na bateria."}
+                    </p>
+                  </div>
+                )}
+
+                {/* RX 7000+ & HAGS Critical Safety Lock Banner */}
+                {gpuGaming?.ulpsBlockedByRx7000 && (
+                  <div className="p-3 rounded-lg bg-red-500/15 border border-red-500/45 text-red-200 flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-xs text-red-300">
+                        {lang === "en"
+                          ? "CRITICAL SAFETY LOCK — AMD RX 7000+ & HAGS Detected"
+                          : "TRAVA CRÍTICA DE SEGURANÇA — AMD RX 7000+ com HAGS Ativo"}
+                      </p>
+                      <p className="text-[11px] text-red-200/90 mt-0.5">
+                        {gpuGaming.ulpsWarning ||
+                          (lang === "en"
+                            ? "Disabling ULPS while HAGS is active on RX 7000+ GPUs triggers severe driver FPS drops and stuttering. Disable HAGS first or keep ULPS default."
+                            : "Desativar ULPS com HAGS ativo em placas RX 7000+ causa bug severo de queda de FPS e micro-stuttering. Desative o HAGS antes ou mantenha o ULPS padrão.")}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {gpuFeedback && (
+                  <div
+                    className={`p-3 rounded-lg border text-xs ${
+                      gpuFeedback.ok
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                        : "bg-red-500/10 border-red-500/30 text-red-300"
+                    }`}
+                  >
+                    {gpuFeedback.msg}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[
+                    {
+                      id: "hags" as const,
+                      active: Boolean(gpuGaming?.hagsEnabled),
+                      title: "HAGS (Hardware-Accelerated GPU Scheduling)",
+                      descPt:
+                        "Mantém agendamento de fila pela GPU ativo (recomendado em 99% dos jogos DX12/GPU-bound).",
+                      descEn:
+                        "Enables hardware-level GPU queue scheduling (recommended in 99% of modern GPU-bound titles).",
+                    },
+                    {
+                      id: "ofwg" as const,
+                      active: Boolean(gpuGaming?.ofwgEnabled),
+                      title: "Optimizations for Windowed Games (OFWG)",
+                      descPt:
+                        "Ativa Independent Flip em jogos DX10/DX11 janela sem borda, evitando tela preta de 3–5s no Alt+Tab com DSC.",
+                      descEn:
+                        "Promotes DX10/11 borderless games to Independent Flip with zero Alt+Tab black-screen delay on DSC monitors.",
+                    },
+                    {
+                      id: "gpu_p0_state" as const,
+                      active: Boolean(gpuGaming?.p0StateEnabled),
+                      title: "Force P0 State (DisableDynamicPstate)",
+                      descPt:
+                        "Trava a GPU em Boost 2 máximo impedindo quedas para Boost 1 em jogos CPU-bound (CS2/Valorant). Eleva consumo idle.",
+                      descEn:
+                        "Locks GPU in Boost 2 clock preventing Boost 1 downclocking in CPU-bound games. Increases idle wattage.",
+                    },
+                    {
+                      id: "gpu_disable_hdcp" as const,
+                      active: Boolean(gpuGaming?.hdcpDisabled),
+                      title: "Disable HDCP (RMHdcpKeyglobZero)",
+                      descPt:
+                        "Remove verificação HDCP no driver de vídeo. Aviso: pode bloquear streams DRM (Netflix/Prime 4K) no navegador.",
+                      descEn:
+                        "Disables HDCP content handshake in driver. Warning: may block DRM-protected streaming playback.",
+                    },
+                    {
+                      id: "mpo_disable" as const,
+                      active: Boolean(gpuGaming?.mpoDisabled),
+                      title: "MPO (Disable Multiplane Overlay)",
+                      descPt:
+                        "Define OverlayTestMode = 5 caso haja problemas de frame pacing em GPUs AMD (em geral, manter MPO ativo é preferível).",
+                      descEn:
+                        "Sets OverlayTestMode = 5 to disable DWM MPO if experiencing frame-pacing flickers on AMD GPUs.",
+                    },
+                    {
+                      id: "fso_disable" as const,
+                      active: Boolean(gpuGaming?.fsoDisabled),
+                      title: "Hardware Legacy Flip (FSO Off)",
+                      descPt:
+                        "Desativa Fullscreen Optimizations globalmente para forçar Legacy Flip em jogos DX9/DX10/DX11 (Alt+Tab mais lento).",
+                      descEn:
+                        "Disables Fullscreen Optimizations globally for Legacy Flip in DX9/10/11 titles (slower Alt+Tab).",
+                    },
+                  ].map((item) => {
+                    const busy = gpuBusy === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-3.5 rounded-xl bg-zinc-900/75 border border-zinc-800/90 flex flex-col justify-between gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-zinc-100 leading-snug">
+                              {item.title}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shrink-0 ${
+                                item.active
+                                  ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                  : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                              }`}
+                            >
+                              {item.active ? "ON" : "OFF"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 leading-relaxed">
+                            {lang === "en" ? item.descEn : item.descPt}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleGpuTweak(item.id, true, item.title)}
+                            disabled={busy || item.active}
+                            className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                              item.active
+                                ? "bg-zinc-800 text-zinc-500 cursor-default"
+                                : "bg-sky-500 hover:bg-sky-400 text-zinc-950"
+                            }`}
+                          >
+                            {busy ? "..." : lang === "en" ? "Apply" : "Aplicar"}
+                          </button>
+                          <button
+                            onClick={() => handleToggleGpuTweak(item.id, false, `${item.title} (Revert)`)}
+                            disabled={busy || !item.active}
+                            className="py-1.5 px-2.5 rounded-lg text-[11px] font-semibold bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 disabled:opacity-40 cursor-pointer"
+                          >
+                            {lang === "en" ? "Revert" : "Reverter"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* AMD ULPS Toggle Card (Respecting RX 7000+ Safety Lock) */}
+                <div className="p-3.5 rounded-xl bg-zinc-900/75 border border-zinc-800/90 flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-0.5 max-w-2xl">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-zinc-100">
+                        {lang === "en" ? "AMD ULPS (Disable Ultra Low Power State)" : "AMD ULPS (Desativar Economia Extrema EnableUlps=0)"}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                          gpuGaming?.ulpsBlockedByRx7000
+                            ? "bg-red-500/15 text-red-300 border border-red-500/35"
+                            : gpuGaming?.ulpsDisabled
+                            ? "bg-emerald-500/15 text-emerald-300"
+                            : "bg-zinc-800 text-zinc-400"
+                        }`}
+                      >
+                        {gpuGaming?.ulpsBlockedByRx7000
+                          ? "BLOQUEADO RX 7000+"
+                          : gpuGaming?.ulpsDisabled
+                          ? "ULPS OFF"
+                          : "Padrão"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400">
+                      {lang === "en"
+                        ? "Disables deep GPU sleep states on supported AMD Radeon adapters. Automatically blocked if RX 7000+ with HAGS ON is detected."
+                        : "Evita suspensão profunda em placas AMD antigas. Bloqueado automaticamente se RX 7000+ estiver usando HAGS ativo."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleGpuTweak("amd_ulps_disable", true, "AMD ULPS Off")}
+                      disabled={Boolean(gpuGaming?.ulpsBlockedByRx7000) || gpuBusy === "amd_ulps_disable"}
+                      className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:bg-red-950/60 disabled:text-red-300 disabled:border disabled:border-red-500/40 text-zinc-950 font-bold text-[11px] cursor-pointer"
+                    >
+                      {gpuGaming?.ulpsBlockedByRx7000
+                        ? lang === "en"
+                          ? "Safety Locked"
+                          : "Trava Ativa"
+                        : lang === "en"
+                        ? "Disable ULPS"
+                        : "Desativar ULPS"}
+                    </button>
+                    <button
+                      onClick={() => handleToggleGpuTweak("amd_ulps_disable", false, "AMD ULPS Revert")}
+                      disabled={gpuBusy === "amd_ulps_disable"}
+                      className="px-3 py-1.5 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] font-semibold cursor-pointer"
+                    >
+                      {lang === "en" ? "Revert" : "Reverter"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* GPU Telemetry Services (Intel PresentMon / AMD Crash Defender / NV Telemetry) + 3D Profile */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
+                  <div className="p-3.5 rounded-xl bg-zinc-900/75 border border-zinc-800/90 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-zinc-100">
+                        {lang === "en"
+                          ? "GPU Telemetry & Intel PresentMon Optimizer"
+                          : "Serviços de Telemetria GPU & Intel PresentMon"}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() =>
+                            handleToggleGpuTweak(
+                              "gpu_telemetry_services",
+                              true,
+                              "Otimizar Serviços Telemetria GPU"
+                            )
+                          }
+                          disabled={gpuBusy === "gpu_telemetry_services"}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-[11px] cursor-pointer"
+                        >
+                          {lang === "en" ? "Optimize" : "Otimizar"}
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleToggleGpuTweak(
+                              "gpu_telemetry_services",
+                              false,
+                              "Reverter Serviços Telemetria GPU"
+                            )
+                          }
+                          disabled={gpuBusy === "gpu_telemetry_services"}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-semibold text-[11px] cursor-pointer"
+                        >
+                          {lang === "en" ? "Revert" : "Reverter"}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-zinc-400">
+                      {lang === "en"
+                        ? "Intel PresentMon Service consumes 1–2% CPU continuously even closed; AMD Crash Defender & NvTelemetry add background DPC wakeups."
+                        : "O Intel PresentMon consome 1–2% de CPU continuamente mesmo fechado; AMD Crash Defender e NvTelemetry geram wakeups em segundo plano."}
+                    </p>
+                    <div className="space-y-1.5">
+                      {(gpuGaming?.services && gpuGaming.services.length > 0) ? (
+                        gpuGaming.services.map((svc) => (
+                          <div
+                            key={svc.name}
+                            className="px-2.5 py-1.5 rounded-lg bg-zinc-950/90 border border-zinc-800 flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-mono font-bold text-[11px] text-zinc-200 truncate">
+                                {svc.displayName}
+                              </p>
+                              <p className="text-[10px] text-zinc-400 truncate">{svc.note}</p>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shrink-0 ${
+                                svc.state === "Stopped"
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : "bg-amber-500/15 text-amber-300"
+                              }`}
+                            >
+                              {svc.state}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-2.5 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-300">
+                          {lang === "en"
+                            ? "No bloated Intel PresentMon / AMD Crash Defender / NvTelemetry background service detected active."
+                            : "Nenhum serviço bloated (Intel PresentMon / AMD Crash Defender / NvTelemetry) encontrado no sistema."}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 3D Profile Checklist & Registry Applicator */}
+                  <div className="p-3.5 rounded-xl bg-zinc-900/75 border border-zinc-800/90 space-y-2.5 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-zinc-100">
+                          {lang === "en"
+                            ? `3D Control Panel Checklist (${gpuGaming?.gpuVendor || "GPU"})`
+                            : `Perfil 3D Recomendado (${gpuGaming?.gpuVendor || "NVIDIA / AMD"})`}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                            gpuGaming?.profile3dApplied
+                              ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                              : "bg-zinc-800 text-zinc-400"
+                          }`}
+                        >
+                          {gpuGaming?.profile3dApplied ? "Aplicado" : "Padrão"}
+                        </span>
+                      </div>
+
+                      {gpuGaming?.gpuVendor === "AMD" ? (
+                        <ul className="space-y-1 text-[11px] text-zinc-300">
+                          <li>• <strong>Surface Format Optimization:</strong> Enabled (economiza até 1 GB VRAM/RAM)</li>
+                          <li>• <strong>Texture Filtering Quality:</strong> Performance • <strong>Tessellation:</strong> Off</li>
+                          <li>• <strong>In-Game Overlay & Toast Notifications:</strong> Disabled (aplicado no registro CN)</li>
+                          <li>• <strong>MoreClockTool (RX 5000–7000):</strong> Clock Mínimo 100 MHz abaixo do Máximo + Fast Timing</li>
+                        </ul>
+                      ) : (
+                        <ul className="space-y-1 text-[11px] text-zinc-300">
+                          <li>• <strong>Shader Cache Size:</strong> 10 GB (evita stutters de recompilação ao encher 4 GB padrão)</li>
+                          <li>• <strong>Power Management:</strong> Prefer Maximum Performance • <strong>V-Sync:</strong> Off</li>
+                          <li>• <strong>Low Latency Mode:</strong> On/Ultra (ou NVIDIA Reflex In-Game) • <strong>Texture Filtering:</strong> High Performance</li>
+                          <li>• <strong>NVIDIA App:</strong> Desativar sempre <em>Game Filters</em>, <em>Highlights</em> e <em>Auto-Optimize</em></li>
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() =>
+                          handleToggleGpuTweak("gpu_3d_profile", true, "Aplicar Perfil 3D Otimizado GPU")
+                        }
+                        disabled={gpuBusy === "gpu_3d_profile"}
+                        className="flex-1 py-1.5 px-3 rounded-lg bg-sky-500 hover:bg-sky-400 text-zinc-950 font-bold text-[11px] cursor-pointer"
+                      >
+                        {lang === "en" ? "Apply Safe 3D Registry Profile" : "Aplicar Ajustes 3D Seguros"}
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleToggleGpuTweak("gpu_3d_profile", false, "Reverter Perfil 3D GPU")
+                        }
+                        disabled={gpuBusy === "gpu_3d_profile"}
+                        className="py-1.5 px-3 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-semibold text-[11px] cursor-pointer"
+                      >
+                        {lang === "en" ? "Revert" : "Reverter"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

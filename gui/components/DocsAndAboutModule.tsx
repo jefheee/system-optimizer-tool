@@ -53,8 +53,17 @@ const WIKI_ITEMS_DEF: WikiItemDef[] = [
   { id: 'fso_gamedvr', category: 'gamer', securityRating: 'safe' },
   { id: 'shader_cache', category: 'gamer', securityRating: 'safe' },
   { id: 'game_prio_defender', category: 'gamer', securityRating: 'advanced' },
+  { id: 'afterburner_1percent_low', category: 'gamer', securityRating: 'safe' },
+  { id: 'gpu_p0_state', category: 'gamer', securityRating: 'advanced' },
+  { id: 'ofwg_hags', category: 'gamer', securityRating: 'safe' },
+  { id: 'mpo_ulps_guard', category: 'gamer', securityRating: 'advanced' },
+  { id: 'cpu_affinity_smt_core0', category: 'gamer', securityRating: 'safe' },
+  { id: 'mmcss_win32prio', category: 'gamer', securityRating: 'safe' },
+  { id: 'mouse_dpi_linear', category: 'gamer', securityRating: 'safe' },
+  { id: 'hidusbf_overclock', category: 'gamer', securityRating: 'safe' },
+  { id: 'anticheat_matrix', category: 'gamer', securityRating: 'safe' },
 
-  // SYSTEM (16)
+  // SYSTEM (20)
   { id: 'post_format_ext', category: 'system', securityRating: 'safe' },
   { id: 'post_format_hidden', category: 'system', securityRating: 'safe' },
   { id: 'post_format_bing', category: 'system', securityRating: 'safe' },
@@ -71,6 +80,11 @@ const WIKI_ITEMS_DEF: WikiItemDef[] = [
   { id: 'sfc_dism', category: 'system', securityRating: 'safe' },
   { id: 'store_onedrive_drivers', category: 'system', securityRating: 'safe' },
   { id: 'font_bt_ownership', category: 'system', securityRating: 'safe' },
+  { id: 'autounattend_usb', category: 'system', securityRating: 'safe' },
+  { id: 'bitlocker_off', category: 'system', securityRating: 'safe' },
+  { id: 'loudness_eq_inject', category: 'system', securityRating: 'safe' },
+  { id: 'ipv4_only_mode', category: 'system', securityRating: 'safe' },
+  { id: 'usb_nic_power_off', category: 'system', securityRating: 'safe' },
 
   // TOOLS (6)
   { id: 'winutil', category: 'tools', securityRating: 'safe' },

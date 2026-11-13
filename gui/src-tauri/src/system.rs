@@ -1741,7 +1741,7 @@ fn check_tcp_nodelay_active() -> (bool, String) {
     (false, "Nagle Padrão do Windows".to_string())
 }
 
-fn read_live_tweaks_sync(timer_active_in_state: bool) -> Vec<LiveTweakStatus> {
+pub fn read_live_tweaks_sync(timer_active_in_state: bool) -> Vec<LiveTweakStatus> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key_read = winreg::enums::KEY_READ;

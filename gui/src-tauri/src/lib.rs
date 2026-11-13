@@ -60,6 +60,7 @@ pub fn run() {
             drivers::generate_clean_install_usb,
             drivers::open_account_control_panel,
             drivers::run_app_post_processing,
+            drivers::disable_usb_power_saving,
 
             // 5. Presets Inteligentes / 1-Click Profiles (SYS OTIMIZA)
             presets::run_preset,
@@ -71,7 +72,7 @@ pub fn run() {
             clean::clean_old_windows_installations,
             clean::clean_windows_update_cache,
 
-            // 7. Ferramentas Gamer & Baixa Latência + Process Freezer (SYS OTIMIZA)
+            // 7. Ferramentas Gamer & Baixa Latência + Process Freezer + Subsistema Gráfico (SYS GAMING & SYS TUNING)
             gamer::get_gamer_status,
             gamer::toggle_timer_resolution,
             gamer::set_game_priority,
@@ -87,6 +88,18 @@ pub fn run() {
             gamer::toggle_vbs,
             gamer::get_heavy_processes,
             gamer::kill_process,
+            gamer::get_gpu_gaming_state,
+            gamer::apply_gpu_tweak,
+            gamer::apply_afterburner_1percent_low_fix,
+            gamer::set_win32_priority_separation,
+            gamer::configure_mmcss_gaming,
+            gamer::preview_cpu_affinity,
+            gamer::apply_process_affinity,
+            gamer::relaunch_launcher_with_affinity,
+            gamer::apply_linear_mouse_scale_curve,
+            gamer::unlock_background_polling_rate,
+            gamer::get_anticheat_readiness,
+            gamer::set_control_flow_guard,
 
             // 8. Sistema, Rede, Privacidade, Auditoria, Pós-Formatação & Startup Manager
             system::check_admin,
@@ -238,5 +251,107 @@ mod tests {
             scan.total_devices > 0 && !scan.devices.is_empty(),
             "USB scanner should detect at least one PnP USB/HID/BT/COM device on Windows"
         );
+    }
+
+    #[test]
+    fn test_cpu_affinity_bitmask_calculations() {
+        // 4C/8T
+        assert_eq!(gamer::calculate_cpu_affinity_mask(4, 8, "smt_off"), (0x55, "0x55".to_string()));
+        assert_eq!(gamer::calculate_cpu_affinity_mask(4, 8, "core0_off"), (0xFC, "0xFC".to_string()));
+        assert_eq!(gamer::calculate_cpu_affinity_mask(4, 8, "all_cores"), (0xFF, "0xFF".to_string()));
+
+        // 6C/12T
+        assert_eq!(gamer::calculate_cpu_affinity_mask(6, 12, "smt_off"), (0x555, "0x555".to_string()));
+        assert_eq!(gamer::calculate_cpu_affinity_mask(6, 12, "core0_off"), (0xFFC, "0xFFC".to_string()));
+
+        // 8C/16T
+        assert_eq!(gamer::calculate_cpu_affinity_mask(8, 16, "smt_off"), (0x5555, "0x5555".to_string()));
+        assert_eq!(gamer::calculate_cpu_affinity_mask(8, 16, "core0_off"), (0xFFFC, "0xFFFC".to_string()));
+
+        // 12C/24T
+        assert_eq!(gamer::calculate_cpu_affinity_mask(12, 24, "smt_off"), (0x555555, "0x555555".to_string()));
+        assert_eq!(gamer::calculate_cpu_affinity_mask(12, 24, "core0_off"), (0xFFFFFC, "0xFFFFFC".to_string()));
+
+        // 16C/32T
+        assert_eq!(gamer::calculate_cpu_affinity_mask(16, 32, "smt_off"), (0x55555555, "0x55555555".to_string()));
+        assert_eq!(gamer::calculate_cpu_affinity_mask(16, 32, "core0_off"), (0xFFFFFFFC, "0xFFFFFFFC".to_string()));
+
+        // Non-SMT CPU (e.g. 6C/6T)
+        assert_eq!(gamer::calculate_cpu_affinity_mask(6, 6, "smt_off"), (0x3F, "0x3F".to_string()));
+        assert_eq!(gamer::calculate_cpu_affinity_mask(6, 6, "core0_off"), (0x3E, "0x3E".to_string()));
+    }
+
+    #[test]
+    fn test_linear_mouse_curve_scales_without_acceleration() {
+        for scale in [100u32, 125, 150, 175, 200, 225] {
+            let (x_bytes, y_bytes) = gamer::build_linear_mouse_curve(scale);
+            assert_eq!(x_bytes.len(), 40);
+            assert_eq!(y_bytes.len(), 40);
+
+            let read_u32 = |buf: &[u8; 40], idx: usize| -> u32 {
+                let off = idx * 8;
+                u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]])
+            };
+
+            assert_eq!(read_u32(&x_bytes, 0), 0);
+            assert_eq!(read_u32(&y_bytes, 0), 0);
+
+            // Check strict linearity: y_i / x_i is identical across points 1..=4
+            let x1 = read_u32(&x_bytes, 1) as u64;
+            let y1 = read_u32(&y_bytes, 1) as u64;
+            for pt in 2..=4 {
+                let xi = read_u32(&x_bytes, pt) as u64;
+                let yi = read_u32(&y_bytes, pt) as u64;
+                assert_eq!(
+                    yi * x1,
+                    y1 * xi,
+                    "Linear slope broken at point {} for scale {}%",
+                    pt,
+                    scale
+                );
+            }
+        }
+
+        // Check scaling between 100% and 200% is strictly 2x
+        let (_, y100) = gamer::build_linear_mouse_curve(100);
+        let (_, y200) = gamer::build_linear_mouse_curve(200);
+        let p1_100 = u32::from_le_bytes([y100[8], y100[9], y100[10], y100[11]]);
+        let p1_200 = u32::from_le_bytes([y200[8], y200[9], y200[10], y200[11]]);
+        assert_eq!(p1_200, p1_100 * 2);
+    }
+
+    #[test]
+    fn test_ulps_rx7000_hags_safety_guard() {
+        // RX 7000+ with HAGS ON -> MUST block
+        assert!(gamer::check_ulps_safety_guard("AMD Radeon RX 7600", true).is_err());
+        assert!(gamer::check_ulps_safety_guard("AMD Radeon RX 7800 XT", true).is_err());
+        assert!(gamer::check_ulps_safety_guard("AMD Radeon RX 7900 XTX", true).is_err());
+        assert!(gamer::check_ulps_safety_guard("AMD Radeon RX 9070 XT", true).is_err());
+
+        // RX 7000+ with HAGS OFF -> Permitted
+        assert!(gamer::check_ulps_safety_guard("AMD Radeon RX 7600", false).is_ok());
+
+        // Older RX 6000 / NVIDIA with HAGS ON -> Permitted
+        assert!(gamer::check_ulps_safety_guard("AMD Radeon RX 6750 XT", true).is_ok());
+        assert!(gamer::check_ulps_safety_guard("NVIDIA GeForce RTX 4070 Super", true).is_ok());
+    }
+
+    #[test]
+    fn test_afterburner_cfg_1percent_low_patcher() {
+        let sample = "[Settings]\r\nPollingInterval=1000\r\nToggleOSDHotkey=0\r\n\r\n[Source GPU1 power]\r\nEnabled=1\r\nShowInOSD=1\r\n\r\n[Source Power percent]\r\nEnabled=1\r\nShowInOSD=1\r\n";
+        let patched = gamer::patch_afterburner_cfg_content(sample);
+        assert!(patched.contains("ToggleOSDHotkey=121"));
+        assert!(patched.contains("BeginRecordingHotkey=122"));
+        assert!(patched.contains("EndRecordingHotkey=123"));
+        assert!(!patched.contains("Enabled=1"));
+        assert!(patched.contains("Enabled=0"));
+    }
+
+    #[test]
+    fn test_read_live_tweaks_sync_no_panic() {
+        let tweaks = system::read_live_tweaks_sync(false);
+        assert!(tweaks.len() >= 15, "Expected full live tweaks audit list");
+        assert!(tweaks.iter().any(|t| t.id == "timer_05ms"));
+        assert!(tweaks.iter().any(|t| t.id == "win32_priority"));
     }
 }

@@ -13,6 +13,7 @@ import {
 import {
   scanUsbDevices,
   removeGhostUsbDevices,
+  disableUsbPowerSaving,
   getRgbStatus,
   applyRgbEffect,
   UsbScanResult,
@@ -46,6 +47,7 @@ export default function SyncAndUsbModule({
   const [usbLoading, setUsbLoading] = useState(true);
   const [selectedGhosts, setSelectedGhosts] = useState<string[]>([]);
   const [removingUsb, setRemovingUsb] = useState(false);
+  const [usbPowerBusy, setUsbPowerBusy] = useState(false);
   const [usbFeedback, setUsbFeedback] = useState<string | null>(null);
 
   // RGB state
@@ -100,6 +102,26 @@ export default function SyncAndUsbModule({
         setUsbFeedback(res.message);
         await loadUsb();
         setRemovingUsb(false);
+      }
+    );
+  };
+
+  const handleUsbPowerSaving = (revert: boolean) => {
+    requireRestorePoint(
+      revert
+        ? lang === "en"
+          ? "Restore USB/HID Power Saving Defaults"
+          : "Reverter Economia de Energia USB/HID"
+        : lang === "en"
+        ? "Disable USB/HID Power Saving"
+        : "Desativar Economia de Energia USB/HID",
+      "medium",
+      async () => {
+        setUsbPowerBusy(true);
+        setUsbFeedback(null);
+        const res = await disableUsbPowerSaving(revert);
+        setUsbFeedback(res.message);
+        setUsbPowerBusy(false);
       }
     );
   };
@@ -208,6 +230,45 @@ export default function SyncAndUsbModule({
               {usbFeedback}
             </div>
           )}
+
+          {/* Disable Power Saving Across All USB Controllers & HID Devices (Module 7 / Module 6.4) */}
+          <div className="p-4 rounded-2xl bg-zinc-900/80 border border-sky-500/30 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1 max-w-2xl">
+              <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                <Usb className="w-4 h-4 text-sky-400" />
+                <span>
+                  {lang === "en"
+                    ? "Disable Power Saving Across All USB Controllers & HID Devices"
+                    : "Desativar Economia de Energia em Controladores USB & HID"}
+                </span>
+              </h3>
+              <p className="text-xs text-zinc-400">
+                {lang === "en"
+                  ? "Sets EnhancedPowerManagementEnabled=0, AllowIdleIrpInD3=0 & disables Selective Suspend across USB/HID trees so high-Hz mice & DACs never sleep. Re-apply if you swap a mouse/controller to a different USB port."
+                  : "Grava EnhancedPowerManagementEnabled=0, AllowIdleIrpInD3=0 e desativa Suspensão Seletiva em toda a árvore USB/HID. Se trocar o periférico de porta USB física, execute novamente."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleUsbPowerSaving(false)}
+                disabled={usbPowerBusy}
+                className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-zinc-950 font-bold text-xs cursor-pointer"
+              >
+                {usbPowerBusy
+                  ? "..."
+                  : lang === "en"
+                  ? "Disable USB Power Saving"
+                  : "Desativar Economia USB/HID"}
+              </button>
+              <button
+                onClick={() => handleUsbPowerSaving(true)}
+                disabled={usbPowerBusy}
+                className="px-3 py-2 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-semibold text-xs cursor-pointer"
+              >
+                {lang === "en" ? "Revert" : "Reverter"}
+              </button>
+            </div>
+          </div>
 
           <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/90 p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">

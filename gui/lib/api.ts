@@ -1835,3 +1835,237 @@ export async function toggleIpv4Only(
   return invokeCommand<string>("toggle_ipv4_only", { enableIpv4Only, preserveSmb });
 }
 
+// =================================================================
+// 9. ETAPA 3 — MÓDULOS 5, 7 & 8 (ENGENHARIA GRÁFICA GPU, AFTERBURNER
+//    1% LOWS, AFINIDADE CPU, MOUSE DPI 1:1, USB POWER & ANTI-CHEAT)
+// =================================================================
+
+export interface GpuServiceStatus {
+  name: string;
+  displayName: string;
+  state: string;
+  optimized: boolean;
+  note: string;
+}
+
+export interface GpuGamingState {
+  gpuName: string;
+  gpuVendor: string;
+  hagsEnabled: boolean;
+  ofwgEnabled: boolean;
+  p0StateEnabled: boolean;
+  hdcpDisabled: boolean;
+  mpoDisabled: boolean;
+  fsoDisabled: boolean;
+  ulpsDisabled: boolean;
+  ulpsBlockedByRx7000: boolean;
+  ulpsWarning: string;
+  telemetryServicesOptimized: boolean;
+  profile3dApplied: boolean;
+  afterburnerInstalled: boolean;
+  afterburnerCfgPath: string;
+  afterburnerFixApplied: boolean;
+  win32PriorityHex: number;
+  mmcssOptimized: boolean;
+  backgroundPollingUnlocked: boolean;
+  services: GpuServiceStatus[];
+}
+
+export interface CpuAffinityPreview {
+  physicalCores: number;
+  logicalThreads: number;
+  mode: string;
+  maskDecimal: number;
+  maskHex: string;
+  activeBitsSummary: string;
+}
+
+export interface AntiCheatStatusItem {
+  id: string;
+  name: string;
+  anticheat: string;
+  compatible: boolean;
+  summary: string;
+  blockingReasons: string[];
+}
+
+export interface AntiCheatReadinessReport {
+  tpmEnabled: boolean;
+  secureBootEnabled: boolean;
+  cfgEnabled: boolean;
+  vbsEnabled: boolean;
+  depEnabled: boolean;
+  games: AntiCheatStatusItem[];
+}
+
+export async function getGpuGamingState(): Promise<CommandResponse<GpuGamingState>> {
+  const res = await invokeCommand<GpuGamingState>("get_gpu_gaming_state");
+  if (res.success && res.data) return res;
+  return {
+    success: true,
+    message: "Preview Web: Subsistema Gráfico",
+    data: {
+      gpuName: "AMD Radeon RX 7600",
+      gpuVendor: "AMD",
+      hagsEnabled: true,
+      ofwgEnabled: true,
+      p0StateEnabled: false,
+      hdcpDisabled: false,
+      mpoDisabled: false,
+      fsoDisabled: false,
+      ulpsDisabled: false,
+      ulpsBlockedByRx7000: true,
+      ulpsWarning:
+        "TRAVA DE SEGURANÇA (RX 7000+ / HAGS): Desativar ULPS com HAGS ativo causa quedas severas de FPS em GPUs AMD RX 7000+.",
+      telemetryServicesOptimized: true,
+      profile3dApplied: false,
+      afterburnerInstalled: false,
+      afterburnerCfgPath: "C:\\Program Files (x86)\\MSI Afterburner\\Profiles\\MSIAfterburner.cfg",
+      afterburnerFixApplied: false,
+      win32PriorityHex: 0x02,
+      mmcssOptimized: false,
+      backgroundPollingUnlocked: false,
+      services: [
+        {
+          name: "AMD Crash Defender Service",
+          displayName: "AMD Crash Defender Service",
+          state: "Running",
+          optimized: false,
+          note: "Coletor de crash dumps em segundo plano da AMD.",
+        },
+        {
+          name: "Intel(R) PresentMon Service",
+          displayName: "Intel PresentMon Service",
+          state: "Stopped",
+          optimized: true,
+          note: "Consome 1% a 2% de CPU continuamente em segundo plano mesmo fechado.",
+        },
+      ],
+    },
+  };
+}
+
+export async function applyGpuTweak(
+  tweakId:
+    | "hags"
+    | "ofwg"
+    | "gpu_p0_state"
+    | "gpu_disable_hdcp"
+    | "mpo_disable"
+    | "fso_disable"
+    | "amd_ulps_disable"
+    | "gpu_telemetry_services"
+    | "gpu_3d_profile",
+  enable: boolean
+): Promise<CommandResponse<GpuGamingState>> {
+  return invokeCommand<GpuGamingState>("apply_gpu_tweak", { tweakId, enable });
+}
+
+export async function applyAfterburner1PercentLowFix(revert: boolean): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("apply_afterburner_1percent_low_fix", { revert });
+}
+
+export async function setWin32PrioritySeparation(modeHex: number): Promise<CommandResponse<number>> {
+  return invokeCommand<number>("set_win32_priority_separation", { modeHex });
+}
+
+export async function configureMmcssGaming(enable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("configure_mmcss_gaming", { enable });
+}
+
+export async function previewCpuAffinity(mode: "smt_off" | "core0_off" | "all_cores"): Promise<CommandResponse<CpuAffinityPreview>> {
+  const res = await invokeCommand<CpuAffinityPreview>("preview_cpu_affinity", { mode });
+  if (res.success && res.data) return res;
+  const fallbackMask = mode === "smt_off" ? 0x5555 : mode === "core0_off" ? 0xfffc : 0xffff;
+  return {
+    success: true,
+    message: "Preview Web",
+    data: {
+      physicalCores: 8,
+      logicalThreads: 16,
+      mode,
+      maskDecimal: fallbackMask,
+      maskHex: `0x${fallbackMask.toString(16).toUpperCase()}`,
+      activeBitsSummary: "Preview 8C/16T",
+    },
+  };
+}
+
+export async function applyProcessAffinity(
+  pid: number,
+  mode: "smt_off" | "core0_off" | "all_cores"
+): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("apply_process_affinity", { pid, mode });
+}
+
+export async function relaunchLauncherWithAffinity(
+  launcher: "steam" | "epic",
+  mode: "smt_off" | "core0_off" | "all_cores"
+): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("relaunch_launcher_with_affinity", { launcher, mode });
+}
+
+export async function applyLinearMouseScaleCurve(
+  dpiScalePercent: number,
+  revertToDefault: boolean
+): Promise<CommandResponse<string>> {
+  return invokeCommand<string>("apply_linear_mouse_scale_curve", {
+    dpiScalePercent,
+    revertToDefault,
+  });
+}
+
+export async function unlockBackgroundPollingRate(enable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("unlock_background_polling_rate", { enable });
+}
+
+export async function disableUsbPowerSaving(revert: boolean): Promise<CommandResponse<number>> {
+  return invokeCommand<number>("disable_usb_power_saving", { revert });
+}
+
+export async function getAntiCheatReadiness(): Promise<CommandResponse<AntiCheatReadinessReport>> {
+  const res = await invokeCommand<AntiCheatReadinessReport>("get_anticheat_readiness");
+  if (res.success && res.data) return res;
+  return {
+    success: true,
+    message: "Preview Web: Matriz Anti-Cheat",
+    data: {
+      tpmEnabled: true,
+      secureBootEnabled: true,
+      cfgEnabled: true,
+      vbsEnabled: false,
+      depEnabled: true,
+      games: [
+        {
+          id: "vanguard",
+          name: "VALORANT",
+          anticheat: "Riot Vanguard",
+          compatible: true,
+          summary: "Pronto: TPM 2.0, Secure Boot e Control Flow Guard (CFG) conformes.",
+          blockingReasons: [],
+        },
+        {
+          id: "faceit",
+          name: "Counter-Strike 2 (FACEIT)",
+          anticheat: "FACEIT Anti-Cheat",
+          compatible: false,
+          summary: "Requer VBS/Core Isolation ativo para partidas competitivas FACEIT.",
+          blockingReasons: ["VBS / Core Isolation desativado (gera +2–5% FPS fora do FACEIT)."],
+        },
+        {
+          id: "eac_battleye",
+          name: "Fortnite / Warzone / Tarkov",
+          anticheat: "EAC / BattlEye / Ricochet",
+          compatible: true,
+          summary: "Pronto: DEP e integridade de boot verificados.",
+          blockingReasons: [],
+        },
+      ],
+    },
+  };
+}
+
+export async function setControlFlowGuard(enable: boolean): Promise<CommandResponse<boolean>> {
+  return invokeCommand<boolean>("set_control_flow_guard", { enable });
+}
+
