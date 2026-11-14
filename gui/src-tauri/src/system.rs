@@ -1568,7 +1568,7 @@ pub async fn generate_battery_or_energy_report() -> Result<CommandResponse<Strin
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
-<title>Relatório de Energia & ACPI - System Optimizer Tool V5.0</title>
+<title>Relatório de Energia & ACPI - System Optimizer Tool V6.0</title>
 <style>
   body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a0c; color: #e4e4e7; padding: 40px; max-width: 900px; margin: 0 auto; }}
   h1 {{ color: #38bdf8; border-bottom: 1px solid #27272a; padding-bottom: 12px; }}
@@ -1577,7 +1577,7 @@ pub async fn generate_battery_or_energy_report() -> Result<CommandResponse<Strin
 </style>
 </head>
 <body>
-  <h1>⚡ Diagnóstico de Energia & ACPI (Desktop) — System Optimizer V5.0</h1>
+  <h1>⚡ Diagnóstico de Energia & ACPI (Desktop) — System Optimizer V6.0</h1>
   <h2>Esquemas de Energia Instalados (powercfg /list)</h2>
   <pre>{}</pre>
   <h2>Estados de Suspensão Suportados pela BIOS (powercfg /availablesleepstates)</h2>

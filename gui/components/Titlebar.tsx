@@ -94,7 +94,7 @@ export default function Titlebar() {
             System Optimizer Tool
           </span>
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800/80 text-neutral-400 border border-neutral-700/50">
-            v5.0
+            v6.0
           </span>
         </div>
 

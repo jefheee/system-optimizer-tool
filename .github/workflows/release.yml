@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag de versão (ex: v5.0.0)'
+        description: 'Tag de versão (ex: v6.0.0)'
         required: false
-        default: 'v5.0.0'
+        default: 'v6.0.0'
 
 jobs:
   release:
@@ -24,6 +24,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Resolve App Version
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./gui/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,15 +61,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: "./gui"
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: "System Optimizer Tool ${{ github.event.inputs.tag || github.ref_name }}"
+          tagName: ${{ github.event.inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || steps.meta.outputs.tag }}
+          releaseName: "System Optimizer Tool ${{ github.event.inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || steps.meta.outputs.tag }}"
           releaseBody: |
-            ## 🚀 System Optimizer Tool v5.0.0
+            ## 🚀 System Optimizer Tool v${{ steps.meta.outputs.version }}
 
             Utilitário nativo de alto desempenho em Rust e Next.js com zero telemetria, zero processos daemon em segundo plano e 100% de transparência técnica com reversibilidade atômica.
 
             ### 📦 Como Instalar e Executar (Super Simples)
-            1. Baixe o instalador `.exe` anexado abaixo (`System-Optimizer-Tool_5.0.0_x64-setup.exe` ou `.msi`).
+            1. Baixe o instalador `.exe` anexado abaixo (`System-Optimizer-Tool_${{ steps.meta.outputs.version }}_x64-setup.exe` ou `.msi`).
             2. Dê um duplo-clique no executável para iniciar a instalação automática.
             3. O atalho é criado na sua Área de Trabalho e Menu Iniciar.
             4. Execute o programa normalmente! Todas as ferramentas contam com reversibilidade e criação de Ponto de Restauração em 1 clique.
@@ -69,7 +77,7 @@ jobs:
             ---
 
             ### 🇬🇧 How to Install and Run
-            1. Download the setup `.exe` installer below (`System-Optimizer-Tool_5.0.0_x64-setup.exe` or `.msi`).
+            1. Download the setup `.exe` installer below (`System-Optimizer-Tool_${{ steps.meta.outputs.version }}_x64-setup.exe` or `.msi`).
             2. Double-click the file to install (1-click setup).
             3. A shortcut is created on your Desktop and Start Menu.
             4. Launch **System Optimizer Tool** and enjoy maximum performance!

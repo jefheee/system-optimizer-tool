@@ -24,7 +24,7 @@ export default function PresetsModule() {
   const { diagnostics, refreshAudit, requireRestorePoint } = useHardware();
   const [runningPreset, setRunningPreset] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([
-    `[00:00:01] [SYSTEM] System Optimizer v5.0 Kernel Engine ${language === 'PT' ? 'inicializado.' : 'initialized.'}`,
+    `[00:00:01] [SYSTEM] System Optimizer v6.0 Kernel Engine ${language === 'PT' ? 'inicializado.' : 'initialized.'}`,
     `[00:00:01] [INFO] ${language === 'PT' ? 'Mapeamento de perfis inteligentes concluído (4 perfis carregados).' : 'Smart profiles mapping completed (4 profiles loaded).'}`,
     `[00:00:02] [READY] ${language === 'PT' ? 'Aguardando acionamento de perfil pelo usuário...' : 'Ready. Awaiting user profile execution...'}`,
   ]);
@@ -251,11 +251,10 @@ export default function PresetsModule() {
                 <button
                   onClick={() => handleRunPreset(p.id, p.title)}
                   disabled={isBusy}
-                  className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
-                    p.isPrimary
+                  className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${p.isPrimary
                       ? 'bg-emerald-400/90 hover:bg-emerald-400 text-neutral-950 font-bold shadow-[0_0_12px_rgba(52,211,153,0.3)]'
                       : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-100 border border-neutral-700'
-                  }`}
+                    }`}
                 >
                   {isBusy ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -308,10 +307,10 @@ export default function PresetsModule() {
                   isError
                     ? 'text-red-400'
                     : isSuccess
-                    ? 'text-emerald-400'
-                    : isStart
-                    ? 'text-cyan-400'
-                    : 'text-neutral-300'
+                      ? 'text-emerald-400'
+                      : isStart
+                        ? 'text-cyan-400'
+                        : 'text-neutral-300'
                 }
               >
                 {log}

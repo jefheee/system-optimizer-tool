@@ -256,7 +256,7 @@ export default function HomeModule({ onNavigate }: HomeModuleProps) {
                   System Optimizer Tool
                 </h1>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700/60">
-                  v5.0 Enterprise
+                  v6.0 Enterprise
                 </span>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   ● {language === 'PT' ? 'PADRÃO / ULTRA LATÊNCIA' : 'DEFAULT / ULTRA LATENCY'}

@@ -452,7 +452,7 @@ export const DICTIONARY: Record<Language, Translations> = {
     "titlebar_restore": "Restaurar",
     "titlebar_title": "System Optimizer Tool",
     "titlebar_user_badge": "PADRÃO",
-    "titlebar_version": "v5.0",
+    "titlebar_version": "v6.0",
     "tut_adw_step1": "1. Clique em 'Abrir AdwCleaner' para baixar e iniciar a versão portátil oficial.",
     "tut_adw_step2": "2. Clique no botão azul 'Scan Now' (Verificar Agora) no centro da tela.",
     "tut_adw_step3": "3. Se algum adware ou barra de ferramentas suspeita for detectado, clique em 'Quarantine' (Quarentena).",
